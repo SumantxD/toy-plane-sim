@@ -123,6 +123,8 @@ func _ready() -> void:
 			get_tree().quit())
 	if "--free" in args:
 		free_flight()
+	if "--test-deploy" in args: # test hook: a joined client calls in a SAM site
+		get_tree().create_timer(25.0).timeout.connect(func(): request_deploy.rpc_id(1, "sam"))
 	if "--solo" in args:
 		solo_battle()
 		if "--start" in args:
@@ -388,13 +390,16 @@ func register(info: Dictionary) -> void:
 				c.set_hp.rpc_id(id, c.hp, c.comps)
 				if not c.alive:
 					c.die.rpc_id(id, false)
+		if battlefield: # replay deployed defenses in order so turret indices match
+			for g in battlefield.guns.slice(battlefield.base_count):
+				bf_event.rpc_id(id, "deploy", g.team * 10 + Battlefield.KINDS.find(g.kind), g.position, g.position + Vector3.UP * 5.0)
 	_push()
 
 
 func _add_player(id: int, pilot: String) -> void:
 	pilot = pilot.strip_edges().left(16)
 	var counts := _team_counts()
-	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in [1, 3] or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
+	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in [1, 3] or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub", charges = 2}
 
 
 @rpc("authority", "call_local", "reliable")
@@ -521,6 +526,7 @@ func _start() -> void:
 		gs.players[id].kills = 0
 		gs.players[id].deaths = 0
 		gs.players[id].revives = 0
+		gs.players[id].charges = 2
 	gs.team_kills = [0, 0]
 	gs.ai_board = {}
 	if gs.mode == 3:
@@ -591,6 +597,7 @@ func _process(dt: float) -> void:
 	if battlefield:
 		battlefield.server_tick(dt)
 		battlefield.server_guns(dt)
+	_tick_charges(dt)
 	if gs.mode == 0:
 		_tick_escort(dt)
 	elif gs.mode == 1:
@@ -727,6 +734,8 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 		var dmg: int = DAMAGE[weapon]
 		if a.role == "fighter":
 			dmg = ceili(dmg * (0.4 if t.role == "bomber" else 0.6)) # raiders hit softer (bombers must be escortable)
+		elif a.role == "turret":
+			dmg = ceili(dmg * (0.15 if t.role == "bomber" else 0.6)) # defenses chip bombers, they don't erase them
 		elif a.role == "wing" and t.role == "pilot":
 			dmg = ceili(dmg * 0.75) # AI wingmen/enemies go a bit easy on humans
 		var c: PackedFloat32Array = t.comps.duplicate()
@@ -1085,6 +1094,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			request_ping.rpc_id(1, "Help!")
 		KEY_2:
 			request_ping.rpc_id(1, "On me")
+		KEY_3:
+			request_deploy.rpc_id(1, "rapid")
+		KEY_4:
+			request_deploy.rpc_id(1, "sam")
+		KEY_5:
+			request_deploy.rpc_id(1, "radar")
 
 
 func _refresh_ui() -> void:
@@ -1223,6 +1238,9 @@ func _draw_overlay() -> void:
 	if battlefield:
 		for c in battlefield.crates.values():
 			_marker(cam, c.pos, Color(1.0, 0.85, 0.2), "SUPPLY")
+		for g in battlefield.guns:
+			if g.alive and g.visible and g.team != team and cam.global_position.distance_to(g.global_position) < 1300.0:
+				_marker(cam, g.global_position + Vector3.UP * 8.0, Color(1.0, 0.3, 0.25), Battlefield.Turret.SPEC[g.kind].tag)
 	var me := _plane(multiplayer.get_unique_id())
 	if not me or not me.alive:
 		return
@@ -1542,14 +1560,64 @@ func bf_event(kind: String, id: int, at: Vector3, v: Vector3) -> void:
 			battlefield.spawn_crate(id, at)
 		"gone":
 			battlefield.remove_crate(id)
-		"flak":
-			battlefield.flak(id, at, v.x)
+		"flak", "rapid":
+			battlefield.shot(id, kind, at, v.x)
+		"deploy":
+			battlefield.deploy(Battlefield.KINDS[id % 10], id / 10, v, at)
 
 
 @rpc("authority", "call_local", "reliable")
 func env_event(kind: String, at: Vector3, v: Vector3) -> void:
 	if env:
 		env.show_event(kind, at, v)
+
+
+# Planes or turrets by node name (rockets from SAM sites need their owner on every peer).
+func find_unit(n: String) -> Node:
+	var p := players.get_node_or_null(n)
+	if not p and battlefield:
+		p = battlefield.get_node_or_null(n)
+	return p
+
+
+# ---------- deployable defenses ----------
+const DEPLOY_COST := {rapid = 1, sam = 2, radar = 1}
+const MAX_CHARGES := 3
+var charge_t := 0.0
+
+@rpc("any_peer", "call_local", "reliable")
+func request_deploy(kind: String) -> void:
+	var p := _plane(_sender())
+	var info = gs.players.get(_sender())
+	if p and info and DEPLOY_COST.has(kind) and info.get("charges", 0) >= DEPLOY_COST[kind]:
+		if deploy(p, kind):
+			info.charges -= DEPLOY_COST[kind]
+			_push()
+
+
+# Server: drop a turret for `p`'s team onto the ground below it. Returns false if there's no spot.
+func deploy(p: Node, kind: String) -> bool:
+	if gs.phase != "playing" or gs.mode == 2 or not battlefield or battlefield.deployed_alive(p.team) >= Battlefield.MAX_DEPLOYED:
+		return false
+	var at := Vector3(p.position.x, Terrain.floor_below(p.position), p.position.z)
+	if p.position.y - at.y > 700.0 or at.y < Terrain.WATER_Y + 1.0 or hits_obstacle(at + Vector3.UP * 3.0) or absf(at.x) > 1900.0 or absf(at.z) > 1900.0:
+		return false
+	bf_event.rpc("deploy", p.team * 10 + Battlefield.KINDS.find(kind), at, p.position)
+	var what: String = Battlefield.Turret.SPEC[kind].name
+	_feed("%s deployed %s %s" % [p.pilot, "an" if what[0] in "AEIOU" else "a", what])
+	return true
+
+
+func _tick_charges(dt: float) -> void:
+	charge_t += dt
+	if charge_t < 90.0:
+		return
+	charge_t = 0.0
+	for id in gs.players:
+		gs.players[id].charges = mini(gs.players[id].get("charges", 0) + 1, MAX_CHARGES)
+	for p in players.get_children():
+		if p.ai.has("traits"):
+			p.ai.charges = mini(p.ai.get("charges", 1) + 1, MAX_CHARGES)
 
 
 # Damage from the world itself (lava, lightning): server only.

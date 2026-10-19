@@ -106,6 +106,8 @@ static func _layout() -> void:
 		spots["arches"] = Vector3(ARCHES.x, Terrain.height(ARCHES.x, ARCHES.y), ARCHES.y)
 	if Worlds.has("layout"):
 		Worlds.mod.layout() # world-specific landmarks via the helpers below
+	for s in Battlefield.base_spots(): # clear trees around gun emplacements
+		_keep_out.append(Vector3(s[0].x, s[0].y, 45.0))
 
 
 static func _home_airfield() -> void:

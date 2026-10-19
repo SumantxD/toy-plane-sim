@@ -121,6 +121,13 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 		if randf() < 0.35 + 0.3 * tr.flair:
 			_start_move(p, s, _pick_move(p, ["splits", "zoom", "scissors", "roll", "jink"]), threat)
 		return
+	# Careful or loyal pilots dig in: drop a defense near home or near the bombers.
+	if p.role == "wing" and s.get("charges", 1) > 0 and randf() < 0.015 * (tr.caution + tr.loyalty):
+		var home: Vector3 = main.home_for(p.team)
+		if Vector2(p.position.x - home.x, p.position.z - home.z).length() < 900.0 and p.position.y - Terrain.floor_below(p.position) < 400.0:
+			var k: String = ["rapid", "rapid", "radar", "sam"].pick_random()
+			if s.get("charges", 1) >= (2 if k == "sam" else 1) and main.deploy(p, k):
+				s.charges = s.get("charges", 1) - (2 if k == "sam" else 1)
 	# Hurt or out of rockets: a supply crate nearby is worth the detour.
 	if (hurt > 0.45 or p.rockets_left == 0) and main.battlefield and randf() < 0.6:
 		var crate = main.battlefield.nearest_crate(p.position, 1600.0)
@@ -198,6 +205,8 @@ static func _pick_target(p: Node, s: Dictionary, tr: Dictionary, main: Node) -> 
 			score -= (1.0 - float(e.hp) / e.max_hp) * 600.0 # finish the wounded
 		if p.role == "fighter" and e.role == "bomber":
 			score -= 500.0
+		if e.role == "turret":
+			score += 700.0 # ground targets only when nothing better is close
 		if e == s.target:
 			score *= 0.85
 		score += randf_range(0.0, 150.0) # a little indecision
@@ -450,4 +459,9 @@ static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3
 
 
 static func _enemies(p: Node, main: Node) -> Array:
-	return main.players.get_children().filter(func(e): return e.alive and e.team != p.team and e.role != "balloon")
+	var list: Array = main.players.get_children().filter(func(e): return e.alive and e.team != p.team and e.role != "balloon")
+	if main.battlefield and main.gs.mode != 2:
+		for g in main.battlefield.guns:
+			if g.alive and g.active and g.team != p.team and g.position.distance_to(p.position) < 900.0:
+				list.append(g)
+	return list

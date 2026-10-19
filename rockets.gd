@@ -50,9 +50,18 @@ func launch(owner: Node, target: Node) -> void:
 	spawn_remote.rpc(id, p, v, owner.name, tname)
 
 
+# Launch from an arbitrary point/velocity (SAM sites on the ground).
+func fire_from(owner: Node, p: Vector3, v: Vector3, target: Node) -> void:
+	count += 1
+	var id := "%s_%d" % [owner.name, count]
+	var tname: String = target.name if target else ""
+	_add(id, p, v, owner, tname, true)
+	spawn_remote.rpc(id, p, v, owner.name, tname)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target_name: String) -> void:
-	_add(id, p, v, main().players.get_node_or_null(owner_name), target_name, false)
+	_add(id, p, v, main().find_unit(owner_name), target_name, false)
 
 
 @rpc("any_peer", "call_remote", "reliable")

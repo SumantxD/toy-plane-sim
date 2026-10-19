@@ -205,7 +205,9 @@ func _process(dt: float) -> void:
 		for i in 4:
 			if comps[i] < 0.6:
 				broken.append("%s %d%%" % [Planes.COMPONENT_NAMES[i], comps[i] * 100])
-		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
+		var me = main.gs.players.get(multiplayer.get_unique_id(), {})
+		var deploy := "   Deploy %d  [3 AA  4 SAM(2)  5 Radar]" % me.get("charges", 0) if main.gs.mode != 2 else ""
+		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
 
