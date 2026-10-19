@@ -36,7 +36,7 @@ var lobby_cam := Camera3D.new()
 var gs := {
 	phase = "menu", mode = 0, leader = 1, players = {}, lives = [0, 0], clutch = [-1.0, -1.0],
 	time = 0.0, wave = 0, next_wave = 0.0, arrived = 0, lost = 0, sudden = false,
-	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0, size = 1, skill = 1, team_kills = [0, 0], ai_board = {},
+	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0, size = 1, skill = 1, team_kills = [0, 0], ai_board = {}, world = 0, storm = 0.0,
 }
 var beacons := {} # server only: victim id -> {pos, t, team}
 var respawning := {} # server only: victim id -> team, waiting out RESPAWN_DELAY
@@ -55,6 +55,7 @@ var lobby_list := Label.new()
 var mode_btn := OptionButton.new()
 var plane_btn := OptionButton.new()
 var battle_row := HBoxContainer.new()
+var world_btn := OptionButton.new()
 var size_btn := OptionButton.new()
 var skill_btn := OptionButton.new()
 var plane_choice := "cub"
@@ -151,6 +152,10 @@ func _ready() -> void:
 					rows.append("%s:%s%s/%d" % [p.pilot.left(4), ["P", "U", "A", "E", "R"][p.ai.get("state", 0)] if p.ai else "-", "" if p.alive else "x", p.position.y])
 				print("DBG phase=%s t=%d lives=%s  %s" % [gs.phase, gs.time, gs.lives, " ".join(rows)]))
 			add_child(t)
+		var wi := args.find("--world")
+		if wi >= 0:
+			gs.world = int(args[wi + 1])
+			_build_world_content(gs.world)
 		var mi := args.find("--mode")
 		if mi >= 0 and mi + 1 < args.size():
 			gs.mode = clampi(int(args[mi + 1]), 0, MODES.size() - 1)
@@ -396,8 +401,14 @@ func _add_player(id: int, pilot: String) -> void:
 func sync(state: Dictionary) -> void:
 	var was: String = gs.phase
 	gs = state
+	if gs.get("world", 0) != Worlds.index:
+		_build_world_content(gs.world)
 	if gs.phase != was and gs.phase == "playing":
 		Sfx.ui(self, Sfx.CONFIRM, -4.0)
+		if battlefield:
+			battlefield.reset_guns()
+			for id in battlefield.crates.keys():
+				battlefield.remove_crate(id)
 	if gs.phase != was and gs.phase != "playing":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		lobby_cam.make_current()
@@ -505,6 +516,7 @@ func _start() -> void:
 	respawning.clear()
 	gs.msg = ""
 	gs.popped = 0
+	gs.storm = 0.0
 	for id in gs.players:
 		gs.players[id].kills = 0
 		gs.players[id].deaths = 0
@@ -574,6 +586,11 @@ func _process(dt: float) -> void:
 	if not multiplayer.is_server() or gs.phase != "playing":
 		return
 	_tick_beacons(dt)
+	if env:
+		env.server_tick(dt)
+	if battlefield:
+		battlefield.server_tick(dt)
+		battlefield.server_guns(dt)
 	if gs.mode == 0:
 		_tick_escort(dt)
 	elif gs.mode == 1:
@@ -721,13 +738,14 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 			kill(t, a)
 
 
-func kill(victim: Node, killer: Node) -> void:
+func kill(victim: Node, killer: Node, quiet := false) -> void:
 	if not victim.alive:
 		return
 	victim.die.rpc(true)
 	if gs.phase != "playing":
 		return
-	_feed("%s shot down %s" % [killer.pilot, victim.pilot] if killer else "%s crashed" % victim.pilot)
+	if not quiet:
+		_feed("%s shot down %s" % [killer.pilot, victim.pilot] if killer else "%s crashed" % victim.pilot)
 	if killer and killer.role == "pilot" and gs.players.has(int(str(killer.name))):
 		gs.players[int(str(killer.name))].kills += 1
 	if killer and killer.team != victim.team:
@@ -997,8 +1015,9 @@ func _yaw_to(d: Vector3) -> float:
 
 
 func hits_ground(p: Vector3) -> bool:
-	var h := Terrain.height(p.x, p.z)
-	return p.y < h + 1.0 or (p.y < h + obstacle_top and hits_obstacle(p))
+	if Terrain.solid(p) or p.y < Worlds.cur.env.kill_y:
+		return true
+	return p.y < Terrain.height(p.x, p.z) + obstacle_top and hits_obstacle(p)
 
 
 # Obstacles bucketed into 100 m cells so a point test only scans its own cell.
@@ -1078,6 +1097,8 @@ func _refresh_ui() -> void:
 	switch_btn.visible = gs.mode in [1, 3]
 	battle_row.visible = gs.mode == 3
 	size_btn.disabled = not leader
+	world_btn.disabled = not leader
+	world_btn.selected = gs.get("world", 0)
 	skill_btn.disabled = not leader
 	size_btn.selected = gs.size
 	skill_btn.selected = gs.skill
@@ -1188,6 +1209,8 @@ func _scoreboard() -> String:
 
 
 func _draw_overlay() -> void:
+	if not Sfx.enabled:
+		return # headless: nothing to draw on
 	var cam := get_viewport().get_camera_3d()
 	if gs.phase != "playing" or not cam or cam == lobby_cam:
 		return
@@ -1197,6 +1220,9 @@ func _draw_overlay() -> void:
 			_marker(cam, b[0], Color.ORANGE, "REVIVE %s  %ds" % [b[3], b[2]])
 	for p in pings:
 		_marker(cam, p[0], Color.CYAN, p[1])
+	if battlefield:
+		for c in battlefield.crates.values():
+			_marker(cam, c.pos, Color(1.0, 0.85, 0.2), "SUPPLY")
 	var me := _plane(multiplayer.get_unique_id())
 	if not me or not me.alive:
 		return
@@ -1292,6 +1318,10 @@ func _build_ui() -> void:
 		mode_btn.add_item(mo)
 	mode_btn.item_selected.connect(func(i): request_mode.rpc_id(1, i))
 	box.add_child(mode_btn)
+	for wn in Worlds.NAMES:
+		world_btn.add_item(wn)
+	world_btn.item_selected.connect(func(i): request_world.rpc_id(1, i))
+	box.add_child(world_btn)
 	battle_row.add_theme_constant_override("separation", 8)
 	for sz in SIZES:
 		size_btn.add_item("%dv%d" % [sz, sz])
@@ -1428,18 +1458,7 @@ func _button(box: VBoxContainer, text: String, cb: Callable) -> Button:
 # ---------- world ----------
 
 func _build_world() -> void:
-	var world_env := WorldEnvironment.new()
-	world_env.environment = Atmos.build_environment()
-	add_child(world_env)
-	var sun := Atmos.build_sun()
-	sun.add_to_group("sun")
-	add_child(sun)
-	add_child(Atmos.build_clouds())
-	add_child(Atmos.build_water())
-	add_child(Terrain.build())
-	add_child(Props.build())
-	for a in Props.obstacles():
-		_add_obstacle(a)
+	_build_world_content(Worlds.index)
 
 	var goal := MeshInstance3D.new()
 	goal.mesh = CylinderMesh.new()
@@ -1454,7 +1473,10 @@ func _build_world() -> void:
 	goal.position = ROUTE[-1] + Vector3(0, 80, 0)
 	goal.name = "EscortGoal"
 	add_child(goal)
+	_build_static()
 
+
+func _build_static() -> void:
 	lobby_cam.far = 6000.0
 	add_child(lobby_cam)
 	lobby_cam.look_at_from_position(Vector3(0, 230, 2450), Vector3(0, 60, 0))
@@ -1462,6 +1484,87 @@ func _build_world() -> void:
 	add_outline(lobby_cam)
 	add_child(preview)
 	preview.global_transform = Transform3D(Basis(), lobby_cam.global_position - lobby_cam.global_basis.z * 20.0 + lobby_cam.global_basis.x * 5.0 - lobby_cam.global_basis.y * 0.5)
+
+
+# Everything that differs per world lives under world_root, so a world switch is free-and-rebuild.
+var world_root: Node3D
+var env: Env
+var battlefield: Battlefield
+var world_env: WorldEnvironment
+
+func _build_world_content(i: int) -> void:
+	if world_root:
+		world_root.free()
+	obstacles.clear()
+	obstacle_grid.clear()
+	obstacle_top = 0.0
+	Worlds.select(i)
+	world_root = Node3D.new()
+	world_root.name = "World"
+	add_child(world_root)
+	move_child(world_root, 0)
+	world_env = WorldEnvironment.new()
+	world_env.environment = Atmos.build_environment()
+	world_root.add_child(world_env)
+	var sun := Atmos.build_sun()
+	sun.add_to_group("sun")
+	world_root.add_child(sun)
+	world_root.add_child(Atmos.build_clouds())
+	world_root.add_child(Atmos.build_water())
+	world_root.add_child(Terrain.build())
+	world_root.add_child(Props.build())
+	for a in Props.obstacles():
+		_add_obstacle(a)
+	Sfx.ambience(world_root)
+	battlefield = Battlefield.new()
+	battlefield.name = "Battlefield"
+	world_root.add_child(battlefield)
+	battlefield.setup(self)
+	env = Env.new()
+	world_root.add_child(env)
+	env.setup(self, world_env.environment)
+	Settings.apply(get_tree())
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_world(i: int) -> void:
+	if _sender() == gs.leader and gs.phase == "lobby":
+		gs.world = clampi(i, 0, Worlds.LIST.size() - 1)
+		_push()
+
+
+@rpc("authority", "call_local", "reliable")
+func bf_event(kind: String, id: int, at: Vector3, v: Vector3) -> void:
+	if not battlefield:
+		return
+	match kind:
+		"drop":
+			battlefield.spawn_crate(id, at)
+		"gone":
+			battlefield.remove_crate(id)
+		"flak":
+			battlefield.flak(id, at, v.x)
+
+
+@rpc("authority", "call_local", "reliable")
+func env_event(kind: String, at: Vector3, v: Vector3) -> void:
+	if env:
+		env.show_event(kind, at, v)
+
+
+# Damage from the world itself (lava, lightning): server only.
+func env_hit(p: Node, dmg: int, cause: String) -> void:
+	if not p.alive or gs.phase != "playing":
+		return
+	p.set_hp.rpc(p.hp - dmg, p.comps)
+	if p.hp <= 0:
+		_feed("%s was downed by %s" % [p.pilot, cause])
+		kill(p, null, true)
+
+
+func feed_msg(text: String) -> void:
+	_feed(text)
+	_push()
 
 
 var toon_cache := {}

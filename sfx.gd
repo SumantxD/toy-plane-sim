@@ -8,6 +8,7 @@ const JET := preload("res://assets/sfx/jet_loop.wav")
 const WIND := preload("res://assets/sfx/wind_loop.wav")
 const GUN := preload("res://assets/sfx/gun.wav")
 const WHIZ := preload("res://assets/sfx/whiz.wav")
+const THUNDER := preload("res://assets/sfx/thunder.wav")
 const LOCK := preload("res://assets/sfx/lock.wav")
 const WARN := preload("res://assets/sfx/warn.wav")
 const LAUNCH := preload("res://assets/sfx/thrusterFire_000.ogg")
@@ -49,3 +50,46 @@ static func ui(host: Node, stream: AudioStream, db := 0.0, pitch := 1.0) -> void
 	host.add_child(p)
 	p.finished.connect(p.queue_free)
 	p.play()
+
+
+# ---------- world ambience: 3D emitters at water and landmarks, heard as you fly close ----------
+const RIVER := preload("res://assets/sfx/river_loop.wav") # CC0, "Park Ambiences" (OpenGameArt)
+const BIRDS := preload("res://assets/sfx/birds_loop.wav") # CC0, "Park Ambiences" (OpenGameArt)
+const WATERFALL := preload("res://assets/sfx/waterfall_loop.wav")
+const CREAK := preload("res://assets/sfx/creak_loop.wav")
+const RUMBLE := preload("res://assets/sfx/rumble_loop.wav")
+# Props.spots keys that get a sound: [stream, volume dB, audible range m]
+const SPOT_SOUNDS := {
+	waterfall = [WATERFALL, 6.0, 900.0], windmill = [CREAK, 0.0, 350.0], village = [BIRDS, -2.0, 500.0],
+	volcano = [RUMBLE, 10.0, 2500.0], lighthouse = [RIVER, -6.0, 400.0],
+}
+
+
+static func ambience(root: Node3D) -> void:
+	if not enabled:
+		return
+	var emit := func(stream: AudioStream, at: Vector3, db: float, reach: float) -> void:
+		var p := AudioStreamPlayer3D.new()
+		p.stream = stream
+		p.volume_db = db
+		p.unit_size = reach / 12.0
+		p.max_distance = reach
+		p.autoplay = true
+		root.add_child(p)
+		p.global_position = at
+		p.play(randf() * 3.0)
+	var water: Dictionary = Worlds.cur.water
+	if Worlds.cur.terrain.river and water.visible:
+		var pts := Terrain.RIVER
+		var gap := 0.0
+		for i in pts.size() - 1:
+			gap += pts[i].distance_to(pts[i + 1])
+			if gap > 380.0 and absf(pts[i].x) < 2600.0 and absf(pts[i].y) < 2600.0:
+				gap = 0.0
+				emit.call(RIVER, Vector3(pts[i].x, Terrain.WATER_Y + 2.0, pts[i].y), 0.0, 420.0)
+	if Worlds.cur.terrain.lake and water.visible:
+		emit.call(RIVER, Vector3(Terrain.LAKE_CENTER.x, Terrain.WATER_Y, Terrain.LAKE_CENTER.y), -3.0, 700.0)
+	for key in Props.spots:
+		if SPOT_SOUNDS.has(key):
+			var s: Array = SPOT_SOUNDS[key]
+			emit.call(s[0], Props.spots[key], s[1], s[2])

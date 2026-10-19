@@ -66,5 +66,32 @@ def beep(f, d):
     return [math.sin(2 * math.pi * f * i / SR) * min(1, i / 200, (n - i) / 200) for i in range(n)]
 
 save("prop_loop.wav", prop()); save("jet_loop.wav", jet()); save("wind_loop.wav", wind())
-save("gun.wav", gun()); save("whiz.wav", whiz()); save("lock.wav", beep(1500, 0.06)); save("warn.wav", beep(900, 0.12))
+def thunder():  # 2.5 s: crack then long low rumble
+    n = int(2.5 * SR); rumble = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.02, 1)
+    out = []
+    for i in range(n):
+        t = i / SR
+        crack = random.uniform(-1, 1) * math.exp(-t / 0.05)
+        out.append(crack * 0.8 + rumble[i] * 6.0 * math.exp(-t / 0.9) * (0.7 + 0.3 * math.sin(t * 9.0)))
+    return out
+
+def waterfall():  # 3 s: dense roaring noise, seamless (state-wrapped filter)
+    n = 3 * SR; a = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.35); b = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.05)
+    return [a[i] * 1.0 + b[i] * 3.0 for i in range(n)]
+
+def creak():  # 4 s: slow wooden squeaks from a turning windmill
+    n = 4 * SR; out = []
+    for i in range(n):
+        t = i / SR; ph = (t % 2.0)
+        env = math.exp(-((ph - 0.6) ** 2) / 0.02) + 0.6 * math.exp(-((ph - 1.5) ** 2) / 0.01)
+        f = 180 + 60 * math.sin(t * 3.1)
+        out.append(math.sin(2 * math.pi * f * t + 3 * math.sin(2 * math.pi * 23 * t)) * env * 0.6 + random.uniform(-1, 1) * 0.03)
+    return out
+
+def rumble():  # 4 s: deep volcanic rumble
+    n = 4 * SR; x = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.01)
+    return [v * (0.8 + 0.2 * math.sin(2 * math.pi * 0.5 * i / SR)) for i, v in enumerate(x)]
+
+save("waterfall_loop.wav", waterfall()); save("creak_loop.wav", creak()); save("rumble_loop.wav", rumble())
+save("thunder.wav", thunder()); save("gun.wav", gun()); save("whiz.wav", whiz()); save("lock.wav", beep(1500, 0.06)); save("warn.wav", beep(900, 0.12))
 print("ok")

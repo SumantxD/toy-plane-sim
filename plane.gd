@@ -308,6 +308,8 @@ func _fly(dt: float) -> void:
 		velocity.y -= GRAVITY * (1.0 - speed / STALL) * dt
 	velocity.y -= (2.0 - comps[0] - comps[1]) * 3.0 * dt # lost lift from wing damage
 	position += velocity * dt
+	if main.env:
+		position += main.env.air_at(position) * dt # wind, gusts, updrafts carry the plane
 	position.x = clampf(position.x, -main.WORLD_SIZE, main.WORLD_SIZE)
 	position.z = clampf(position.z, -main.WORLD_SIZE, main.WORLD_SIZE)
 	position.y = minf(position.y, 800.0)
@@ -468,6 +470,16 @@ func _make_smoke(at: Vector3) -> CPUParticles3D:
 
 func _tag_text() -> String:
 	return "%s %d%%" % [pilot, 100 * hp / max_hp] if role == "bomber" else pilot
+
+
+@rpc("any_peer", "call_local", "reliable")
+func resupply() -> void:
+	if multiplayer.get_remote_sender_id() > 1:
+		return
+	rockets_left = max_rockets
+	boost = 1.0
+	if is_local():
+		Sfx.ui(main, Sfx.CONFIRM, 0.0)
 
 
 @rpc("any_peer", "call_local", "reliable")

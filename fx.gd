@@ -122,7 +122,7 @@ static func shoot_down(main: Node, body: Node3D, at: Transform3D, vel: Vector3) 
 		var wing: MeshInstance3D = parts.pick_random()
 		var g := wing.global_transform
 		shell.remove_child(wing)
-		_debris(main, wing, g, w.vel + wing.global_basis.x * 12.0 + Vector3.UP * 6.0, 4.0)
+		_debris(main, wing, g, w.vel + g.basis.x.normalized() * 12.0 + Vector3.UP * 6.0, 4.0)
 
 
 static func crash(main: Node, pos: Vector3, vel: Vector3) -> void:
@@ -170,3 +170,23 @@ static func _debris(main: Node, piece: Node3D, at: Transform3D, v: Vector3, life
 		piece.position = start + v * t + Vector3.DOWN * 9.0 * t * t
 		piece.basis = b0 * Basis.from_euler(spin * t), 0.0, life, life)
 	tw.tween_callback(piece.queue_free)
+
+
+# Cartoon flak: a black puff with an orange core, a small bang.
+static func flak(main: Node, at: Vector3) -> void:
+	main.boom(at, 0.45)
+	var puff := MeshInstance3D.new()
+	puff.mesh = SphereMesh.new()
+	puff.mesh.radial_segments = 8
+	puff.mesh.rings = 4
+	puff.material_override = main.toon(Color(0.12, 0.11, 0.11))
+	puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.add_child(puff)
+	puff.global_position = at
+	puff.scale = Vector3.ONE * 4.0
+	var tw := puff.create_tween()
+	tw.tween_property(puff, "scale", Vector3.ONE * 18.0, 0.5).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(1.2)
+	tw.tween_property(puff, "scale", Vector3.ONE * 0.1, 1.0)
+	tw.tween_callback(puff.queue_free)
+	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)

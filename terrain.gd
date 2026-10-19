@@ -3,7 +3,7 @@ extends RefCounted
 
 # Shared world contract. Every peer builds the same world from these, nothing is synced.
 # height(x, z) is the ONE source of truth for ground: mesh, crashes, prop placement, AI.
-const SEED := 1337
+static var SEED := 1337 # per world (Worlds.configure)
 const WATER_Y := 6.0
 const ROUTE := [Vector3(0, 220, 1800), Vector3(1200, 220, 600), Vector3(-1200, 220, -600), Vector3(0, 220, -1800)]
 const CORRIDOR_CAP := 90.0 # ground under the bomber route never exceeds this
@@ -28,6 +28,38 @@ static var _river_cells := {}
 static var _noise: FastNoiseLite
 static var _ridge: FastNoiseLite
 static var _tint: FastNoiseLite
+# Current world's terrain knobs, copied out of Worlds.cur for speed (height() is hot).
+static var _base := 18.0
+static var _amp := 220.0
+static var _pow := 1.6
+static var _freq := 0.0011
+static var _mount := 1.0
+static var _lake := true
+static var _river := true
+static var _floating := false
+static var _pal: Dictionary = {}
+static var _shape := Callable()
+static var _recolor := Callable()
+static var _bottom := Callable()
+
+
+static func configure() -> void:
+	var c: Dictionary = Worlds.cur.terrain
+	SEED = c.seed
+	_base = c.base
+	_amp = c.amp
+	_pow = c.power
+	_freq = c.freq
+	_mount = c.mountain
+	_lake = c.lake
+	_river = c.river
+	_floating = c.floating
+	_pal = Worlds.cur.palette
+	_shape = Callable(Worlds.mod, "shape") if Worlds.has("shape") else Callable()
+	_recolor = Callable(Worlds.mod, "color") if Worlds.has("color") else Callable()
+	_bottom = Callable(Worlds.mod, "bottom") if Worlds.has("bottom") else Callable()
+	_noise = null
+	_river_cells = {}
 
 
 static func _n() -> FastNoiseLite:
@@ -35,7 +67,7 @@ static func _n() -> FastNoiseLite:
 		_noise = FastNoiseLite.new()
 		_noise.seed = SEED
 		_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		_noise.frequency = 0.0011
+		_noise.frequency = _freq
 		_noise.fractal_octaves = 4
 		_ridge = FastNoiseLite.new()
 		_ridge.seed = SEED + 1
@@ -51,25 +83,49 @@ static func _n() -> FastNoiseLite:
 
 
 static func height(x: float, z: float) -> float:
+	if _pal.is_empty():
+		Worlds.select(Worlds.index)
 	var n := _n().get_noise_2d(x, z) * 0.5 + 0.5
-	var h := 18.0 + pow(n, 1.6) * 220.0
+	var h := _base + pow(n, _pow) * _amp
 	var rwd := _rect_dist(RUNWAY, Vector2(x, z))
 	var edge := maxf(absf(x), absf(z)) + _noise.get_noise_2d(z + 7000.0, x - 3000.0) * 250.0
 	var m := smoothstep(1500.0, 2700.0, edge) * smoothstep(250.0, 900.0, rwd) # runway keeps an open valley
-	if m > 0.0: # ring of mountains = soft world edge
-		h += m * (180.0 + (_ridge.get_noise_2d(x, z) * 0.5 + 0.5) * 560.0)
+	if m > 0.0 and _mount > 0.0: # ring of mountains = soft world edge
+		h += m * _mount * (180.0 + (_ridge.get_noise_2d(x, z) * 0.5 + 0.5) * 560.0)
+	if _shape.is_valid():
+		h = _shape.call(x, z, h)
 	h = lerpf(minf(h, CORRIDOR_CAP), h, smoothstep(180.0, 450.0, _route_dist(x, z)))
 	var ld := Vector2(x, z).distance_to(LAKE_CENTER) + _noise.get_noise_2d(x * 3.0, z * 3.0) * 70.0
-	if ld < LAKE_RADIUS * 2.4: # shallow basin, then the lake bowl
+	if _lake and ld < LAKE_RADIUS * 2.4: # shallow basin, then the lake bowl
 		h = minf(h, lerpf(WATER_Y + 5.0, h, smoothstep(LAKE_RADIUS, LAKE_RADIUS * 2.4, ld)))
 		h = lerpf(-12.0, h, smoothstep(LAKE_RADIUS * 0.6, LAKE_RADIUS * 1.05, ld))
-	var rd := _river_dist(x, z)
+	var rd := _river_dist(x, z) if _river else INF
 	if rd < RIVER_REACH: # valley floor just above water, then the channel
 		var valley := minf(60.0 + maxf(h - WATER_Y, 0.0) * 2.0, RIVER_REACH - RIVER_HALF_WIDTH)
 		h = minf(h, lerpf(WATER_Y + 5.0, h, smoothstep(RIVER_HALF_WIDTH, RIVER_HALF_WIDTH + valley, rd)))
 		h = minf(h, lerpf(RIVER_BED_Y, h, smoothstep(RIVER_HALF_WIDTH * 0.5, RIVER_HALF_WIDTH + 12.0, rd)))
 	h = lerpf(RUNWAY_Y, h, smoothstep(10.0, 220.0, rwd))
 	return h
+
+
+# Underside of floating ground at (x, z); -INF when the ground is solid all the way down.
+static func bottom(x: float, z: float) -> float:
+	return _bottom.call(x, z) if _bottom.is_valid() else -INF
+
+
+# True when p is inside ground (or below a floating world's kill floor).
+static func solid(p: Vector3) -> bool:
+	var top := height(p.x, p.z)
+	return p.y < top + 1.0 and p.y > bottom(p.x, p.z)
+
+
+# Height of the first surface below p (for floating worlds, flying under an island is fine).
+static func floor_below(p: Vector3) -> float:
+	var top := height(p.x, p.z)
+	if not _floating:
+		return top
+	var kill: float = Worlds.cur.env.kill_y
+	return maxf(top, kill) if p.y >= top else maxf(kill, -50.0)
 
 
 static func normal(x: float, z: float) -> Vector3:
@@ -140,12 +196,21 @@ static func build() -> Node3D:
 			var b := Vector3(x0 + FINE, hs[i * n + j + 1], z0)
 			var c := Vector3(x0, hs[(i + 1) * n + j], z0 + FINE)
 			var d := Vector3(x0 + FINE, hs[(i + 1) * n + j + 1], z0 + FINE)
+			if _floating and maxf(maxf(a.y, b.y), maxf(c.y, d.y)) < WATER_Y - 2.0:
+				continue # open sky between islands
 			if (i + j) & 1: # alternate diagonals: less grid-like facets
 				_tri(pos, col, a, b, c)
 				_tri(pos, col, b, d, c)
 			else:
 				_tri(pos, col, a, b, d)
 				_tri(pos, col, a, d, c)
+			if _floating: # rocky underside, wound to face down
+				var ua := Vector3(a.x, minf(bottom(a.x, a.z), a.y), a.z)
+				var ub := Vector3(b.x, minf(bottom(b.x, b.z), b.y), b.z)
+				var uc := Vector3(c.x, minf(bottom(c.x, c.z), c.y), c.z)
+				var ud := Vector3(d.x, minf(bottom(d.x, d.z), d.y), d.z)
+				_under(pos, col, ua, ub, ud)
+				_under(pos, col, ua, ud, uc)
 
 	var cn := int(COARSE_EXTENT * 2.0 / COARSE)
 	var sub := int(COARSE / FINE)
@@ -162,6 +227,8 @@ static func build() -> Node3D:
 			var e := sub if inside_z and x0 == FINE_EXTENT else 1
 			var s := sub if inside_x and z0 + COARSE == -FINE_EXTENT else 1
 			var nn := sub if inside_x and z0 == FINE_EXTENT else 1
+			if _floating and height(x0 + COARSE / 2.0, z0 + COARSE / 2.0) < WATER_Y - 2.0:
+				continue
 			if w + e + s + nn == 4:
 				var a := _v(x0, z0)
 				var b := _v(x0 + COARSE, z0)
@@ -204,6 +271,20 @@ static func build() -> Node3D:
 	return mi
 
 
+static func _under(pos: PackedVector3Array, col: PackedColorArray, a: Vector3, b: Vector3, c: Vector3) -> void:
+	if (c - a).cross(b - a).y > 0.0:
+		var t := b
+		b = c
+		c = t
+	pos.append(a)
+	pos.append(b)
+	pos.append(c)
+	var k: Color = (_pal.cliff as Color).darkened(0.25 + fmod(absf(a.x * 0.013 + a.z * 0.007), 0.15))
+	col.append(k)
+	col.append(k)
+	col.append(k)
+
+
 static func _v(x: float, z: float) -> Vector3:
 	return Vector3(x, height(x, z), z)
 
@@ -226,30 +307,33 @@ static func _tri(pos: PackedVector3Array, col: PackedColorArray, a: Vector3, b: 
 
 
 static func _face_color(p: Vector3, up: float) -> Color:
+	var P := _pal
 	var t := _tint.get_noise_2d(p.x, p.z) # -1..1 patches
 	var jit := (float(hash(Vector2i(int(p.x * 7.0), int(p.z * 7.0))) % 1000) / 1000.0 - 0.5) * 0.06
 	var h := p.y
 	var k: Color
 	if RUNWAY.grow(0.5).has_point(Vector2(p.x, p.z)):
-		return Color(0.36, 0.37, 0.4)
+		return P.runway
 	if h < WATER_Y - 1.5:
-		k = Color(0.62, 0.6, 0.45)
+		k = P.bed
 	elif h < WATER_Y + 3.5:
-		k = Color(0.95, 0.86, 0.6)
+		k = P.sand
 	elif up < 0.72:
-		k = Color(0.56, 0.53, 0.5).lerp(Color(0.62, 0.5, 0.4), t * 0.5 + 0.5)
-	elif h > 470.0 + t * 60.0 and up > 0.6:
-		k = Color(0.97, 0.98, 1.0)
-	elif h > 320.0 + t * 40.0:
-		k = Color(0.6, 0.6, 0.55) if up < 0.85 else Color(0.33, 0.5, 0.3)
-	elif h > 160.0 + t * 30.0:
-		k = Color(0.27, 0.55, 0.27).lerp(Color(0.2, 0.45, 0.25), t * 0.5 + 0.5)
+		k = (P.cliff as Color).lerp(P.cliff2, t * 0.5 + 0.5)
+	elif h > P.snow_h + t * 60.0 and up > 0.6:
+		k = P.snow
+	elif h > P.alpine_h + t * 40.0:
+		k = P.alpine_rock if up < 0.85 else P.alpine
+	elif h > P.forest_h + t * 30.0:
+		k = (P.forest as Color).lerp(P.forest2, t * 0.5 + 0.5)
 	else:
-		var lush := Color(0.42, 0.72, 0.3).lerp(Color(0.32, 0.62, 0.28), smoothstep(-0.3, 0.3, t))
-		k = lush.lerp(Color(0.72, 0.78, 0.36), smoothstep(0.35, 0.6, t)) # occasional golden fields
-		k = k.lerp(Color(0.22, 0.48, 0.24), smoothstep(-0.35, -0.6, t)) # and darker woodland
+		var lush: Color = (P.lush as Color).lerp(P.lush2, smoothstep(-0.3, 0.3, t))
+		k = lush.lerp(P.field, smoothstep(0.35, 0.6, t)) # occasional fields
+		k = k.lerp(P.wood, smoothstep(-0.35, -0.6, t)) # and darker woodland
 		if up < 0.88:
-			k = k.lerp(Color(0.5, 0.55, 0.32), 0.5)
+			k = k.lerp(P.slope, 0.5)
+	if _recolor.is_valid():
+		k = _recolor.call(p, up, k)
 	return Color(k.r + jit, k.g + jit, k.b + jit)
 
 

@@ -4,6 +4,11 @@ Godot 4.7.2. Code-built game: main.gd (rules, AI, UI, networking), plane.gd (fli
 planes.gd (4 plane types + models), terrain.gd, props.gd (+ LEVEL.md), sky.gd (class Atmos), sfx.gd,
 rockets.gd, bullets.gd. Builds: ../builds (macOS zip, Windows exe, HOW_TO_PLAY.txt).
 
+## Worlds
+worlds.gd = registry + DEFAULT config; each world is worlds/<name>.gd (def + optional shape/color/bottom/layout/nodes hooks).
+env.gd = wind/gust/updrafts/storm/weather/hazards (lava bombs, lightning). battlefield.gd = balloons, supply crates, AA guns.
+Preview a world: `godot --path . -s tools/preview_world.gd -- <index>` -> /tmp/world_<name>_*.png. Test flag: `--world N`.
+
 ## Test
 - `./test.sh MODE CLIENTS SECONDS SPEED` (0 escort, 1 dogfight), e.g. `./test.sh 0 3 70 4`
 - Screenshot + FPS: `godot -- --server --start --bot --shot 30 /tmp/shot.png`

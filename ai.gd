@@ -121,6 +121,14 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 		if randf() < 0.35 + 0.3 * tr.flair:
 			_start_move(p, s, _pick_move(p, ["splits", "zoom", "scissors", "roll", "jink"]), threat)
 		return
+	# Hurt or out of rockets: a supply crate nearby is worth the detour.
+	if (hurt > 0.45 or p.rockets_left == 0) and main.battlefield and randf() < 0.6:
+		var crate = main.battlefield.nearest_crate(p.position, 1600.0)
+		if crate != null:
+			s.state = PATROL
+			s.supply = crate
+			return
+	s.erase("supply")
 	# Mistakes: target fixation for a moment (more for rookies).
 	if randf() < sk.mistakes and s.blind <= 0.0:
 		s.blind = randf_range(0.8, 2.0)
@@ -263,6 +271,9 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 				p.wants_rocket = true
 				s.rocket_t = sk.rocket_cd * randf_range(0.7, 1.4)
 			return aim.normalized()
+	if s.has("supply"):
+		p.throttle = 1.0
+		return (s.supply + Vector3.UP * 4.0 - p.position).normalized()
 	# PATROL: loyal wingmen hold formation on a human; free spirits head for the action.
 	var leader: Node = null
 	for f in main.players.get_children():
@@ -291,7 +302,7 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 # ---------- signature moves: short scripted manoeuvres flown through the normal controls ----------
 
 static func _pick_move(p: Node, options: Array) -> String:
-	var alt: float = p.position.y - Terrain.height(p.position.x, p.position.z)
+	var alt: float = p.position.y - Terrain.floor_below(p.position)
 	var ok: Array = options.filter(func(m): return not (m in ["splits", "loop"] and alt < 280.0))
 	return ok.pick_random() if ok else "jink"
 
@@ -418,7 +429,13 @@ static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3
 	var margin: float = 50.0 + 40.0 * tr.get("caution", 0.5) # hotheads cut it closer
 	for k in [1.0, 2.5]:
 		var probe: Vector3 = p.position + p.velocity * k
-		if probe.y < Terrain.height(probe.x, probe.z) + margin * (1.0 if k < 2.0 else 1.5) or main.hits_obstacle(probe):
+		if Terrain.solid(probe):
+			# Heading into ground: climb, unless we're under a floating island (then dive under it).
+			var under: bool = p.position.y < Terrain.bottom(probe.x, probe.z)
+			return (aim + (Vector3.DOWN if under else Vector3.UP) * 3.0).normalized()
+		if Terrain.solid(probe + Vector3.DOWN * margin * 0.5) and probe.y < Terrain.bottom(probe.x, probe.z) + 30.0:
+			return (aim + Vector3.DOWN * 2.0).normalized() # about to hit a floating island's underside
+		if probe.y < Terrain.floor_below(probe) + margin * (1.0 if k < 2.0 else 1.5) or main.hits_obstacle(probe):
 			if not p.ai.get("move", {}).is_empty() and p.ai.move.name in ["splits", "loop", "boomzoom"]:
 				p.ai.move = {} # abort a dive that would end in the ground
 			return (aim + Vector3.UP * (3.0 if k < 2.0 else 1.5)).normalized()

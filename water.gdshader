@@ -9,6 +9,7 @@ uniform vec3 foam : source_color = vec3(0.95, 1.0, 1.0);
 uniform float deep_at = 14.0;
 uniform float foam_width = 2.2;
 uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);
+uniform vec3 glow : source_color = vec3(0.0); // emissive tint (lava worlds)
 
 varying vec3 wpos;
 
@@ -34,6 +35,7 @@ void fragment() {
 	float glint = pow(max(dot(reflect(-sun_dir, n), vdir), 0.0), 220.0);
 	float sparkle = step(0.6, glint) * step(1.5, w);
 	ALBEDO = mix(col, foam, sparkle);
+	EMISSION = glow * (1.0 + 0.5 * sin(TIME * 1.3 + UV.x * 40.0)) * (1.0 - sparkle);
 	ALPHA = mix(0.9, 1.0, max(shore,smoothstep(2.0, deep_at, depth)));
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;

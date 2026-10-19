@@ -81,6 +81,13 @@ static func howto_text() -> String:
   Team Dogfight: run the other team out of lives.
   Free Flight: practice, pop balloons, no rules.
 
+[b]WORLDS[/b] (leader picks in the lobby)
+  Green Valley: open skies.  Volcanic Islands: thermals lift you, lava bombs rain down.
+  Frozen Frontier: gusting wind and blinding snowstorms.  Desert Wasteland: canyon runs,
+  crosswind, sandstorms.  Neon Metropolis: skyscraper corridors, lightning.  Sky Kingdom:
+  floating islands you can fly under, air currents - and don't touch the cloud sea.
+  Everywhere: supply crates (fly through: repair + rockets), AA guns at airfields and the factory.
+
 [b]INTERNET TIPS[/b]
   Host clicks "Host online" and sends the 5-letter room code. Everyone must click Allow
   on the firewall prompt the first time. If a code still won't connect (very strict mobile
@@ -97,8 +104,9 @@ Made with Claude Code and the Godot Engine.
   usrsctp and libsrtp (BSD-3), mbedTLS (Apache-2.0), plog (MIT);
   godot-mqtt by goatchurchprime (MIT); public MQTT brokers HiveMQ, EMQX, Mosquitto;
   STUN by Google and Cloudflare.
-[b]3D models, sounds, font[/b]  Kenney (kenney.nl), CC0: Nature Kit, City Kit Industrial,
+[b]3D models, sounds, font[/b]  Kenney (kenney.nl), CC0: Nature Kit, Holiday Kit, City Kit Industrial,
   City Kit Suburban, Sci-Fi Sounds, Impact Sounds, Interface Sounds, UI Pack.
+[b]Nature ambience[/b]  "Park Ambiences" (OpenGameArt), CC0.
 [b]Toon shading[/b]  based on Flexible Toon Shader by atzuk4451 (MIT).
 [b]Engine, wind, gun and beep sounds[/b]  synthesized for this game.
 

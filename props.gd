@@ -65,7 +65,10 @@ static func build() -> Node3D:
 			var mmi := MultiMeshInstance3D.new()
 			mmi.multimesh = mm
 			root.add_child(mmi)
-	root.add_child(_windmill_sails())
+	if "windmill" in Worlds.cur.features:
+		root.add_child(_windmill_sails())
+	if Worlds.has("nodes"):
+		Worlds.mod.nodes(root) # animated / effect / audio nodes
 	_batches = {}
 	return root
 
@@ -86,14 +89,23 @@ static func _layout() -> void:
 	_home_airfield()
 	_red_airfield()
 	_factory()
-	_village()
-	_windmill()
-	_lighthouse()
-	_bridge()
-	_canyon()
-	_arches()
-	spots["canyon"] = Vector3(CANYON.x, Terrain.height(CANYON.x, CANYON.y), CANYON.y)
-	spots["arches"] = Vector3(ARCHES.x, Terrain.height(ARCHES.x, ARCHES.y), ARCHES.y)
+	var feats: Array = Worlds.cur.features
+	if "village" in feats:
+		_village()
+	if "windmill" in feats:
+		_windmill()
+	if "lighthouse" in feats:
+		_lighthouse()
+	if "bridge" in feats:
+		_bridge()
+	if "canyon" in feats:
+		_canyon()
+		spots["canyon"] = Vector3(CANYON.x, Terrain.height(CANYON.x, CANYON.y), CANYON.y)
+	if "arches" in feats:
+		_arches()
+		spots["arches"] = Vector3(ARCHES.x, Terrain.height(ARCHES.x, ARCHES.y), ARCHES.y)
+	if Worlds.has("layout"):
+		Worlds.mod.layout() # world-specific landmarks via the helpers below
 
 
 static func _home_airfield() -> void:
@@ -406,16 +418,27 @@ static func _scatter() -> void:
 	forest.seed = SEED
 	forest.frequency = 0.0024
 	forest.fractal_octaves = 3
-	var tree := func(file: String, leaf: Color) -> Mesh: return model(NAT + file, "", {"leaf": leaf, "wood": BARK})
-	var deep := Color(0.28, 0.58, 0.27)
-	var pine := Color(0.2, 0.48, 0.3)
-	var broad: Array[Mesh] = [tree.call("tree_default.glb", GRASS), tree.call("tree_fat.glb", deep), tree.call("tree_simple.glb", GRASS),
-		tree.call("tree_default.glb", deep), tree.call("tree_fat.glb", Color(0.55, 0.75, 0.28))]
-	var autumn: Mesh = tree.call("tree_oak.glb", Color(0.95, 0.6, 0.2))
-	var pines: Array[Mesh] = [tree.call("tree_pineTallA.glb", pine), tree.call("tree_pineTallC.glb", pine), tree.call("tree_cone.glb", deep)]
+	var sc_cfg: Dictionary = Worlds.cur.scatter
+	var bark: Color = sc_cfg.bark
+	# Entries are [file, leaf colour]; a file with "/" is a full res:// path (world-specific models).
+	var tree := func(e: Array) -> Mesh: return model(e[0] if "/" in e[0] else NAT + e[0], "", {"leaf": e[1], "wood": bark})
+	var broad: Array[Mesh] = []
+	for e in sc_cfg.broad:
+		broad.append(tree.call(e))
+	var autumn: Mesh = tree.call(sc_cfg.accent) if sc_cfg.accent else null
+	var pines: Array[Mesh] = []
+	for e in sc_cfg.pines:
+		pines.append(tree.call(e))
 	var rocks: Array[Mesh] = []
+	# scatter.rock_swap: material-name -> colour overrides for the scattered rocks (e.g. no green tops).
+	var rock_pal: Dictionary = ROCK.merged(sc_cfg.get("rock_swap", {}), true)
 	for f in ["rock_largeA", "rock_largeD", "rock_largeF", "rock_tallB", "rock_tallH"]:
-		rocks.append(model(NAT + f + ".glb", "", ROCK))
+		rocks.append(model(NAT + f + ".glb", "", rock_pal))
+	var density: float = sc_cfg.density
+	var rock_rate: float = sc_cfg.rocks
+	var tree_line: float = sc_cfg.tree_line
+	var pine_line: float = sc_cfg.pine_line
+	var rock_tint: Color = sc_cfg.rock_tint
 	const STEP := 17.0
 	const EXT := 2450.0
 	var x := -EXT
@@ -429,8 +452,8 @@ static func _scatter() -> void:
 			var size := rng.randf()
 			z += STEP
 			var f := forest.get_noise_2d(px, pz)
-			var is_tree := r < maxf(clampf((f - 0.04) * 5.0, 0.0, 0.85), 0.012)
-			var is_rock := r > 0.975
+			var is_tree := not broad.is_empty() and r < maxf(clampf((f - 0.04) * 5.0, 0.0, 0.85), 0.012) * density
+			var is_rock := r > 1.0 - 0.025 * rock_rate
 			if not (is_tree or is_rock) or _blocked(px, pz):
 				continue
 			var h := Terrain.height(px, pz)
@@ -439,11 +462,11 @@ static func _scatter() -> void:
 			var gx := Terrain.height(px + 5.0, pz) - h
 			var gz := Terrain.height(px, pz + 5.0) - h
 			var steep := sqrt(gx * gx + gz * gz) / 5.0
-			if is_tree and steep < 0.75 and h < 330.0:
+			if is_tree and steep < 0.75 and h < tree_line:
 				var m: Mesh
-				if h > 160.0 + f * 80.0 or size < 0.12:
+				if not pines.is_empty() and (h > pine_line + f * 80.0 or size < 0.12):
 					m = pines[int(r * 97.0) % pines.size()]
-				elif size > 0.95:
+				elif size > 0.95 and autumn:
 					m = autumn
 				else:
 					m = broad[int(r * 89.0) % broad.size()]
@@ -454,7 +477,7 @@ static func _scatter() -> void:
 				var m: Mesh = rocks[int(r * 1000.0) % rocks.size()]
 				var sc := 8.0 + size * size * 22.0
 				var t := Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), Vector3(px, h - sc * 0.15 - steep * 2.0, pz))
-				_add(m, t, Color.WHITE.lerp(Color(0.85, 0.85, 0.85), size))
+				_add(m, t, rock_tint.lerp(rock_tint * 0.85, size))
 		x += STEP
 
 
