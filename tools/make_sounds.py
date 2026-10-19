@@ -36,14 +36,35 @@ def wind():  # 2 s: soft filtered noise with slow gusts
     n = 2 * SR; x = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.03)
     return [v * (0.7 + 0.3 * math.sin(2 * math.pi * 0.5 * i / SR)) for i, v in enumerate(x)]
 
-def gun():  # 0.14 s: crack + thump
-    n = int(0.14 * SR); noise = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.5, 1)
-    return [(noise[i] * math.exp(-i / (0.02 * SR)) + 0.8 * math.sin(2 * math.pi * 110 * i / SR) * math.exp(-i / (0.04 * SR))) for i in range(n)]
+def gun():  # 0.16 s: sharp supersonic crack + chest thump + short mechanical tail
+    n = int(0.16 * SR)
+    crack = [random.uniform(-1, 1) for _ in range(n)]
+    body = lowpass([random.uniform(-1, 1) for _ in range(n)], 0.25, 1)
+    out = []
+    for i in range(n):
+        t = i / SR
+        v = crack[i] * math.exp(-t / 0.006) * 1.4                      # crack
+        v += body[i] * math.exp(-t / 0.03) * 2.2                      # muzzle blast
+        v += math.sin(2 * math.pi * (95 - 200 * t) * t) * math.exp(-t / 0.05) * 1.2  # thump
+        out.append(max(-1.0, min(1.0, v * 1.6)))                      # a little drive/clipping
+    return out
+
+def whiz():  # 0.3 s: bullet passing close: rising-then-falling band of noise with a snap
+    n = int(0.3 * SR); out = []; y1 = y2 = 0.0
+    for i in range(n):
+        t = i / SR
+        f = 0.35 + 0.25 * math.sin(math.pi * t / 0.3)                 # filter sweep (doppler-ish)
+        x = random.uniform(-1, 1)
+        y1 += f * (x - y1); y2 += f * (y1 - y2)
+        env = math.sin(math.pi * min(t / 0.3, 1.0)) ** 2
+        snap = random.uniform(-1, 1) * math.exp(-abs(t - 0.15) / 0.004) * 2.0
+        out.append((x - y2) * env + snap)
+    return out
 
 def beep(f, d):
     n = int(d * SR)
     return [math.sin(2 * math.pi * f * i / SR) * min(1, i / 200, (n - i) / 200) for i in range(n)]
 
 save("prop_loop.wav", prop()); save("jet_loop.wav", jet()); save("wind_loop.wav", wind())
-save("gun.wav", gun()); save("lock.wav", beep(1500, 0.06)); save("warn.wav", beep(900, 0.12))
+save("gun.wav", gun()); save("whiz.wav", whiz()); save("lock.wav", beep(1500, 0.06)); save("warn.wav", beep(900, 0.12))
 print("ok")

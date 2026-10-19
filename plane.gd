@@ -37,6 +37,8 @@ var wind_snd: AudioStreamPlayer
 var sputter_t := 0.0
 var warn_cd := 0.0
 var had_lock := false
+var shake := 0.0 # camera shake when you take hits
+var flames: CPUParticles3D
 var is_ai := false
 var role := "pilot" # pilot | fighter | bomber
 var max_hp := MAX_HP
@@ -59,14 +61,13 @@ var rockets_left := ROCKETS
 var rocket_cd := 0.0
 var lock: Node
 
-# AI state (server)
-var ai_target: Node
-var ai_break := 0.0
-var ai_break_dir := Vector3.FORWARD
+# AI state (server): PilotAI keeps its memory here
+var ai := {}
 var wp := 1
 var offset := Vector3.ZERO
 
-var snaps: Array = [] # [t, pos, quat], owner's clock
+var snaps: Array = [] # [t, pos, quat], owner's game clock
+var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
 
 var main: Node
@@ -176,6 +177,7 @@ func _process(dt: float) -> void:
 	for prop in parts.get("props", []):
 		prop.rotate_z(spin * dt)
 	_audio(dt)
+	sim_clock += dt
 	if not is_multiplayer_authority():
 		_interpolate(dt)
 		return
@@ -190,11 +192,14 @@ func _process(dt: float) -> void:
 		send_cd -= dt
 		if send_cd <= 0.0:
 			send_cd = SEND_INTERVAL
-			st.rpc(Time.get_ticks_msec() / 1000.0, position, quaternion)
+			st.rpc(sim_clock, position, quaternion)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
 		cam.global_position = position + aim * Vector3(0, 5.5, 19)
 		cam.global_basis = aim
+		if shake > 0.0:
+			shake = maxf(shake - dt * 2.5, 0.0)
+			cam.global_position += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 1.2
 		cam.fov = lerpf(cam.fov, lerpf(70.0, 90.0, clampf((velocity.length() - 40.0) / 110.0, 0.0, 1.0)), 1.0 - exp(-3.0 * dt))
 		var broken := []
 		for i in 4:
@@ -223,9 +228,9 @@ func _audio(dt: float) -> void:
 		gain *= engine_snd.get_meta("gate", 1.0)
 	var k := 1.0 - exp(-6.0 * dt)
 	engine_snd.pitch_scale = lerpf(engine_snd.pitch_scale, pitch, k)
-	engine_snd.volume_linear = lerpf(engine_snd.volume_linear, gain * (0.4 if is_local() else 0.8), k * 2.0)
+	engine_snd.volume_linear = lerpf(engine_snd.volume_linear, gain * (0.12 if is_local() else 0.45), k * 2.0)
 	if wind_snd:
-		wind_snd.volume_linear = lerpf(wind_snd.volume_linear, clampf((spd - 30.0) / 130.0, 0.0, 1.0) * 0.6 * gain, k)
+		wind_snd.volume_linear = lerpf(wind_snd.volume_linear, clampf((spd - 30.0) / 130.0, 0.0, 1.0) * 0.3 * gain, k)
 		wind_snd.pitch_scale = 0.8 + 0.4 * f
 		warn_cd -= dt
 		if alive and warn_cd <= 0.0 and main.rockets.incoming(self):
@@ -239,7 +244,9 @@ func _audio(dt: float) -> void:
 
 func _read_input(dt: float) -> void:
 	if main.bot:
-		_bot()
+		if ai.is_empty():
+			ai = PilotAI.make("pilot", "hunter")
+		PilotAI.think(self, dt, main) # test bots fly with the real AI brain
 		return
 	if main.pause_root.visible:
 		wants_fire = false
@@ -316,13 +323,18 @@ func _fly(dt: float) -> void:
 func _shoot(dt: float) -> void:
 	fire_cd -= dt
 	if wants_fire and fire_cd <= 0.0:
-		fire_cd = fire_interval * (2.0 if is_ai else 1.0)
+		fire_cd = fire_interval * (1.5 if is_ai else 1.0)
 		var dir := -basis.z
 		if is_ai:
-			dir = (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.03).normalized()
+			dir = (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02).normalized()
 		main.bullets.fire(position - basis.z * 5.0, velocity + dir * BULLET_SPEED, self, true)
+		if is_ai:
+			main.stat_shots += 1
 		fired.rpc()
-		Sfx.at(main, position, Sfx.GUN, -10.0 if is_local() else -4.0, 600.0)
+		if is_local():
+			Sfx.ui(main, Sfx.GUN, -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
+		else:
+			Sfx.at(main, position, Sfx.GUN, 2.0, 1000.0)
 	rocket_cd -= dt
 	if rocket_cd <= -ROCKET_RELOAD and rockets_left < max_rockets:
 		rockets_left += 1
@@ -331,25 +343,6 @@ func _shoot(dt: float) -> void:
 		rockets_left -= 1
 		rocket_cd = 1.0 if not is_ai else 8.0
 		main.rockets.launch(self, lock)
-
-
-# --bot test pilot: chase the nearest enemy, guns in range, rockets when locked.
-func _bot() -> void:
-	throttle = 0.8
-	var best: Node = null
-	for t in get_tree().get_nodes_in_group("targets"):
-		if t.team != team and t.alive and (not best or position.distance_to(t.position) < position.distance_to(best.position)):
-			best = t
-	aim_dir = (main.ROUTE[0] - position).normalized()
-	if best:
-		var d := position.distance_to(best.position)
-		aim_dir = (best.position + (best.vel_estimate() - velocity) * (d / BULLET_SPEED) - position).normalized()
-		wants_fire = d < 400.0 and (-basis.z).angle_to(aim_dir) < 0.2
-	var ahead := position + velocity * 3.0
-	if ahead.y < Terrain.height(ahead.x, ahead.z) + 90.0:
-		aim_dir = (aim_dir + Vector3.UP * 2.0).normalized()
-	lock = find_lock()
-	wants_rocket = lock != null
 
 
 # Best enemy inside the seeker cone; nil = the rocket flies unguided.
@@ -407,7 +400,7 @@ func st(t: float, p: Vector3, q: Quaternion) -> void:
 @rpc("authority", "unreliable")
 func fired() -> void:
 	main.bullets.fire(position - basis.z * 5.0, vel_estimate() - basis.z * BULLET_SPEED, self, false)
-	Sfx.at(main, position, Sfx.GUN, -4.0, 600.0)
+	Sfx.at(main, position, Sfx.GUN, 2.0, 1000.0)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -415,7 +408,8 @@ func set_hp(v: int, c: PackedFloat32Array) -> void:
 	if multiplayer.get_remote_sender_id() > 1:
 		return # only the server may change health / respawn
 	if v < hp and is_local():
-		Sfx.ui(main, Sfx.HURT, -8.0)
+		Sfx.ui(main, Sfx.HURT, 0.0, randf_range(0.9, 1.15))
+		shake = minf(shake + 0.35, 1.0)
 	hp = v
 	comps = c
 	tag.text = _tag_text()
@@ -431,6 +425,14 @@ func _show_damage() -> void:
 		if smoke[i]:
 			smoke[i].emitting = hurt
 			smoke[i].color = Color(0.12, 0.1, 0.1) if comps[i] <= 0.0 else Color(0.45, 0.45, 0.48)
+	# Badly hurt or engine dead: the plane catches fire.
+	var burning := alive and (hp < max_hp * 0.25 or comps[2] <= 0.0)
+	if burning and not flames:
+		flames = Fx.fire(body.scale.x)
+		flames.position = parts.anchors[2] * body.scale.x
+		add_child(flames)
+	if flames:
+		flames.emitting = burning
 	if parts.get("ltip"):
 		parts.ltip.visible = comps[0] > 0.0
 		parts.rtip.visible = comps[1] > 0.0
@@ -477,7 +479,8 @@ func die(fx: bool) -> void:
 	tag.hide()
 	_show_damage()
 	if fx:
-		main.boom(position)
+		main.boom(position, 0.7)
+		Fx.shoot_down(main, body, global_transform, velocity if is_multiplayer_authority() else vel_estimate())
 
 
 @rpc("any_peer", "call_local", "reliable")

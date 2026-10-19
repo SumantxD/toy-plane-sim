@@ -29,12 +29,23 @@ func fire(p: Vector3, v: Vector3, owner: Node, local: bool) -> void:
 		shots.append({p = p, v = v, t = LIFE, owner = owner, local = local})
 
 
+var whiz_cd := 0.0
+
+
 func _process(dt: float) -> void:
 	var targets := get_tree().get_nodes_in_group("targets")
+	# Enemy rounds passing close to *you* snap past your ears.
+	var me: Node = get_tree().current_scene.players.get_node_or_null(str(multiplayer.get_unique_id()))
+	whiz_cd -= dt
 	for s in shots:
 		var a: Vector3 = s.p
 		s.p += s.v * dt
 		s.t -= dt
+		if me and me.alive and whiz_cd <= 0.0 and not s.get("whizzed", false) and is_instance_valid(s.owner) and s.owner.team != me.team:
+			if _closest(a, s.p, me.position).distance_to(me.position) < 22.0:
+				s.whizzed = true
+				whiz_cd = 0.12
+				Sfx.ui(self, Sfx.WHIZ, -1.0, randf_range(0.85, 1.2))
 		if get_tree().current_scene.hits_ground(s.p):
 			s.t = 0.0
 		elif s.local and is_instance_valid(s.owner):

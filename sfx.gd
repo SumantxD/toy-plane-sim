@@ -7,6 +7,7 @@ const PROP := preload("res://assets/sfx/prop_loop.wav")
 const JET := preload("res://assets/sfx/jet_loop.wav")
 const WIND := preload("res://assets/sfx/wind_loop.wav")
 const GUN := preload("res://assets/sfx/gun.wav")
+const WHIZ := preload("res://assets/sfx/whiz.wav")
 const LOCK := preload("res://assets/sfx/lock.wav")
 const WARN := preload("res://assets/sfx/warn.wav")
 const LAUNCH := preload("res://assets/sfx/thrusterFire_000.ogg")
@@ -30,7 +31,7 @@ static func at(host: Node, pos: Vector3, stream: AudioStream, db := 0.0, max_dis
 	p.stream = stream
 	p.volume_db = db
 	p.pitch_scale = randf_range(0.92, 1.08)
-	p.unit_size = 30.0
+	p.unit_size = 60.0
 	p.max_distance = max_dist
 	p.position = pos
 	host.add_child(p)
@@ -38,12 +39,13 @@ static func at(host: Node, pos: Vector3, stream: AudioStream, db := 0.0, max_dis
 	p.play()
 
 
-static func ui(host: Node, stream: AudioStream, db := 0.0) -> void:
+static func ui(host: Node, stream: AudioStream, db := 0.0, pitch := 1.0) -> void:
 	if not enabled:
 		return
 	var p := AudioStreamPlayer.new()
 	p.stream = stream
 	p.volume_db = db
+	p.pitch_scale = pitch
 	host.add_child(p)
 	p.finished.connect(p.queue_free)
 	p.play()

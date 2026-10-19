@@ -7,7 +7,10 @@ const WORLD_SIZE := 2000.0
 const Aircraft := preload("res://plane.gd")
 const Bullets := preload("res://bullets.gd")
 const Rockets := preload("res://rockets.gd")
-const MODES := ["Co-op Escort", "Team Dogfight", "Free Flight"]
+const MODES := ["Co-op Escort", "Team Dogfight", "Free Flight", "Team Battle vs AI"]
+const SIZES := [2, 4, 6]
+const SKILL_NAMES := ["rookie", "pilot", "ace"]
+const CALLSIGNS := ["Maverick", "Goose", "Iceman", "Viper", "Jester", "Hollywood", "Wolfman", "Sundown", "Cougar", "Merlin", "Slider", "Stinger"]
 const TEAM_NAMES := ["Blue", "Red"]
 const DAMAGE := [8, 45] # guns, rocket
 const BEACON_TIME := 15.0
@@ -33,7 +36,7 @@ var lobby_cam := Camera3D.new()
 var gs := {
 	phase = "menu", mode = 0, leader = 1, players = {}, lives = [0, 0], clutch = [-1.0, -1.0],
 	time = 0.0, wave = 0, next_wave = 0.0, arrived = 0, lost = 0, sudden = false,
-	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0,
+	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0, size = 1, skill = 1, team_kills = [0, 0], ai_board = {},
 }
 var beacons := {} # server only: victim id -> {pos, t, team}
 var respawning := {} # server only: victim id -> team, waiting out RESPAWN_DELAY
@@ -51,6 +54,9 @@ var status := Label.new()
 var lobby_list := Label.new()
 var mode_btn := OptionButton.new()
 var plane_btn := OptionButton.new()
+var battle_row := HBoxContainer.new()
+var size_btn := OptionButton.new()
+var skill_btn := OptionButton.new()
 var plane_choice := "cub"
 var start_btn: Button
 var copy_btn: Button
@@ -111,10 +117,15 @@ func _ready() -> void:
 	var qa := args.find("--quit-after-secs")
 	if qa >= 0:
 		get_tree().create_timer(float(args[qa + 1])).timeout.connect(func():
+			print("AIM shots=%d hits=%d (%.1f%%)" % [stat_shots, stat_hits, 100.0 * stat_hits / maxf(stat_shots, 1)])
 			print("STATS nodes=%d orphans=%d mem=%.1fMB" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6])
 			get_tree().quit())
 	if "--free" in args:
 		free_flight()
+	if "--solo" in args:
+		solo_battle()
+		if "--start" in args:
+			get_tree().create_timer(1.0).timeout.connect(_start)
 	var ea := args.find("--end-after")
 	if ea >= 0:
 		get_tree().create_timer(float(args[ea + 1])).timeout.connect(func(): _end("Practice over"))
@@ -124,9 +135,25 @@ func _ready() -> void:
 			host_online()
 		else:
 			host()
+		var szi := args.find("--size")
+		if szi >= 0:
+			gs.size = int(args[szi + 1])
+		var ski := args.find("--skill")
+		if ski >= 0:
+			gs.skill = int(args[ski + 1])
+		if "--debug-ai" in args:
+			var t := Timer.new()
+			t.wait_time = 5.0
+			t.autostart = true
+			t.timeout.connect(func():
+				var rows := []
+				for p in players.get_children():
+					rows.append("%s:%s%s/%d" % [p.pilot.left(4), ["P", "U", "A", "E", "R"][p.ai.get("state", 0)] if p.ai else "-", "" if p.alive else "x", p.position.y])
+				print("DBG phase=%s t=%d lives=%s  %s" % [gs.phase, gs.time, gs.lives, " ".join(rows)]))
+			add_child(t)
 		var mi := args.find("--mode")
 		if mi >= 0 and mi + 1 < args.size():
-			gs.mode = clampi(int(args[mi + 1]), 0, 1)
+			gs.mode = clampi(int(args[mi + 1]), 0, MODES.size() - 1)
 		if "--start" in args and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
 			get_tree().create_timer(1.0).timeout.connect(_start)
 	elif ji >= 0:
@@ -143,6 +170,9 @@ const VERSION := "0.5"
 var room := "" # online room code we host or joined
 var rooms: Rooms
 var joining := false
+var spectating := "--spectate" in OS.get_cmdline_user_args() # watch AI-only battles
+var spec_target: Node
+var spec_t := 0.0
 var upnp_task := -1
 
 
@@ -166,12 +196,20 @@ func _start_hosting() -> void:
 		multiplayer.peer_disconnected.connect(_on_peer_left)
 	gs.phase = "lobby"
 	gs.room = room
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" or spectating:
 		gs.leader = 0 # first player to join leads
 	else:
 		_add_player(1, name_edit.text)
 	_push()
 	print("Hosting")
+
+
+# Solo battle vs AI: offline lobby where you pick size and difficulty, then fight.
+func solo_battle() -> void:
+	room = ""
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	_start_hosting()
+	request_mode(3)
 
 
 # Solo practice runs offline: no port, no firewall prompt, same game code (offline peer = server).
@@ -351,7 +389,7 @@ func register(info: Dictionary) -> void:
 func _add_player(id: int, pilot: String) -> void:
 	pilot = pilot.strip_edges().left(16)
 	var counts := _team_counts()
-	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if gs.mode != 1 or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
+	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in [1, 3] or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
 
 
 @rpc("authority", "call_local", "reliable")
@@ -396,6 +434,14 @@ func request_start() -> void:
 
 
 @rpc("any_peer", "call_local", "reliable")
+func request_battle(size_i: int, skill_i: int) -> void:
+	if _sender() == gs.leader and gs.phase == "lobby":
+		gs.size = clampi(size_i, 0, SIZES.size() - 1)
+		gs.skill = clampi(skill_i, 0, SKILL_NAMES.size() - 1)
+		_push()
+
+
+@rpc("any_peer", "call_local", "reliable")
 func request_end() -> void:
 	if _sender() == gs.leader and gs.phase == "playing":
 		_end("Match ended by the leader")
@@ -408,7 +454,7 @@ func request_mode(m: int) -> void:
 		gs.msg = ""
 		var i := 0
 		for id in gs.players:
-			gs.players[id].team = 0 if gs.mode != 1 else i % 2
+			gs.players[id].team = 0 if gs.mode != 1 else i % 2 # vs-AI: everyone starts on Blue
 			i += 1
 		_push()
 
@@ -424,7 +470,7 @@ func request_plane(kind: String) -> void:
 @rpc("any_peer", "call_local", "reliable")
 func request_switch_team() -> void:
 	var id := _sender()
-	if gs.phase == "lobby" and gs.mode == 1 and gs.players.has(id):
+	if gs.phase == "lobby" and gs.mode in [1, 3] and gs.players.has(id):
 		gs.players[id].team = 1 - gs.players[id].team
 		_push()
 
@@ -463,7 +509,22 @@ func _start() -> void:
 		gs.players[id].kills = 0
 		gs.players[id].deaths = 0
 		gs.players[id].revives = 0
-	if gs.mode == 2:
+	gs.team_kills = [0, 0]
+	gs.ai_board = {}
+	if gs.mode == 3:
+		var n: int = SIZES[gs.size]
+		gs.lives = [n * 2, n * 2]
+		gs.time = MATCH_TIME
+		var counts := _team_counts()
+		var names := CALLSIGNS.duplicate()
+		names.shuffle()
+		for team in 2:
+			for i in range(counts[team], n):
+				var b := _base_for(team, i)
+				var w := _spawn_ai("wing", team, b[0], b[1], Vector3.ZERO, Planes.ORDER.pick_random(), names.pop_back())
+				w.ai = PilotAI.make(SKILL_NAMES[gs.skill])
+				w.ai.slot = i - counts[team]
+	elif gs.mode == 2:
 		gs.lives = [-1, -1]
 		for i in 20:
 			_spawn_balloon()
@@ -508,6 +569,8 @@ func _process(dt: float) -> void:
 	_refresh_hud()
 	if preview.visible:
 		preview.rotate_y(0.6 * dt)
+	if spectating and gs.phase in ["playing", "ended"]:
+		_spectate(dt)
 	if not multiplayer.is_server() or gs.phase != "playing":
 		return
 	_tick_beacons(dt)
@@ -515,6 +578,8 @@ func _process(dt: float) -> void:
 		_tick_escort(dt)
 	elif gs.mode == 1:
 		_tick_dogfight(dt)
+	elif gs.mode == 3:
+		_tick_battle(dt)
 	push_cd -= dt
 	if push_cd <= 0.0:
 		push_cd = 0.5
@@ -560,6 +625,24 @@ func _tick_dogfight(dt: float) -> void:
 			_end("%s wins on time!" % TEAM_NAMES[0 if a > b else 1])
 
 
+# Team Battle: shared lives per team; a team loses when out of lives with nobody flying.
+func _tick_battle(dt: float) -> void:
+	gs.time -= dt
+	for team in 2:
+		var flying := players.get_children().filter(func(p): return p.team == team and p.alive and p.role in ["pilot", "wing"]).size()
+		if gs.lives[team] <= 0 and flying == 0 and not team in respawning.values():
+			_end("%s team wins!" % TEAM_NAMES[1 - team])
+			return
+	if gs.time <= 0.0:
+		var a: int = gs.lives[0] + _flying(0)
+		var b: int = gs.lives[1] + _flying(1)
+		_end("Draw!" if a == b else "%s team wins on time!" % TEAM_NAMES[0 if a > b else 1])
+
+
+func _flying(team: int) -> int:
+	return players.get_children().filter(func(p): return p.team == team and p.alive and p.role in ["pilot", "wing"]).size()
+
+
 func _tick_beacons(dt: float) -> void:
 	for id in beacons.keys():
 		var b: Dictionary = beacons[id]
@@ -594,7 +677,7 @@ func _spawn_wave() -> void:
 	if not lead:
 		return
 	var alive := players.get_children().filter(func(p): return p.role == "fighter" and p.alive).size()
-	var n := mini(2 + gs.players.size(), FIGHTER_CAP - alive)
+	var n := mini(1 + gs.players.size(), FIGHTER_CAP - alive)
 	var fwd: Vector3 = -lead.basis.z
 	for i in n:
 		var pos: Vector3 = lead.position + fwd * 1300.0 + fwd.cross(Vector3.UP) * randf_range(-600, 600)
@@ -621,14 +704,19 @@ func report_crash() -> void:
 
 
 func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
+	if a.is_ai and weapon == 0:
+		stat_hits += 1
 	if t.alive and a.team != t.team and gs.phase == "playing":
 		var dmg: int = DAMAGE[weapon]
 		if a.role == "fighter":
-			dmg = ceili(dmg * 0.6) # raiders hit softer than players
+			dmg = ceili(dmg * (0.4 if t.role == "bomber" else 0.6)) # raiders hit softer (bombers must be escortable)
+		elif a.role == "wing" and t.role == "pilot":
+			dmg = ceili(dmg * 0.75) # AI wingmen/enemies go a bit easy on humans
 		var c: PackedFloat32Array = t.comps.duplicate()
 		if comp >= 0:
 			c[comp] = maxf(c[comp] - dmg / (t.max_hp * 0.45), 0.0) # a part dies after ~45% of hp worth of hits
 		t.set_hp.rpc(t.hp - dmg, c)
+		PilotAI.on_hit(t, a, self)
 		if t.hp <= 0:
 			kill(t, a)
 
@@ -642,6 +730,22 @@ func kill(victim: Node, killer: Node) -> void:
 	_feed("%s shot down %s" % [killer.pilot, victim.pilot] if killer else "%s crashed" % victim.pilot)
 	if killer and killer.role == "pilot" and gs.players.has(int(str(killer.name))):
 		gs.players[int(str(killer.name))].kills += 1
+	if killer and killer.team != victim.team:
+		gs.team_kills[killer.team] += 1
+	if killer and killer.role == "wing":
+		var row: Dictionary = gs.ai_board.get_or_add(killer.pilot, {team = killer.team, style = PilotAI.ARCHETYPES[killer.ai.arch].name, kills = 0})
+		row.kills += 1
+	PilotAI.on_kill(victim, killer, self)
+	if spectating and killer and killer.alive:
+		cut_to.rpc(killer.name)
+	if gs.mode == 3 and victim.role in ["pilot", "wing"]:
+		if victim.role == "pilot" and gs.players.has(int(str(victim.name))):
+			gs.players[int(str(victim.name))].deaths += 1
+		if victim.role == "wing":
+			PilotAI.reset(victim)
+		_spend_life(victim)
+		_push()
+		return
 	if victim.role == "pilot" and gs.mode == 2:
 		if gs.players.has(int(str(victim.name))):
 			gs.players[int(str(victim.name))].deaths += 1
@@ -684,13 +788,13 @@ func _spend_life(victim: Node) -> void:
 
 
 func _respawn_later(victim: Node, delay: float) -> void:
-	var vid := int(str(victim.name))
-	respawning[vid] = victim.team
+	var key := str(victim.name)
+	respawning[key] = victim.team
 	var id: int = gs.match_id
 	get_tree().create_timer(delay).timeout.connect(func():
-		respawning.erase(vid)
+		respawning.erase(key)
 		if is_instance_valid(victim) and gs.match_id == id and gs.phase == "playing" and not victim.alive:
-			var b := _base(vid)
+			var b := _base(int(key)) if victim.role == "pilot" else _base_for(victim.team, randi() % 6)
 			victim.respawn.rpc(b[0], b[1]))
 
 
@@ -730,11 +834,38 @@ func _spawn_pilot(id: int, at: Array) -> void:
 	_spawn({name = str(id), id = id, pilot = info.name, team = info.team, role = "pilot", kind = info.get("plane", "cub"), pos = at[0], yaw = at[1], offset = Vector3.ZERO})
 
 
-func _spawn_ai(role: String, team: int, pos: Vector3, yaw: float, offset: Vector3) -> void:
+func _spawn_ai(role: String, team: int, pos: Vector3, yaw: float, offset: Vector3, kind := "", pilot := "") -> Node:
 	ai_count += 1
-	var kind: String = {bomber = "twin", balloon = "balloon"}.get(role, "racer")
-	var pilot: String = {bomber = "Bomber", balloon = "Balloon"}.get(role, "Raider")
-	_spawn({name = "ai%d" % ai_count, id = 1, pilot = pilot, team = team, role = role, kind = kind, pos = pos, yaw = yaw, offset = offset})
+	if kind == "":
+		kind = {bomber = "twin", balloon = "balloon"}.get(role, "racer")
+	if pilot == "":
+		pilot = {bomber = "Bomber", balloon = "Balloon"}.get(role, "Raider")
+	var n := _spawn({name = "ai%d" % ai_count, id = 1, pilot = pilot, team = team, role = role, kind = kind, pos = pos, yaw = yaw, offset = offset})
+	if role == "fighter":
+		n.ai = PilotAI.make("rookie")
+	return n
+
+
+# AI radio chatter in the feed, rate-limited so it reads like comms, not spam.
+var stat_shots := 0 # test stats: AI gun accuracy
+var stat_hits := 0
+var radio_cd := 0.0
+var radio_last := {}
+
+func radio(p: Node, text: String) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < radio_cd or now < radio_last.get(p.name, 0.0):
+		return
+	radio_cd = now + 2.5
+	radio_last[p.name] = now + 12.0
+	_feed('%s: "%s"' % [p.pilot, text])
+
+
+func repair(p: Node, amount: int) -> void:
+	var c: PackedFloat32Array = p.comps.duplicate()
+	for i in 4:
+		c[i] = minf(c[i] + 0.04 * amount / 5.0, 1.0)
+	p.set_hp.rpc(mini(p.hp + amount, p.max_hp), c)
 
 
 func _spawn_balloon() -> void:
@@ -754,9 +885,13 @@ func _base(id: int) -> Array:
 			var f: Vector3 = -lead.basis.z
 			return [lead.position - f * 200.0 + f.cross(Vector3.UP) * (i * 30.0 - 45.0) + Vector3.UP * 40.0, _yaw_to(f)]
 		return [ROUTE[0] + Vector3(i * 30.0, 60, 200), _yaw_to(ROUTE[1] - ROUTE[0])]
+	return _base_for(team, i)
+
+
+func _base_for(team: int, i: int) -> Array:
 	if team == 0:
-		return [Vector3(i * 30.0 - 45.0, 160, 2150), 0.0] # over the home runway (LEVEL.md)
-	return [Vector3(-345.0 + i * 30.0, 200, -1450), PI] # over the Red airfield
+		return [Vector3(i * 30.0 - 75.0, 160 + (i % 2) * 15, 2150 + i * 20), 0.0] # over the home runway (LEVEL.md)
+	return [Vector3(-375.0 + i * 30.0, 200 + (i % 2) * 15, -1450 - i * 20), PI] # over the Red airfield
 
 
 # ---------- AI (server) ----------
@@ -769,37 +904,40 @@ func ai_think(p: Node, dt: float) -> void:
 	if p.role == "bomber":
 		_bomber_move(p, dt)
 		return
-	p.throttle = 0.8
-	p.wants_fire = false
-	p.wants_rocket = false
-	var aim: Vector3 = -p.basis.z
-	if not is_instance_valid(p.ai_target) or not p.ai_target.alive:
-		p.ai_target = _pick_target()
-	if p.ai_break > 0.0:
-		p.ai_break -= dt
-		aim = p.ai_break_dir
-	elif p.ai_target:
-		var t: Node = p.ai_target
-		var d: float = p.position.distance_to(t.position)
-		var lead: Vector3 = t.position + (t.vel_estimate() - p.velocity) * (d / Aircraft.BULLET_SPEED)
-		aim = (lead - p.position).normalized()
-		p.wants_fire = d < 300.0 and (-p.basis.z).angle_to(aim) < deg_to_rad(15)
-		p.lock = p.find_lock()
-		p.wants_rocket = p.lock == t and d > 400.0
-		if d < 80.0:
-			p.ai_break = 2.0
-			p.ai_break_dir = (-p.basis.z + Vector3(randf_range(-1, 1), 0.6, randf_range(-1, 1))).normalized()
-	var ahead: Vector3 = p.position + p.velocity * 3.0
-	if ahead.y < Terrain.height(ahead.x, ahead.z) + 90.0:
-		aim = (aim + Vector3.UP * 2.0).normalized()
-	p.aim_dir = aim
+	PilotAI.think(p, dt, self)
 
 
-func _pick_target() -> Node:
-	var bombers := players.get_children().filter(func(p): return p.role == "bomber" and p.alive)
-	var pilots := _pilots(0, true)
-	var pool := bombers if (randf() < 0.5 and bombers) or pilots.is_empty() else pilots
-	return pool.pick_random() if pool else null
+# Chase camera on an AI pilot; switches to whoever is in the thick of it every few seconds.
+func _spectate(dt: float) -> void:
+	spec_t -= dt
+	var alive := players.get_children().filter(func(p): return p.alive and p.role in ["wing", "fighter", "pilot"])
+	if alive.is_empty():
+		return
+	if spec_t <= 0.0 or not is_instance_valid(spec_target) or not spec_target.alive:
+		spec_t = 10.0
+		# Prefer someone in a close fight right now.
+		var fighting := alive.filter(func(p): return p.ai.get("state", 0) == PilotAI.ATTACK and is_instance_valid(p.ai.get("target")) and p.position.distance_to(p.ai.target.position) < 500.0)
+		spec_target = (fighting if fighting else alive).pick_random()
+	lobby_cam.make_current()
+	var want: Vector3 = spec_target.position + spec_target.basis * Vector3(0, 6, 26)
+	lobby_cam.global_position = lobby_cam.global_position.lerp(want, 1.0 - exp(-4.0 * dt))
+	var look: Vector3 = spec_target.position - spec_target.basis.z * 30.0
+	lobby_cam.look_at(look)
+	var s: Dictionary = spec_target.ai
+	top.text = "WATCHING %s  (%s, %s)   %s   [Tab: next pilot]" % [spec_target.pilot, PilotAI.ARCHETYPES[s.arch].name if s.has("arch") else "?", s.get("skill", ""),
+		["patrolling", "pursuing", "attacking", "evading", "retreating"][s.get("state", 0)] + ("  > " + s.move.name if not s.get("move", {}).is_empty() else "")]
+
+
+@rpc("authority", "call_local", "reliable")
+func cut_to(who: String) -> void:
+	var n := players.get_node_or_null(who)
+	if n and spectating:
+		spec_target = n
+		spec_t = 7.0
+
+
+func home_for(team: int) -> Vector3:
+	return Vector3(0, 0, 2000) if team == 0 else Vector3(-300, 0, -1500)
 
 
 func _bomber_move(p: Node, dt: float) -> void:
@@ -884,7 +1022,7 @@ func hits_obstacle(p: Vector3) -> bool:
 	return false
 
 
-func boom(pos: Vector3) -> void:
+func boom(pos: Vector3, size := 1.0) -> void:
 	Sfx.at(self, pos, Sfx.BOOMS.pick_random(), 4.0, 3000.0)
 	var m := MeshInstance3D.new()
 	m.mesh = SphereMesh.new()
@@ -897,7 +1035,7 @@ func boom(pos: Vector3) -> void:
 	m.position = pos
 	add_child(m)
 	var tw := m.create_tween().set_parallel()
-	tw.tween_property(m, "scale", Vector3.ONE * 14.0, 0.6)
+	tw.tween_property(m, "scale", Vector3.ONE * 22.0 * size, 0.7 * size)
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.6)
 	tw.chain().tween_callback(m.queue_free)
 
@@ -914,6 +1052,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		credits_root.hide()
 		return
 	if gs.phase != "playing":
+		return
+	if spectating and event.keycode == KEY_TAB:
+		spec_t = 0.0
 		return
 	match event.keycode:
 		KEY_ESCAPE:
@@ -934,19 +1075,26 @@ func _refresh_ui() -> void:
 	mode_btn.disabled = not leader
 	mode_btn.selected = gs.mode
 	start_btn.visible = leader
-	switch_btn.visible = gs.mode == 1
+	switch_btn.visible = gs.mode in [1, 3]
+	battle_row.visible = gs.mode == 3
+	size_btn.disabled = not leader
+	skill_btn.disabled = not leader
+	size_btn.selected = gs.size
+	skill_btn.selected = gs.skill
 	leave_btn.text = "Close room" if multiplayer.is_server() and gs.players.size() > 1 else "Leave"
 	if gs.room:
 		room_label.text = "ROOM CODE:  %s" % gs.room
-	elif gs.mode == 2 and multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
-		room_label.text = "Solo practice"
+	elif multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		room_label.text = "Solo battle vs AI" if gs.mode == 3 else "Solo practice"
 	else:
 		var lan := Array(IP.get_local_addresses()).filter(func(a): return a.begins_with("192.168.") or a.begins_with("10.") or a.begins_with("172."))
 		room_label.text = "LAN game - friends join with: %s%s" % [", ".join(lan.slice(0, 2)) if lan else "your IP", ("\nInternet (router allowed): %s" % gs.public_ip) if gs.public_ip else ""]
 	copy_btn.visible = gs.room != ""
 	var lines := [gs.msg] if gs.msg else []
-	for team in (1 if gs.mode == 0 else 2):
-		lines.append("%s team" % TEAM_NAMES[team])
+	var counts := _team_counts()
+	for team in (2 if gs.mode in [1, 3] else 1):
+		var fill := maxi(SIZES[gs.size] - counts[team], 0) if gs.mode == 3 else 0
+		lines.append("%s team%s" % [TEAM_NAMES[team], ("  + %d AI pilot%s" % [fill, "s" if fill != 1 else ""]) if fill else ""])
 		for id in gs.players:
 			if gs.players[id].team == team:
 				var info: Dictionary = gs.players[id]
@@ -955,6 +1103,7 @@ func _refresh_ui() -> void:
 		lines.append("\nWaiting for the leader to start...")
 	lobby_list.text = "\n".join(lines)
 	_refresh_preview()
+	$EscortGoal.visible = gs.mode == 0
 	if gs.phase == "ended":
 		results_title.text = gs.msg
 		for c in results_grid.get_children():
@@ -965,6 +1114,12 @@ func _refresh_ui() -> void:
 			var p: Dictionary = gs.players[id]
 			for v in [p.name, TEAM_NAMES[p.team], Planes.TYPES[p.get("plane", "cub")].name, p.kills, p.deaths, p.get("revives", 0)]:
 				_cell(str(v), Color.WHITE)
+		var ai_rows: Array = gs.ai_board.keys()
+		ai_rows.sort_custom(func(a, b): return gs.ai_board[a].kills > gs.ai_board[b].kills)
+		for n in ai_rows.slice(0, 6):
+			var r: Dictionary = gs.ai_board[n]
+			for v in ["%s (AI)" % n, TEAM_NAMES[r.team], r.style, r.kills, "", ""]:
+				_cell(str(v), Color(0.75, 0.85, 1.0))
 
 
 func _cell(text: String, color: Color) -> void:
@@ -1006,7 +1161,10 @@ func _refresh_hud() -> void:
 	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	if peer and not multiplayer.is_server() and peer.get_peer(1):
 		rtt = "   Ping %dms" % peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
-	if gs.mode == 2:
+	if gs.mode == 3:
+		var t := "%d:%02d" % [int(gs.time) / 60, int(gs.time) % 60]
+		top.text = "BLUE  %d lives, %d flying   |   %s   |   RED  %d lives, %d flying%s" % [gs.lives[0], _flying(0), t, gs.lives[1], _flying(1), rtt]
+	elif gs.mode == 2:
 		top.text = "FREE FLIGHT   Balloons popped: %d   (Esc for menu)%s" % [gs.popped, rtt]
 	elif gs.mode == 0:
 		var flying := players.get_children().filter(func(p): return p.role == "bomber" and p.alive).size()
@@ -1100,6 +1258,7 @@ func _build_ui() -> void:
 		Settings.values.name = t.strip_edges()
 		Settings.save())
 	box.add_child(name_edit)
+	_button(box, "Battle vs AI (solo)", solo_battle)
 	_button(box, "Free Flight (solo practice)", free_flight)
 	_button(box, "Host online (get a room code)", host_online)
 	_button(box, "Host on LAN", host)
@@ -1133,6 +1292,18 @@ func _build_ui() -> void:
 		mode_btn.add_item(mo)
 	mode_btn.item_selected.connect(func(i): request_mode.rpc_id(1, i))
 	box.add_child(mode_btn)
+	battle_row.add_theme_constant_override("separation", 8)
+	for sz in SIZES:
+		size_btn.add_item("%dv%d" % [sz, sz])
+	for sk in ["Rookie AI", "Pilot AI", "Ace AI"]:
+		skill_btn.add_item(sk)
+	size_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_btn.item_selected.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
+	skill_btn.item_selected.connect(func(i): request_battle.rpc_id(1, gs.size, i))
+	battle_row.add_child(size_btn)
+	battle_row.add_child(skill_btn)
+	box.add_child(battle_row)
 	for k in Planes.ORDER:
 		plane_btn.add_item(Planes.TYPES[k].name)
 	plane_btn.item_selected.connect(func(i):
@@ -1281,6 +1452,7 @@ func _build_world() -> void:
 	goal_mat.albedo_color = Color(0.3, 1, 0.4, 0.15)
 	goal.material_override = goal_mat
 	goal.position = ROUTE[-1] + Vector3(0, 80, 0)
+	goal.name = "EscortGoal"
 	add_child(goal)
 
 	lobby_cam.far = 6000.0
