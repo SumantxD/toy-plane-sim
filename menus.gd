@@ -19,6 +19,12 @@ static func theme() -> Theme:
 		var sb := _box(bg, AMBER if state == "focus" else bg.lightened(0.15), 2, 8)
 		t.set_stylebox(state, "Button", sb)
 		t.set_stylebox(state, "OptionButton", sb)
+	# Keyboard focus: a thick amber outline over whatever the control normally looks like.
+	var ring := _box(Color(0, 0, 0, 0), AMBER, 3, 8)
+	ring.draw_center = false
+	for type in ["Button", "OptionButton", "CheckButton", "HSlider", "LineEdit"]:
+		t.set_stylebox("focus", type, ring)
+	t.set_color("font_focus_color", "Button", AMBER)
 	t.set_color("font_hover_color", "Button", AMBER)
 	t.set_stylebox("fill", "ProgressBar", _box(AMBER, AMBER, 0, 0))
 	t.set_stylebox("background", "ProgressBar", _box(Color(0, 0, 0, 0.4), Color(0, 0, 0, 0), 0, 0))
@@ -80,6 +86,9 @@ static func howto_text() -> String:
   Co-op Escort: get 2 of 3 bombers to the factory through 8 raider waves.
   Team Dogfight: run the other team out of lives.
   Free Flight: practice, pop balloons, no rules.
+
+[b]MENUS BY KEYBOARD[/b]
+  Arrows / Tab move, Enter or Space press, Left / Right adjust sliders, Esc goes back.
 
 [b]WORLDS[/b] (leader picks in the lobby)
   Green Valley: open skies.  Volcanic Islands: thermals lift you, lava bombs rain down.

@@ -579,7 +579,38 @@ func _end(text: String) -> void:
 				get_tree().create_timer(2.0).timeout.connect(_start))
 
 
+# Keyboard menus: whenever a panel is up and nothing has focus, focus its first control, so
+# arrows/Tab move, Enter/Space press, Left/Right adjust sliders, Esc backs out of overlays.
+func _keep_menu_focus() -> void:
+	var top_panel: Control = null
+	for r in [credits_root, howto_root, settings_root, pause_root, results_root, lobby_root, menu_root]:
+		if r and r.visible:
+			top_panel = r
+			break
+	if not top_panel:
+		return
+	var owner := get_viewport().gui_get_focus_owner()
+	if owner and owner.is_visible_in_tree() and top_panel.is_ancestor_of(owner):
+		return
+	var first := _first_focusable(top_panel)
+	if first:
+		first.grab_focus()
+
+
+func _first_focusable(n: Node) -> Control:
+	for c in n.get_children():
+		if c is Control and c.is_visible_in_tree():
+			if (c is BaseButton or c is Slider) and c.focus_mode != Control.FOCUS_NONE and not (c is BaseButton and c.disabled):
+				return c
+			var deeper := _first_focusable(c)
+			if deeper:
+				return deeper
+	return null
+
+
 func _process(dt: float) -> void:
+	if Sfx.enabled:
+		_keep_menu_focus()
 	for p in pings:
 		p[2] -= dt
 	pings = pings.filter(func(p): return p[2] > 0.0)
@@ -1308,6 +1339,7 @@ func _build_ui() -> void:
 	_button(box, "Host on LAN", host)
 	var join_row := HBoxContainer.new()
 	address.placeholder_text = "Room code or IP"
+	address.text_submitted.connect(func(_t): join()) # Enter joins
 	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	join_row.add_child(address)
 	var jb := Button.new()
