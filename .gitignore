@@ -1,0 +1,4 @@
+.godot/
+.mcp.json
+*.tmp
+/builds/
