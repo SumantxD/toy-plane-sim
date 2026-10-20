@@ -86,6 +86,15 @@ static func howto_text() -> String:
   Co-op Escort: get 2 of 3 bombers to the factory through 8 raider waves.
   Team Dogfight: run the other team out of lives.
   Free Flight: practice, pop balloons, no rules.
+  Team Battle vs AI: your team plus AI wingmen against an AI squadron.
+  Capture the Flag: fly through the enemy flag's beam, bring it home while yours is safe.
+    First to 3 wins (8 min). Shoot down a carrier to drop it; touch your dropped flag to return it.
+  Base Assault: wear down the enemy HQ with strafing runs; bomber raids launch for both sides.
+    Destroy it to win (10 min, else the healthier HQ wins). 6 = repair your HQ (2 supplies).
+
+[b]SUPPLIES[/b]
+  Fly through a crate: repair + rockets, and you carry the cargo. Get it home for +1 team
+  supply (shot down = it drops for anyone). Supplies buy defenses: 3 AA gun, 4 SAM (2), 5 Radar.
 
 [b]MENUS BY KEYBOARD[/b]
   Arrows / Tab move, Enter or Space press, Left / Right adjust sliders, Esc goes back.
@@ -95,7 +104,7 @@ static func howto_text() -> String:
   Frozen Frontier: gusting wind and blinding snowstorms.  Desert Wasteland: canyon runs,
   crosswind, sandstorms.  Neon Metropolis: skyscraper corridors, lightning.  Sky Kingdom:
   floating islands you can fly under, air currents - and don't touch the cloud sea.
-  Everywhere: supply crates (fly through: repair + rockets), AA guns at airfields and the factory.
+  Everywhere: supply crates, AA guns at airfields and the factory (CTF / Assault: only bought ones).
 
 [b]INTERNET TIPS[/b]
   Host clicks "Host online" and sends the 5-letter room code. Everyone must click Allow

@@ -93,7 +93,11 @@ func _ready() -> void:
 	fire_interval = t.fire
 	max_rockets = t.rockets
 	rockets_left = max_rockets
-	if role == "bomber":
+	if role == "striker":
+		max_hp = 900
+		hit_radius = t.radius * 2.0
+		body.scale = Vector3.ONE * 2.0
+	elif role == "bomber":
 		max_hp = 1000
 		hit_radius = t.radius * 2.5
 		body.scale = Vector3.ONE * 2.5
@@ -186,7 +190,7 @@ func _process(dt: float) -> void:
 			main.ai_think(self, dt)
 		else:
 			_read_input(dt)
-		if not role in ["bomber", "balloon"]:
+		if not role in ["bomber", "balloon", "striker"]:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
@@ -205,8 +209,10 @@ func _process(dt: float) -> void:
 		for i in 4:
 			if comps[i] < 0.6:
 				broken.append("%s %d%%" % [Planes.COMPONENT_NAMES[i], comps[i] * 100])
-		var me = main.gs.players.get(multiplayer.get_unique_id(), {})
-		var deploy := "   Deploy %d  [3 AA  4 SAM(2)  5 Radar]" % me.get("charges", 0) if main.gs.mode != 2 else ""
+		var bank: Array = main.gs.get("bank", [0, 0])
+		var deploy := "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""] if main.gs.mode != 2 else ""
+		if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
+			deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
 		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
@@ -581,6 +587,8 @@ func _build_mesh() -> void:
 	var c: Color = TEAM_COLORS[team]
 	if role == "bomber":
 		c = Color(0.62, 0.6, 0.38)
+	elif role == "striker":
+		c = TEAM_COLORS[team].lerp(Color(0.62, 0.6, 0.38), 0.5)
 	elif is_ai:
 		c = c.darkened(0.3)
 	var glow := StandardMaterial3D.new()

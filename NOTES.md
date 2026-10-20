@@ -7,6 +7,7 @@ rockets.gd, bullets.gd. Builds: ../builds (macOS zip, Windows exe, HOW_TO_PLAY.t
 ## Worlds
 worlds.gd = registry + DEFAULT config; each world is worlds/<name>.gd (def + optional shape/color/bottom/layout/nodes hooks).
 env.gd = wind/gust/updrafts/storm/weather/hazards (lava bombs, lightning). battlefield.gd = balloons, supply crates, AA guns.
+objectives.gd = supply economy (cargo home -> team bank, pays for deploys/HQ repair), Capture the Flag (mode 4), Base Assault (mode 5: HQs + bomber raids), AI jobs via objective_for(). Base guns stand down in modes 4/5 (asymmetric Escort layout).
 Preview a world: `godot --path . -s tools/preview_world.gd -- <index>` -> /tmp/world_<name>_*.png. Test flag: `--world N`.
 
 ## Test

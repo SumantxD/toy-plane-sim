@@ -103,11 +103,8 @@ func server_tick(dt: float) -> void:
 				main.bf_event.rpc("gone", id, cr.pos, Vector3.ZERO)
 				main.repair(p, p.max_hp)
 				p.resupply.rpc()
-				var info = main.gs.players.get(int(str(p.name))) if p.role == "pilot" else null
-				if info:
-					info.charges = mini(info.get("charges", 0) + 1, main.MAX_CHARGES)
-				elif p.ai.has("traits"):
-					p.ai.charges = mini(p.ai.get("charges", 1) + 1, main.MAX_CHARGES)
+				if main.objectives and main.gs.mode != 2:
+					main.objectives.pick_cargo(p) # now carry it home for the team bank
 				main.feed_msg("%s grabbed a supply crate" % p.pilot)
 				break
 
@@ -143,6 +140,12 @@ func remove_crate(id: int) -> void:
 	if crates.has(id):
 		crates[id].node.queue_free()
 		crates.erase(id)
+
+
+# Server: a dead carrier's cargo falls as a fresh crate anyone can grab.
+func drop_cargo(at: Vector3) -> void:
+	crate_n += 1
+	main.bf_event.rpc("drop", crate_n, at, Vector3.ZERO)
 
 
 # Nearest crate position (for AI pilots who need patching up), or null.
@@ -214,6 +217,10 @@ func reset_guns() -> void:
 	guns.resize(base_count)
 	for g in guns:
 		g.revive()
+		# Flag/HQ modes are symmetric: the Escort-era base guns (5 blue vs 10 red) stand down and
+		# every defense is one a team bought with supplies.
+		g.visible = not main.gs.mode in [4, 5]
+		g.alive = g.visible
 
 
 func deployed_alive(team: int) -> int:

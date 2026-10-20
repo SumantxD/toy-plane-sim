@@ -17,6 +17,11 @@ Get the latest **Mac** or **Windows** zip from [Releases](https://github.com/Sum
 - **Free Flight:** solo or group practice. Pop the balloons.
 - **Co-op Escort:** protect 3 bombers through 8 waves of raiders.
 - **Team Dogfight:** Blue vs Red with shared team lives. Revive teammates by flying through their beacon.
+- **Team Battle vs AI:** you and AI wingmen against an AI squadron with personalities.
+- **Capture the Flag:** steal the enemy flag and bring it home. First to 3 captures, 8-minute timer.
+- **Base Assault:** strafe the enemy HQ while bomber raids fly for both sides. Repair yours with supplies.
+
+Supplies: fly through a crate and carry it home for +1 team supply. Supplies buy AA guns, SAM sites and radar (keys 3/4/5) and HQ repairs (6). AI teammates take jobs (attack, defend, escort, hunt) in every mode.
 
 Pick from 4 planes (Toy Cub, Speedster, Heavy Twin, Jet Fighter). Damage is per part: a hit wing pulls the plane to that side, a hit engine sputters, a hit tail makes turning sluggish.
 

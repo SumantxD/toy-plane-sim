@@ -102,6 +102,13 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 		return
 	var threat: Node = _threat(p, main)
 	var hurt: float = 1.0 - float(p.hp) / p.max_hp
+	# A flag/cargo run is committed: no breaking off for every tracer.
+	var obj: Dictionary = main.objectives.objective_for(p) if main.objectives else {}
+	if obj.get("urgent", false):
+		s.erase("supply")
+		s.state = PATROL
+		s.goal = obj.goto
+		return
 	# Hotheads never run; careful pilots break off sooner, more so when shaken.
 	# Retreat at most once per life, and only when really hurt (survivors earlier, hotheads never).
 	if p.role != "fighter" and tr.aggr < 0.9 and not s.get("retreated", false) and hurt > 0.8 - 0.3 * tr.caution and randf() < 0.6:
@@ -122,12 +129,14 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 			_start_move(p, s, _pick_move(p, ["splits", "zoom", "scissors", "roll", "jink"]), threat)
 		return
 	# Careful or loyal pilots dig in: drop a defense near home or near the bombers.
-	if p.role == "wing" and s.get("charges", 1) > 0 and randf() < 0.015 * (tr.caution + tr.loyalty):
+	var bank: Array = main.gs.get("bank", [0, 0])
+	if p.role == "wing" and bank[p.team] > 0 and randf() < 0.015 * (tr.caution + tr.loyalty):
 		var home: Vector3 = main.home_for(p.team)
 		if Vector2(p.position.x - home.x, p.position.z - home.z).length() < 900.0 and p.position.y - Terrain.floor_below(p.position) < 400.0:
 			var k: String = ["rapid", "rapid", "radar", "sam"].pick_random()
-			if s.get("charges", 1) >= (2 if k == "sam" else 1) and main.deploy(p, k):
-				s.charges = s.get("charges", 1) - (2 if k == "sam" else 1)
+			var cost: int = 2 if k == "sam" else 1
+			if bank[p.team] >= cost and main.deploy(p, k):
+				bank[p.team] -= cost
 	# Hurt or out of rockets: a supply crate nearby is worth the detour.
 	if (hurt > 0.45 or p.rockets_left == 0) and main.battlefield and randf() < 0.6:
 		var crate = main.battlefield.nearest_crate(p.position, 1600.0)
@@ -136,6 +145,18 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 			s.supply = crate
 			return
 	s.erase("supply")
+	# Mode objectives (flags, cargo, HQs): a job beats free-for-all dogfighting.
+	s.erase("goal")
+	if main.objectives:
+		if obj.has("target") and is_instance_valid(obj.target) and obj.target.alive:
+			s.target = obj.target
+			s.state = ATTACK if p.position.distance_to(obj.target.position) < 650.0 else PURSUE
+			return
+		if obj.has("goto"):
+			if not threat:
+				s.state = PATROL
+				s.goal = obj.goto
+				return
 	# Mistakes: target fixation for a moment (more for rookies).
 	if randf() < sk.mistakes and s.blind <= 0.0:
 		s.blind = randf_range(0.8, 2.0)
@@ -283,6 +304,11 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 	if s.has("supply"):
 		p.throttle = 1.0
 		return (s.supply + Vector3.UP * 4.0 - p.position).normalized()
+	if s.has("goal"):
+		var gd: float = p.position.distance_to(s.goal)
+		p.throttle = clampf(gd / 700.0, 0.35, 1.0) # slow down to thread the pickup
+		p.wants_boost = gd > 900.0 and p.boost > 0.5
+		return (s.goal - p.position).normalized()
 	# PATROL: loyal wingmen hold formation on a human; free spirits head for the action.
 	var leader: Node = null
 	for f in main.players.get_children():
@@ -435,8 +461,11 @@ static func _say(p: Node, main: Node, kind: String, chance: float) -> void:
 # ---------- safety layer over any intent: ground, buildings, other planes, map edge, ceiling ----------
 
 static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3:
-	var margin: float = 50.0 + 40.0 * tr.get("caution", 0.5) # hotheads cut it closer
-	for k in [1.0, 2.5]:
+	var t = p.ai.get("target")
+	# Strafing an HQ means committing to a dive: short look-ahead, low floor.
+	var strafe: bool = is_instance_valid(t) and t.role == "hq" and p.position.distance_to(t.position) < 700.0
+	var margin: float = 25.0 if strafe else 50.0 + 40.0 * tr.get("caution", 0.5) # hotheads cut it closer
+	for k in ([1.0] if strafe else [1.0, 2.5]):
 		var probe: Vector3 = p.position + p.velocity * k
 		if Terrain.solid(probe):
 			# Heading into ground: climb, unless we're under a floating island (then dive under it).
@@ -451,7 +480,7 @@ static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3
 	for f in main.players.get_children():
 		if f != p and f.alive and p.position.distance_to(f.position) < 45.0:
 			aim += (p.position - f.position).normalized() * 0.8
-	if Vector2(p.position.x, p.position.z).length() > 1750.0:
+	if Vector2(p.position.x, p.position.z).length() > 2350.0 and not strafe: # outside both bases (blue runway ends at z 2300)
 		aim += Vector3(-p.position.x, 0, -p.position.z).normalized() * 1.5
 	if p.position.y > 700.0:
 		aim += Vector3.DOWN

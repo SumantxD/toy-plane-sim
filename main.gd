@@ -7,7 +7,10 @@ const WORLD_SIZE := 2000.0
 const Aircraft := preload("res://plane.gd")
 const Bullets := preload("res://bullets.gd")
 const Rockets := preload("res://rockets.gd")
-const MODES := ["Co-op Escort", "Team Dogfight", "Free Flight", "Team Battle vs AI"]
+const MODES := ["Co-op Escort", "Team Dogfight", "Free Flight", "Team Battle vs AI", "Capture the Flag", "Base Assault"]
+const TEAM_MODES := [1, 3, 4, 5]
+const AI_MODES := [3, 4, 5]
+const JOBS := ["attack", "defend", "escort", "hunt"]
 const SIZES := [2, 4, 6]
 const SKILL_NAMES := ["rookie", "pilot", "ace"]
 const CALLSIGNS := ["Maverick", "Goose", "Iceman", "Viper", "Jester", "Hollywood", "Wolfman", "Sundown", "Cougar", "Merlin", "Slider", "Stinger"]
@@ -127,6 +130,10 @@ func _ready() -> void:
 		get_tree().create_timer(25.0).timeout.connect(func(): request_deploy.rpc_id(1, "sam"))
 	if "--solo" in args:
 		solo_battle()
+		if args.find("--mode") >= 0:
+			request_mode(clampi(int(args[args.find("--mode") + 1]), 0, MODES.size() - 1))
+		if args.find("--world") >= 0:
+			request_world(int(args[args.find("--world") + 1]))
 		if "--start" in args:
 			get_tree().create_timer(1.0).timeout.connect(_start)
 	var ea := args.find("--end-after")
@@ -399,17 +406,20 @@ func register(info: Dictionary) -> void:
 func _add_player(id: int, pilot: String) -> void:
 	pilot = pilot.strip_edges().left(16)
 	var counts := _team_counts()
-	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in [1, 3] or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub", charges = 2}
+	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in TEAM_MODES or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
 
 
 @rpc("authority", "call_local", "reliable")
 func sync(state: Dictionary) -> void:
-	var was: String = gs.phase
+	var was := seen_phase # not gs.phase: the server already changed that before pushing
+	seen_phase = state.phase
 	gs = state
 	if gs.get("world", 0) != Worlds.index:
 		_build_world_content(gs.world)
 	if gs.phase != was and gs.phase == "playing":
 		Sfx.ui(self, Sfx.CONFIRM, -4.0)
+		if objectives:
+			objectives.on_match_start()
 		if battlefield:
 			battlefield.reset_guns()
 			for id in battlefield.crates.keys():
@@ -486,7 +496,7 @@ func request_plane(kind: String) -> void:
 @rpc("any_peer", "call_local", "reliable")
 func request_switch_team() -> void:
 	var id := _sender()
-	if gs.phase == "lobby" and gs.mode in [1, 3] and gs.players.has(id):
+	if gs.phase == "lobby" and gs.mode in TEAM_MODES and gs.players.has(id):
 		gs.players[id].team = 1 - gs.players[id].team
 		_push()
 
@@ -526,13 +536,14 @@ func _start() -> void:
 		gs.players[id].kills = 0
 		gs.players[id].deaths = 0
 		gs.players[id].revives = 0
-		gs.players[id].charges = 2
 	gs.team_kills = [0, 0]
 	gs.ai_board = {}
-	if gs.mode == 3:
+	if objectives:
+		objectives.reset(gs)
+	if gs.mode in AI_MODES:
 		var n: int = SIZES[gs.size]
-		gs.lives = [n * 2, n * 2]
-		gs.time = MATCH_TIME
+		gs.lives = [n * 2, n * 2] if gs.mode == 3 else [-1, -1]
+		gs.time = MATCH_TIME if gs.mode != 5 else 600.0
 		var counts := _team_counts()
 		var names := CALLSIGNS.duplicate()
 		names.shuffle()
@@ -542,6 +553,7 @@ func _start() -> void:
 				var w := _spawn_ai("wing", team, b[0], b[1], Vector3.ZERO, Planes.ORDER.pick_random(), names.pop_back())
 				w.ai = PilotAI.make(SKILL_NAMES[gs.skill])
 				w.ai.slot = i - counts[team]
+				w.ai.job = JOBS[(i + team) % JOBS.size()]
 	elif gs.mode == 2:
 		gs.lives = [-1, -1]
 		for i in 20:
@@ -628,13 +640,22 @@ func _process(dt: float) -> void:
 	if battlefield:
 		battlefield.server_tick(dt)
 		battlefield.server_guns(dt)
-	_tick_charges(dt)
+
 	if gs.mode == 0:
 		_tick_escort(dt)
 	elif gs.mode == 1:
 		_tick_dogfight(dt)
 	elif gs.mode == 3:
 		_tick_battle(dt)
+	elif gs.mode in [4, 5]:
+		gs.time -= dt
+		if gs.time <= 0.0:
+			var a: float = gs.score[0] if gs.mode == 4 else objectives.hqs[0].hp
+			var b: float = gs.score[1] if gs.mode == 4 else objectives.hqs[1].hp
+			var how := "%d-%d" % [a, b] if gs.mode == 4 else "HQ %d%% vs %d%%" % [100 * a / Objectives.HQ_HP, 100 * b / Objectives.HQ_HP]
+			_end(("Draw! (%s)" if a == b else "%s team wins on time! (%s)" % [TEAM_NAMES[0 if a > b else 1], "%s"]) % how)
+	if objectives:
+		objectives.tick(dt)
 	push_cd -= dt
 	if push_cd <= 0.0:
 		push_cd = 0.5
@@ -746,7 +767,7 @@ func _spawn_wave() -> void:
 @rpc("any_peer", "reliable")
 func report_hit(target_name: String, weapon: int, comp: int) -> void:
 	var a := _plane(multiplayer.get_remote_sender_id())
-	var t := players.get_node_or_null(target_name)
+	var t := find_unit(target_name) # planes, turrets, HQs
 	if a and t and a.position.distance_to(t.position) < 2500.0:
 		apply_hit(a, t, clampi(weapon, 0, 1), clampi(comp, -1, 3))
 
@@ -794,6 +815,23 @@ func kill(victim: Node, killer: Node, quiet := false) -> void:
 		var row: Dictionary = gs.ai_board.get_or_add(killer.pilot, {team = killer.team, style = PilotAI.ARCHETYPES[killer.ai.arch].name, kills = 0})
 		row.kills += 1
 	PilotAI.on_kill(victim, killer, self)
+	if objectives and victim.role in ["pilot", "wing"]:
+		objectives.on_down(victim)
+	if victim.role == "hq":
+		_end("%s team destroyed the %s!" % [TEAM_NAMES[1 - victim.team], victim.pilot])
+		return
+	if victim.role == "striker":
+		get_tree().create_timer(1.0).timeout.connect(victim.queue_free)
+		_push()
+		return
+	if gs.mode in [4, 5] and victim.role in ["pilot", "wing"]:
+		if victim.role == "pilot" and gs.players.has(int(str(victim.name))):
+			gs.players[int(str(victim.name))].deaths += 1
+		if victim.role == "wing":
+			PilotAI.reset(victim)
+		_respawn_later(victim, RESPAWN_DELAY)
+		_push()
+		return
 	if spectating and killer and killer.alive:
 		cut_to.rpc(killer.name)
 	if gs.mode == 3 and victim.role in ["pilot", "wing"]:
@@ -849,11 +887,13 @@ func _respawn_later(victim: Node, delay: float) -> void:
 	var key := str(victim.name)
 	respawning[key] = victim.team
 	var id: int = gs.match_id
+	var vid := victim.get_instance_id() # never capture the node: it may be freed before the timer
 	get_tree().create_timer(delay).timeout.connect(func():
 		respawning.erase(key)
-		if is_instance_valid(victim) and gs.match_id == id and gs.phase == "playing" and not victim.alive:
-			var b := _base(int(key)) if victim.role == "pilot" else _base_for(victim.team, randi() % 6)
-			victim.respawn.rpc(b[0], b[1]))
+		var v = instance_from_id(vid)
+		if is_instance_valid(v) and gs.match_id == id and gs.phase == "playing" and not v.alive:
+			var b := _base(int(key)) if v.role == "pilot" else _base_for(v.team, randi() % 6)
+			v.respawn.rpc(b[0], b[1]))
 
 
 func _feed(text: String) -> void:
@@ -961,6 +1001,9 @@ func ai_think(p: Node, dt: float) -> void:
 		return
 	if p.role == "bomber":
 		_bomber_move(p, dt)
+		return
+	if p.role == "striker":
+		objectives.strike_move(p, dt)
 		return
 	PilotAI.think(p, dt, self)
 
@@ -1131,6 +1174,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			request_deploy.rpc_id(1, "sam")
 		KEY_5:
 			request_deploy.rpc_id(1, "radar")
+		KEY_6:
+			request_repair.rpc_id(1)
 
 
 func _refresh_ui() -> void:
@@ -1140,8 +1185,8 @@ func _refresh_ui() -> void:
 	mode_btn.disabled = not leader
 	mode_btn.selected = gs.mode
 	start_btn.visible = leader
-	switch_btn.visible = gs.mode in [1, 3]
-	battle_row.visible = gs.mode == 3
+	switch_btn.visible = gs.mode in TEAM_MODES
+	battle_row.visible = gs.mode in AI_MODES
 	size_btn.disabled = not leader
 	world_btn.disabled = not leader
 	world_btn.selected = gs.get("world", 0)
@@ -1152,15 +1197,15 @@ func _refresh_ui() -> void:
 	if gs.room:
 		room_label.text = "ROOM CODE:  %s" % gs.room
 	elif multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
-		room_label.text = "Solo battle vs AI" if gs.mode == 3 else "Solo practice"
+		room_label.text = "Solo battle vs AI" if gs.mode in AI_MODES else "Solo practice"
 	else:
 		var lan := Array(IP.get_local_addresses()).filter(func(a): return a.begins_with("192.168.") or a.begins_with("10.") or a.begins_with("172."))
 		room_label.text = "LAN game - friends join with: %s%s" % [", ".join(lan.slice(0, 2)) if lan else "your IP", ("\nInternet (router allowed): %s" % gs.public_ip) if gs.public_ip else ""]
 	copy_btn.visible = gs.room != ""
 	var lines := [gs.msg] if gs.msg else []
 	var counts := _team_counts()
-	for team in (2 if gs.mode in [1, 3] else 1):
-		var fill := maxi(SIZES[gs.size] - counts[team], 0) if gs.mode == 3 else 0
+	for team in (2 if gs.mode in TEAM_MODES else 1):
+		var fill := maxi(SIZES[gs.size] - counts[team], 0) if gs.mode in AI_MODES else 0
 		lines.append("%s team%s" % [TEAM_NAMES[team], ("  + %d AI pilot%s" % [fill, "s" if fill != 1 else ""]) if fill else ""])
 		for id in gs.players:
 			if gs.players[id].team == team:
@@ -1187,6 +1232,12 @@ func _refresh_ui() -> void:
 			var r: Dictionary = gs.ai_board[n]
 			for v in ["%s (AI)" % n, TEAM_NAMES[r.team], r.style, r.kills, "", ""]:
 				_cell(str(v), Color(0.75, 0.85, 1.0))
+
+
+func _carrying_flag(n: String) -> bool:
+	if gs.get("flags") == null or gs.mode != 4:
+		return false
+	return gs.flags.any(func(f): return f.state == "carried" and f.carrier == n)
 
 
 func _cell(text: String, color: Color) -> void:
@@ -1228,7 +1279,19 @@ func _refresh_hud() -> void:
 	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	if peer and not multiplayer.is_server() and peer.get_peer(1):
 		rtt = "   Ping %dms" % peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
-	if gs.mode == 3:
+	var bank := ""
+	if gs.mode != 2 and gs.get("bank") != null:
+		bank = "      Supplies  Blue %d  Red %d" % [gs.bank[0], gs.bank[1]]
+	if gs.mode == 4 and gs.get("flags") != null:
+		var t4 := "%d:%02d" % [int(gs.time) / 60, int(gs.time) % 60]
+		var st := func(team: int) -> String:
+			var f: Dictionary = gs.flags[team]
+			return "flag " + ({home = "safe", dropped = "DROPPED", carried = "TAKEN"}[f.state])
+		top.text = "BLUE %d  (%s)   |   %s   |   (%s)  %d RED%s%s" % [gs.score[0], st.call(0), t4, st.call(1), gs.score[1], bank, rtt]
+	elif gs.mode == 5 and gs.get("hq") != null:
+		var t5 := "%d:%02d" % [int(gs.time) / 60, int(gs.time) % 60]
+		top.text = "BLUE HQ %d%%   |   %s   |   RED HQ %d%%%s%s" % [100 * gs.hq[0] / Objectives.HQ_HP, t5, 100 * gs.hq[1] / Objectives.HQ_HP, bank, rtt]
+	elif gs.mode == 3:
 		var t := "%d:%02d" % [int(gs.time) / 60, int(gs.time) % 60]
 		top.text = "BLUE  %d lives, %d flying   |   %s   |   RED  %d lives, %d flying%s" % [gs.lives[0], _flying(0), t, gs.lives[1], _flying(1), rtt]
 	elif gs.mode == 2:
@@ -1269,6 +1332,18 @@ func _draw_overlay() -> void:
 	if battlefield:
 		for c in battlefield.crates.values():
 			_marker(cam, c.pos, Color(1.0, 0.85, 0.2), "SUPPLY")
+		if objectives and gs.get("flags") != null and gs.mode == 4:
+			for ft in 2:
+				var f: Dictionary = gs.flags[ft]
+				if f.state != "carried":
+					_marker(cam, f.pos + Vector3.UP * 25.0, Battlefield.Aircraft_TEAM[ft], "%s FLAG%s" % [TEAM_NAMES[ft].to_upper(), " (dropped)" if f.state == "dropped" else ""])
+		if objectives and gs.mode == 5:
+			for ht in 2:
+				var h: Node3D = objectives.hqs[ht]
+				_marker(cam, h.global_position + Vector3.UP * 45.0, Battlefield.Aircraft_TEAM[ht], "%s %d%%" % [h.pilot.to_upper(), 100 * h.hp / h.max_hp])
+		var me_p := _plane(multiplayer.get_unique_id())
+		if objectives and me_p and (str(me_p.name) in gs.get("cargo", []) or _carrying_flag(str(me_p.name))):
+			_marker(cam, objectives.home(me_p.team) + Vector3.UP * 30.0, Color(0.4, 1.0, 0.5), "HOME - deliver here")
 		for g in battlefield.guns:
 			if g.alive and g.visible and g.team != team and cam.global_position.distance_to(g.global_position) < 1300.0:
 				_marker(cam, g.global_position + Vector3.UP * 8.0, Color(1.0, 0.3, 0.25), Battlefield.Turret.SPEC[g.kind].tag)
@@ -1288,7 +1363,7 @@ func _marker(cam: Camera3D, pos: Vector3, color: Color, text: String) -> void:
 	if cam.is_position_behind(pos):
 		return
 	var s := cam.unproject_position(pos)
-	if not s.is_finite():
+	if not s.is_finite() or not overlay.get_rect().grow(400.0).has_point(s):
 		return
 	overlay.draw_colored_polygon(PackedVector2Array([s + Vector2(0, -9), s + Vector2(9, 0), s + Vector2(0, 9), s + Vector2(-9, 0)]), color)
 	var dist := cam.global_position.distance_to(pos)
@@ -1540,6 +1615,8 @@ func _build_static() -> void:
 var world_root: Node3D
 var env: Env
 var battlefield: Battlefield
+var objectives: Objectives
+var seen_phase := "lobby"
 var world_env: WorldEnvironment
 
 func _build_world_content(i: int) -> void:
@@ -1570,6 +1647,10 @@ func _build_world_content(i: int) -> void:
 	battlefield.name = "Battlefield"
 	world_root.add_child(battlefield)
 	battlefield.setup(self)
+	objectives = Objectives.new()
+	objectives.name = "Objectives"
+	world_root.add_child(objectives)
+	objectives.setup(self)
 	env = Env.new()
 	world_root.add_child(env)
 	env.setup(self, world_env.environment)
@@ -1609,22 +1690,34 @@ func find_unit(n: String) -> Node:
 	var p := players.get_node_or_null(n)
 	if not p and battlefield:
 		p = battlefield.get_node_or_null(n)
+	if not p and objectives:
+		p = objectives.get_node_or_null(n)
 	return p
 
 
 # ---------- deployable defenses ----------
 const DEPLOY_COST := {rapid = 1, sam = 2, radar = 1}
-const MAX_CHARGES := 3
-var charge_t := 0.0
 
 @rpc("any_peer", "call_local", "reliable")
 func request_deploy(kind: String) -> void:
 	var p := _plane(_sender())
-	var info = gs.players.get(_sender())
-	if p and info and DEPLOY_COST.has(kind) and info.get("charges", 0) >= DEPLOY_COST[kind]:
+	if p and DEPLOY_COST.has(kind) and gs.get("bank", [0, 0])[p.team] >= DEPLOY_COST[kind]:
 		if deploy(p, kind):
-			info.charges -= DEPLOY_COST[kind]
+			gs.bank[p.team] -= DEPLOY_COST[kind]
 			_push()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_repair() -> void:
+	var p := _plane(_sender())
+	if p and objectives and objectives.repair_hq(p.team):
+		_push()
+
+
+@rpc("authority", "call_local", "reliable")
+func obj_event(kind: String, a: Vector3, b: Vector3) -> void:
+	if objectives and kind == "bombs":
+		objectives.show_bombs(a, b)
 
 
 # Server: drop a turret for `p`'s team onto the ground below it. Returns false if there's no spot.
@@ -1638,18 +1731,6 @@ func deploy(p: Node, kind: String) -> bool:
 	var what: String = Battlefield.Turret.SPEC[kind].name
 	_feed("%s deployed %s %s" % [p.pilot, "an" if what[0] in "AEIOU" else "a", what])
 	return true
-
-
-func _tick_charges(dt: float) -> void:
-	charge_t += dt
-	if charge_t < 90.0:
-		return
-	charge_t = 0.0
-	for id in gs.players:
-		gs.players[id].charges = mini(gs.players[id].get("charges", 0) + 1, MAX_CHARGES)
-	for p in players.get_children():
-		if p.ai.has("traits"):
-			p.ai.charges = mini(p.ai.get("charges", 1) + 1, MAX_CHARGES)
 
 
 # Damage from the world itself (lava, lightning): server only.
