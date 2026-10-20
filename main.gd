@@ -127,6 +127,7 @@ func _ready() -> void:
 	if qa >= 0:
 		get_tree().create_timer(float(args[qa + 1])).timeout.connect(func():
 			print("AIM shots=%d hits=%d (%.1f%%)" % [stat_shots, stat_hits, 100.0 * stat_hits / maxf(stat_shots, 1)])
+			print("TALLY ", tallies)
 			print("STATS nodes=%d orphans=%d mem=%.1fMB" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6])
 			_quit())
 		# Test hook backstop: bound to the SceneTree, so it still fires after a reconnect reloaded the scene.
@@ -140,6 +141,8 @@ func _ready() -> void:
 		add_child(nt)
 	if "--free" in args:
 		free_flight()
+	if "--evil" in args: # test hook: abusive client, see tools/evil.gd
+		add_child(load("res://tools/evil.gd").new())
 	if "--test-deploy" in args: # test hook: a joined client calls in a SAM site
 		get_tree().create_timer(25.0).timeout.connect(func(): request_deploy.rpc_id(1, "sam", gs.match_id))
 	if "--solo" in args:
@@ -393,6 +396,8 @@ func _leave(msg := "") -> void:
 	if msg:
 		Engine.set_meta("leave_msg", msg)
 	await _goodbye()
+	if not is_inside_tree():
+		return # a second _leave (kicked, then disconnected) already reloaded the scene
 	multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -437,12 +442,16 @@ func _back_to_lobby_if_empty() -> void:
 # Client: leaving on purpose (Leave / Quit), so the host doesn't hold a rejoin slot or say "lost connection".
 @rpc("any_peer", "reliable")
 func leaving() -> void:
+	if not multiplayer.is_server() or not _allow(_sender(), "leaving", 0.5, 2.0): # each one writes the netlog
+		return
 	tokens.erase(_sender())
 	netlog("leaving %d (on purpose)" % _sender())
 
 
 @rpc("any_peer", "reliable")
 func register(info: Dictionary) -> void:
+	if not multiplayer.is_server():
+		return # relayed from another client: only the host handles requests
 	var id := multiplayer.get_remote_sender_id()
 	if gs.players.has(id):
 		return # repeated / replayed registration
@@ -583,6 +592,8 @@ func _tick_network(dt: float) -> void:
 
 @rpc("any_peer", "reliable")
 func world_ready(world: int) -> void:
+	if not multiplayer.is_server():
+		return
 	var id := multiplayer.get_remote_sender_id()
 	loaded[id] = world
 	if world == gs.world:
@@ -613,6 +624,7 @@ func stale(mid: int) -> bool:
 	if mid == gs.match_id:
 		return false
 	stale_drops += 1
+	tally("stale")
 	if stale_drops <= 20:
 		netlog("dropped stale rpc from %d (match %d)" % [_sender(), mid])
 	return true
@@ -625,6 +637,8 @@ func probe(t: int) -> void:
 
 @rpc("any_peer", "unreliable")
 func pong(t: int) -> void:
+	if not multiplayer.is_server():
+		return
 	var id := _sender()
 	var ms := Time.get_ticks_msec() - t
 	if not gs.players.has(id) or ms < 0 or ms > 20000:
@@ -705,12 +719,14 @@ func _quit() -> void:
 
 
 func _print_netstats() -> void:
+	if multiplayer.is_server():
+		print("TALLY ", tallies)
 	var ns := netstats
 	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	var rtt := -1.0
 	var lossp := -1.0
 	var kb := 0.0
-	if peer and peer.get_peer(1):
+	if peer and not multiplayer.is_server():
 		rtt = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
 		lossp = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_PACKET_LOSS) / float(ENetPacketPeer.PACKET_LOSS_SCALE) * 100.0
 		kb = peer.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0 / 10.0
@@ -783,6 +799,8 @@ func _sender() -> int:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_start() -> void:
+	if not multiplayer.is_server():
+		return
 	if _sender() == gs.leader and gs.phase == "lobby":
 		if gs.mode == 1 and 0 in _team_counts():
 			_feed("Dogfight needs a pilot on each team")
@@ -794,6 +812,8 @@ func request_start() -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_battle(size_i: int, skill_i: int) -> void:
+	if not multiplayer.is_server():
+		return
 	if _sender() == gs.leader and gs.phase == "lobby":
 		gs.size = clampi(size_i, 0, SIZES.size() - 1)
 		gs.skill = clampi(skill_i, 0, SKILL_NAMES.size() - 1)
@@ -802,12 +822,16 @@ func request_battle(size_i: int, skill_i: int) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_end() -> void:
+	if not multiplayer.is_server():
+		return
 	if _sender() == gs.leader and gs.phase == "playing":
 		_end("Match ended by the leader")
 
 
 @rpc("any_peer", "call_local", "reliable")
 func request_mode(m: int) -> void:
+	if not multiplayer.is_server():
+		return
 	if _sender() == gs.leader and gs.phase == "lobby":
 		gs.mode = clampi(m, 0, MODES.size() - 1)
 		gs.msg = ""
@@ -820,6 +844,8 @@ func request_mode(m: int) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_plane(kind: String) -> void:
+	if not multiplayer.is_server():
+		return
 	if not _allow(_sender(), "plane", 2.0, 4.0):
 		return
 	var id := _sender()
@@ -830,6 +856,8 @@ func request_plane(kind: String) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_switch_team() -> void:
+	if not multiplayer.is_server():
+		return
 	if not _allow(_sender(), "team", 1.0, 2.0):
 		return
 	var id := _sender()
@@ -840,6 +868,8 @@ func request_switch_team() -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_ping(text: String) -> void:
+	if not multiplayer.is_server():
+		return
 	if not _allow(_sender(), "ping", 1.0, 2.0):
 		return
 	var p := _plane(_sender())
@@ -1136,30 +1166,35 @@ func _spawn_wave() -> void:
 
 @rpc("any_peer", "reliable")
 func report_hit(target_name: String, weapon: int, comp: int, mid: int) -> void:
-	if stale(mid):
+	if not multiplayer.is_server() or stale(mid):
 		return
 	var a := _plane(multiplayer.get_remote_sender_id())
 	var t := find_unit(target_name) # planes, turrets, HQs
 	weapon = clampi(weapon, 0, 2)
-	if a and t and _hit_plausible(a, t, weapon):
+	var why := _hit_check(a, t, weapon) if a and t else "unknown"
+	tally("hit_" + (why if why else "ok"))
+	if why == "":
 		apply_hit(a, t, weapon, clampi(comp, -1, 3))
 
 
 # Favour the shooter, within limits: rewind the target at most 0.3 s to where a lagging shooter saw
-# it, require range and (for guns) a line of sight past terrain at that moment, and only accept
-# rocket/bomb hits after the host saw that plane launch one.
-func _hit_plausible(a: Node, t: Node, weapon: int) -> bool:
+# it, require range and (for guns) a line of sight past terrain at that moment; rockets and bombs
+# must match a launch the host saw that could have reached the target by now. "" = accept.
+func _hit_check(a: Node, t: Node, weapon: int) -> String:
 	var id := int(str(a.name))
 	var ago := clampf(gs.players.get(id, {}).get("ping", 100) / 2000.0 + 0.1, 0.0, 0.3)
 	var tp: Vector3 = t.position_at(ago) if t.has_method("position_at") else t.position
-	var d: float = a.position.distance_to(tp)
-	match weapon:
-		0:
-			return d < 900.0 and _allow(id, "gun", 1.25 / a.fire_interval, 8.0) and _clear_line(a.position, tp)
-		1:
-			return d < 2000.0 and _launch_used(a, false)
-		_:
-			return d < 1500.0 and _launch_used(a, true)
+	if t == a:
+		return "self"
+	if weapon > 0:
+		return _launch_used(a, t, tp, weapon == 2)
+	if not a.alive and Time.get_ticks_msec() - a.died_ms > 2200: # rounds already in the air when you died still count
+		return "dead"
+	if a.position.distance_to(tp) > 1100.0:
+		return "range"
+	if not _allow(id, "gun", 1.25 / a.fire_interval, 8.0):
+		return "rate"
+	return "" if _clear_line(a.position, tp) else "los"
 
 
 func _clear_line(from: Vector3, to: Vector3) -> bool:
@@ -1172,31 +1207,50 @@ func _clear_line(from: Vector3, to: Vector3) -> bool:
 	return true
 
 
-# Server: a client's rocket or bomb launch, checked against what that plane can carry.
-func note_launch(p: Node, bomb: bool) -> bool:
-	var id := p.get_multiplayer_authority()
-	if not (bomb and _allow(id, "bomb", 1.0 / 20.0, p.max_bombs) or not bomb and _allow(id, "rocket", 1.0 / Aircraft.ROCKET_RELOAD, p.max_rockets)):
+# Every peer: a client's rocket or bomb launch, checked against what that plane can carry and where
+# it is. Shooters name their ordnance "<plane>_<n>", so ids can't collide with anyone else's.
+func note_launch(p: Node, id: String, at: Vector3, v: Vector3, bomb: bool) -> bool:
+	var peer := p.get_multiplayer_authority()
+	var why := ""
+	if not id.begins_with(str(p.name) + "_") or id.length() > 40:
+		why = "id"
+	elif not p.alive and Time.get_ticks_msec() - p.died_ms > 1500:
+		why = "dead"
+	elif at.distance_to(p.position) > 400.0 or v.length() > 400.0:
+		why = "where"
+	elif not (bomb and _allow(peer, "bomb", 1.0 / 20.0, p.max_bombs) or not bomb and _allow(peer, "rocket", 1.0 / Aircraft.ROCKET_RELOAD, p.max_rockets)):
+		why = "ammo"
+	tally("launch_" + (why if why else "ok"))
+	if why:
 		return false
 	var list: Array = launches.get(str(p.name), [])
-	list.append({t = Time.get_ticks_msec(), bomb = bomb, first = 0})
+	list.append({t = Time.get_ticks_msec(), p = at, v = v.length(), bomb = bomb, first = 0, hit = []})
 	launches[str(p.name)] = list.slice(-12)
 	return true
 
 
-func _launch_used(p: Node, bomb: bool) -> bool:
+# A launch that could have reached `tp` by now (rockets top out near 520 m/s, bombs fall), hitting
+# each target once; one explosion may splash several targets within 400 ms.
+func _launch_used(p: Node, t: Node, tp: Vector3, bomb: bool) -> String:
 	var now := Time.get_ticks_msec()
+	var why := "launch"
 	for l in launches.get(str(p.name), []):
-		if l.bomb != bomb or now - l.t > (25000 if bomb else 9000):
+		var e: float = (now - l.t) / 1000.0
+		if l.bomb != bomb or e > (25.0 if bomb else 9.0) or l.first > 0 and now - l.first > 400:
 			continue
-		if l.first == 0:
-			l.first = now
-			return true
-		if now - l.first < 400: # one explosion may splash several targets
-			return true
-	return false
+		var reach: float = ((l.v + 15.0 * e) if bomb else 520.0) * (e + 0.3) + 100.0 + t.hit_radius
+		if tp.distance_to(l.p) > reach:
+			why = "reach"
+		elif t in l.hit:
+			why = "dup"
+		else:
+			l.first = now if l.first == 0 else l.first
+			l.hit.append(t)
+			return ""
+	return why
 
 
-# Server: token-bucket rate limit per peer and request kind.
+# Token-bucket rate limit per peer and request kind. A peer that keeps hammering gets kicked.
 func _allow(id: int, key: String, rate: float, burst: float) -> bool:
 	var k := "%d:%s" % [id, key]
 	var now := Time.get_ticks_msec() / 1000.0
@@ -1204,15 +1258,30 @@ func _allow(id: int, key: String, rate: float, burst: float) -> bool:
 	b[0] = minf(burst, b[0] + (now - b[1]) * rate)
 	b[1] = now
 	buckets[k] = b
-	if b[0] < 1.0:
-		return false
-	b[0] -= 1.0
-	return true
+	if b[0] >= 1.0:
+		b[0] -= 1.0
+		return true
+	tally("rate_" + key)
+	if key != "strikes" and id > 1 and multiplayer.is_server() and not _allow(id, "strikes", 5.0, 300.0):
+		buckets.erase("%d:strikes" % id)
+		kicked.rpc_id(id, "Disconnected: too many invalid requests.")
+		get_tree().create_timer(2.0).timeout.connect(func(): if id in multiplayer.get_peers(): multiplayer.multiplayer_peer.disconnect_peer(id))
+	return false
+
+
+# Respawn / resupply: the host's ammo count for this plane starts full again.
+func refill(p: Node) -> void:
+	for key in ["rocket", "bomb"]:
+		buckets.erase("%d:%s" % [p.get_multiplayer_authority(), key])
+
+
+func tally(why: String) -> void:
+	tallies[why] = tallies.get(why, 0) + 1
 
 
 @rpc("any_peer", "call_local", "reliable")
 func report_crash(mid: int) -> void:
-	if stale(mid):
+	if not multiplayer.is_server() or stale(mid):
 		return
 	var p := _plane(_sender())
 	if p:
@@ -2318,7 +2387,8 @@ var objectives: Objectives
 var away := {} # server: token -> {info, until, match}: dropped pilots who may rejoin within 60 s
 var tokens := {} # server: peer id -> player token (stable across reconnects)
 var buckets := {} # server: rate limits per peer and request
-var launches := {} # server: plane name -> [{t, bomb, first}], rockets/bombs the host saw launched
+var launches := {} # plane name -> [{t, p, v, bomb, first, hit}], client rockets/bombs seen launched
+var tallies := {} # client input accepted / refused, by reason (printed with --netstats / at quit)
 var last_target := "" # the room code / address we joined (for auto-reconnect)
 var last_sync_ms := 0
 var ping_t := 0.0
@@ -2387,6 +2457,8 @@ func _build_world_content(i: int) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_world(i: int) -> void:
+	if not multiplayer.is_server():
+		return
 	if _sender() == gs.leader and gs.phase == "lobby":
 		gs.world = clampi(i, 0, Worlds.LIST.size() - 1)
 		_push()
@@ -2463,7 +2535,7 @@ const DEPLOY_COST := {rapid = 1, sam = 2, radar = 1}
 
 @rpc("any_peer", "call_local", "reliable")
 func request_deploy(kind: String, mid: int) -> void:
-	if stale(mid) or not _allow(_sender(), "deploy", 1.0, 2.0):
+	if not multiplayer.is_server() or stale(mid) or not _allow(_sender(), "deploy", 1.0, 2.0):
 		return
 	var p := _plane(_sender())
 	if p and DEPLOY_COST.has(kind) and gs.get("bank", [0, 0])[p.team] >= DEPLOY_COST[kind]:
@@ -2474,7 +2546,7 @@ func request_deploy(kind: String, mid: int) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_repair(mid: int) -> void:
-	if stale(mid) or not _allow(_sender(), "repair", 1.0, 2.0):
+	if not multiplayer.is_server() or stale(mid) or not _allow(_sender(), "repair", 1.0, 2.0):
 		return
 	var p := _plane(_sender())
 	if p and objectives and objectives.repair_hq(p.team):

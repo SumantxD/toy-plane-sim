@@ -105,17 +105,22 @@ func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target
 	if main().stale(mid):
 		return
 	var owner: Node = main().find_unit(owner_name)
-	# Only a plane's own peer may launch its ordnance (no rockets in someone else's name).
-	if not owner or owner.get_multiplayer_authority() != multiplayer.get_remote_sender_id() or not (p.is_finite() and v.is_finite()):
+	var from := multiplayer.get_remote_sender_id()
+	# Only a plane's own peer may launch its ordnance (no rockets in someone else's name), and only what it carries.
+	if not owner or owner.get_multiplayer_authority() != from or not (p.is_finite() and v.is_finite()) or rockets.has(id):
+		main().tally("launch_forged" if owner else "launch_owner")
 		return
-	if multiplayer.is_server() and not main().note_launch(owner, bomb):
-		return # out of ammo by the host's count: no hits will be accepted for it either
+	if from != 1 and not main().note_launch(owner, id, p, v, bomb):
+		return
 	_add(id, p, v, owner, target_name, false, bomb)
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func detonate_remote(id: String, p: Vector3) -> void:
-	if not p.is_finite() or (rockets.has(id) and is_instance_valid(rockets[id].owner) and rockets[id].owner.get_multiplayer_authority() != multiplayer.get_remote_sender_id()):
+	var owner: Node = main().find_unit(id.rsplit("_", true, 1)[0])
+	var from := multiplayer.get_remote_sender_id()
+	if not p.is_finite() or not owner or owner.get_multiplayer_authority() != from or from != 1 and not main()._allow(from, "boom", 2.0, 12.0):
+		main().tally("boom_forged")
 		return # only the shooter decides where its own rocket went off
 	_remove(id)
 	main().boom(p)
