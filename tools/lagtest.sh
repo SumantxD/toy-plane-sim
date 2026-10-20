@@ -9,6 +9,6 @@ P=$!
 sleep 1.5
 godot --headless -- --join --port 7831 --bot --netstats --quit-after-secs 25 > /tmp/lag_cli.log 2>&1
 kill $P $S 2>/dev/null; wait 2>/dev/null
-echo "== rtt $1 jitter $2 loss $3% $4"
+echo "== rtt $1 ms, jitter $2 ms, loss $3%, $4"
 grep -E "^NET" /tmp/lag_cli.log | tail -2
 grep -E "dropped" /tmp/lag_proxy.log | tail -1
