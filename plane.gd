@@ -225,9 +225,6 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
-	var bubble := get_node_or_null("Bubble") as Node3D
-	if bubble:
-		bubble.global_position = global_position + Vector3.UP * (9.0 + hit_radius)
 	if parts.has("rockets"):
 		_update_hardpoints()
 	if not buffs.is_empty() or shield_fx:

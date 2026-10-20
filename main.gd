@@ -1614,8 +1614,6 @@ func radio(p: Node, text: String) -> void:
 	radio_cd = now + 2.5
 	radio_last[p.name] = now + 12.0
 	_feed('%s: "%s"' % [p.pilot, text])
-	if multiplayer.is_server(): # test bots run the same AI code on clients; only the host may broadcast
-		say_bubble.rpc(str(p.name), text)
 
 
 func repair(p: Node, amount: int) -> void:
@@ -1869,7 +1867,7 @@ func send_taunt(i: int) -> void:
 	if not p or Time.get_ticks_msec() < taunt_cd:
 		return
 	taunt_cd = Time.get_ticks_msec() + 2000
-	Taunts.pop(p, Taunts.LIST[i]) # instantly on your own screen
+	taunts.say(p, Taunts.LIST[i]) # instantly on your own screen
 	request_taunt.rpc_id(1, i)
 
 
@@ -1893,15 +1891,7 @@ func request_taunt(i: int) -> void:
 func show_taunt(plane_name: String, i: int) -> void:
 	var p := players.get_node_or_null(plane_name)
 	if p and p.alive and i >= 0 and i < Taunts.LIST.size() and Settings.values.get("taunts", true):
-		Taunts.pop(p, Taunts.LIST[i])
-
-
-# AI radio lines pop up as bubbles over the speaker too (host-written text, not player input).
-@rpc("authority", "call_local", "reliable")
-func say_bubble(plane_name: String, text: String) -> void:
-	var p := players.get_node_or_null(plane_name)
-	if p and p.alive and Settings.values.get("taunts", true):
-		Taunts.pop(p, text.left(28))
+		taunts.say(p, Taunts.LIST[i])
 
 
 func _unhandled_input(event: InputEvent) -> void:
