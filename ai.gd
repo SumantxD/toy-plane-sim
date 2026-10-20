@@ -507,7 +507,7 @@ static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3
 
 
 static func _enemies(p: Node, main: Node) -> Array:
-	var list: Array = main.players.get_children().filter(func(e): return e.alive and e.team != p.team and e.role != "balloon")
+	var list: Array = main.players.get_children().filter(func(e): return e.alive and e.team != p.team and e.role != "balloon" and e.is_in_group("targets"))
 	if main.battlefield and main.gs.mode != 2:
 		for g in main.battlefield.guns:
 			if g.alive and g.active and g.team != p.team and g.position.distance_to(p.position) < 900.0:

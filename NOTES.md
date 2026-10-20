@@ -18,8 +18,20 @@ Preview a world: `godot --path . -s tools/preview_world.gd -- <index>` -> /tmp/w
 - Export: `godot --headless --export-release "macOS"` / `"Windows"`
 
 ## Open
-1. Online rooms: STUN only. Very strict NAT pairs (some CGNAT) need a TURN relay: add free ExpressTURN
-   credentials to Rooms.ICE (email signup, no card). Fallback documented: Tailscale.
+1. Online rooms: STUN (Google + Cloudflare) by default. Very strict NAT pairs (some CGNAT) need a TURN
+   relay, and we ship no credentials. A player adds their own (only one side of a pair needs it):
+   - Get free TURN credentials, e.g. metered.ca (free plan: dashboard > TURN credentials) or Cloudflare
+     Realtime TURN (API-generated, short-lived). Use the UDP URL: libjuice ignores `turns:` and TCP.
+   - Quit the game, then add to the `[prefs]` section of settings.cfg (macOS: ~/Library/Application
+     Support/Godot/app_userdata/Toy Plane Sim/, Windows: %APPDATA%\Godot\app_userdata\Toy Plane Sim\):
+     `turn_urls="turn:<host>:<port>"` as your provider lists it (comma-separated for several),
+     `turn_username="..."`, `turn_credential="..."`.
+   - Or for one run: env `TPS_TURN_URLS`, `TPS_TURN_USERNAME`, `TPS_TURN_CREDENTIAL` (override settings).
+   Untested against a real TURN server (needs an account); without one, Tailscale is the fallback.
+   Rooms signaling: host always offers; every message carries the host's session id (stale/foreign ones
+   dropped), exact duplicates dropped, early ICE queued, own messages repeated until the peer connects,
+   20 s per-peer ICE timeout with a NAT hint, brokers rotate on failure then back off 2-30 s with jitter.
+   A client that hears nothing after 4 knocks moves to the next broker (finds a host that fell back).
 2. Exported-app online test on this Mac was blocked by the macOS firewall entry for /tmp/macbuild
    (set to Block). Editor<->editor online tests pass; friends must click Allow on first launch.
 3. Sound is wired but not ear-tested by a human; tune volumes.

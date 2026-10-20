@@ -319,7 +319,7 @@ func connect_to_broker(brokerurl):
 	common_name = null	
 	if iswebsocket:
 		websocket = WebSocketPeer.new()
-		websocket.supported_protocols = PackedStringArray(["mqttv3.1"])
+		websocket.supported_protocols = PackedStringArray(["mqtt"]) # MQTT 3.1.1 name; EMQX rejects "mqttv3.1"
 		var websocketurl = ("wss://" if isssl else "ws://") + brokerserver + ":" + str(brokerport) + brokerpath
 		if verbose_level:
 			print("Connecting to websocketurl: ", websocketurl)

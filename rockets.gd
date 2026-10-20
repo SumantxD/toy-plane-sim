@@ -55,7 +55,7 @@ func launch(owner: Node, target: Node) -> void:
 	var v: Vector3 = owner.velocity - owner.basis.z * 20.0
 	var tname: String = target.name if target else ""
 	_add(id, p, v, owner, tname, true)
-	spawn_remote.rpc(id, p, v, owner.name, tname, false)
+	spawn_remote.rpc(id, p, v, owner.name, tname, false, main().gs.match_id)
 
 
 # Bombs: inherit the plane's velocity and fall; same shooter-decides rule as rockets.
@@ -64,7 +64,7 @@ func drop_bomb(owner: Node) -> void:
 	var id := "%s_%d" % [owner.name, count]
 	var p: Vector3 = owner.position + Vector3.DOWN * 2.0
 	_add(id, p, owner.velocity, owner, "", true, true)
-	spawn_remote.rpc(id, p, owner.velocity, owner.name, "", true)
+	spawn_remote.rpc(id, p, owner.velocity, owner.name, "", true, main().gs.match_id)
 
 
 static func bomb_step(p: Vector3, v: Vector3, dt: float) -> Array:
@@ -97,16 +97,26 @@ func fire_from(owner: Node, p: Vector3, v: Vector3, target: Node) -> void:
 	var id := "%s_%d" % [owner.name, count]
 	var tname: String = target.name if target else ""
 	_add(id, p, v, owner, tname, true)
-	spawn_remote.rpc(id, p, v, owner.name, tname, false)
+	spawn_remote.rpc(id, p, v, owner.name, tname, false, main().gs.match_id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target_name: String, bomb: bool) -> void:
-	_add(id, p, v, main().find_unit(owner_name), target_name, false, bomb)
+func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target_name: String, bomb: bool, mid: int) -> void:
+	if main().stale(mid):
+		return
+	var owner: Node = main().find_unit(owner_name)
+	# Only a plane's own peer may launch its ordnance (no rockets in someone else's name).
+	if not owner or owner.get_multiplayer_authority() != multiplayer.get_remote_sender_id() or not (p.is_finite() and v.is_finite()):
+		return
+	if multiplayer.is_server() and not main().note_launch(owner, bomb):
+		return # out of ammo by the host's count: no hits will be accepted for it either
+	_add(id, p, v, owner, target_name, false, bomb)
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func detonate_remote(id: String, p: Vector3) -> void:
+	if not p.is_finite() or (rockets.has(id) and is_instance_valid(rockets[id].owner) and rockets[id].owner.get_multiplayer_authority() != multiplayer.get_remote_sender_id()):
+		return # only the shooter decides where its own rocket went off
 	_remove(id)
 	main().boom(p)
 

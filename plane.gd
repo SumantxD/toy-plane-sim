@@ -14,6 +14,7 @@ const HIT_RADIUS := 4.5
 const MAX_HP := 100
 const SEND_INTERVAL := 1.0 / 30.0
 const INTERP_DELAY := 0.1
+const STALL_MS := 1500 # no snapshots this long: a remote pilot counts as stalled
 const TEAM_COLORS := [Color(0.3, 0.55, 1.0), Color(1.0, 0.35, 0.3)]
 const ROCKETS := 4
 const ROCKET_RELOAD := 6.0
@@ -87,6 +88,7 @@ var offset := Vector3.ZERO
 var snaps: Array = [] # [t, pos, quat], owner's game clock
 var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
+var hist: Array = [] # server: [msec, position], last ~0.6 s
 var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
 var last_arrival := 0
 
@@ -207,7 +209,12 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	if multiplayer.is_server(): # short position history: hit checks rewind to what a lagging shooter saw
+		hist.append([Time.get_ticks_msec(), position])
+		while hist.size() > 2 and hist[1][0] < hist[-1][0] - 600:
+			hist.pop_front()
 	if not is_multiplayer_authority():
+		_check_stall()
 		_interpolate(dt)
 		return
 	if alive:
@@ -219,8 +226,10 @@ func _process(dt: float) -> void:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
-		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
-			send_cd = SEND_INTERVAL
+		# First second: let the reliable spawn reach everyone first. After the match: quiet, so no late
+		# snapshot lands after the planes are cleared for the lobby.
+		if send_cd <= 0.0 and sim_clock > 1.0 and main.gs.phase == "playing":
+			send_cd = SEND_INTERVAL if not is_ai else 0.05 # AI at 20 Hz: a third less host upload, same smoothness
 			main.send_snap(self)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
@@ -362,7 +371,7 @@ func _fly(dt: float) -> void:
 			main.kill(self, null)
 		else:
 			alive = false
-			main.report_crash.rpc_id(1)
+			main.report_crash.rpc_id(1, main.gs.match_id)
 
 
 func _shoot(dt: float) -> void:
@@ -381,7 +390,7 @@ func _shoot(dt: float) -> void:
 		else:
 			Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 	_track_lock(dt)
-	if main.gs.get("countdown", 0.0) > 0.0: # weapons go live on GO (aiming and locks can be practised)
+	if main.count_local > 0.0: # weapons go live on GO (aiming and locks can be practised)
 		wants_fire = false
 		wants_rocket = false
 		wants_bomb = false
@@ -443,6 +452,15 @@ func locked_by() -> Node:
 
 
 # Best enemy inside the seeker cone; nil = the rocket flies unguided.
+# Server: where this plane was `ago` seconds ago (bounded by the history kept).
+func position_at(ago: float) -> Vector3:
+	var at := Time.get_ticks_msec() - int(ago * 1000.0)
+	for i in range(hist.size() - 1, -1, -1):
+		if hist[i][0] <= at:
+			return hist[i][1]
+	return hist[0][1] if not hist.is_empty() else position
+
+
 func find_lock() -> Node:
 	var best: Node = null
 	var best_angle := LOCK_CONE
@@ -461,7 +479,7 @@ func report_hit(target: Node, weapon := 0, comp := -1) -> void:
 	if multiplayer.is_server():
 		main.apply_hit(self, target, weapon, comp)
 	else:
-		main.report_hit.rpc_id(1, target.name, weapon, comp)
+		main.report_hit.rpc_id(1, target.name, weapon, comp, main.gs.match_id)
 
 
 # Damaged component for a world-space hit point on this plane.
@@ -494,10 +512,15 @@ func _net_jump(before: Vector3, dt: float) -> void:
 # Fed by main._apply_snaps. Unordered on purpose: "ordered" made ENet throw away every snapshot that a
 # reordering route delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
 func st(t: float, p: Vector3, q: Quaternion) -> void:
+	# Owner-sent data: never trust it to be sane (a NaN here poisons rendering, audio and hit tests).
+	if not (is_finite(t) and p.is_finite() and q.is_finite()) or absf(p.x) > 9000.0 or absf(p.z) > 9000.0 or p.y < -2000.0 or p.y > 8000.0:
+		return
 	var now_ms := Time.get_ticks_msec()
-	if last_arrival > 0:
-		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 - SEND_INTERVAL), 0.08)
-	last_arrival = now_ms
+	if last_arrival > 0 and not snaps.is_empty() and t > snaps[-1][0]:
+		# Jitter = how far arrival spacing strays from send spacing (works for 20 Hz AI and 30 Hz pilots).
+		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 * Engine.time_scale - (t - snaps[-1][0])), 0.08)
+	if snaps.is_empty() or t > snaps[-1][0]:
+		last_arrival = now_ms
 	if main.netstats:
 		var now := Time.get_ticks_msec()
 		var gap: int = now - get_meta("last_snap", now)
@@ -636,11 +659,27 @@ func respawn(p: Vector3, yaw: float) -> void:
 	ang = Vector3.ZERO
 	snaps.clear()
 	shots_out = 0
+	last_arrival = Time.get_ticks_msec() # the owner's snapshots resume after this reaches them
 	body.show()
 	if not is_local():
 		tag.show()
 	_show_damage()
 	_reset_aim()
+
+
+# A remote pilot whose snapshots stopped (connection stall) would hang in the air as a free kill:
+# hidden and untargetable (out of "targets") until they resume. The host enforces it in apply_hit.
+func _check_stall() -> void:
+	# Not after the match: owners go quiet on purpose then.
+	var stalled: bool = alive and not is_ai and main.gs.phase == "playing" and get_multiplayer_authority() != 1 and last_arrival > 0 and Time.get_ticks_msec() - last_arrival > STALL_MS
+	if stalled != visible:
+		return
+	visible = not stalled
+	main.netlog("%s %s" % [pilot, "stalled: hidden, no hits" if stalled else "snapshots resumed"])
+	if stalled:
+		remove_from_group("targets")
+	else:
+		add_to_group("targets")
 
 
 # Remote planes render ~100 ms in the past, between two real snapshots,
