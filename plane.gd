@@ -225,12 +225,32 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
-	if parts.get("trails") and is_local() and parts.trails[0].lifetime > 0.3: # your own: a short wisp, not
-		for t: CPUParticles3D in parts.trails: # a ribbon streaming past your chase camera (known only now)
-			t.lifetime = 0.25
-			t.amount = 18
+	if parts.get("trails") and is_local() and not has_meta("own_trail"): # (known only once spawned)
+		set_meta("own_trail", true)
+		# Your own trail: full length, but thin, faint, and melting away right at your chase camera.
+		var puff: Mesh = parts.trails[0].mesh.duplicate()
+		var mat: StandardMaterial3D = puff.material.duplicate()
+		mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+		mat.distance_fade_min_distance = 3.0
+		mat.distance_fade_max_distance = 10.0
+		puff.material = mat
+		var slim := Curve.new() # your own view: a thin, faint wisp (others see the full blooming trail)
+		slim.add_point(Vector2(0, 0.0))
+		slim.add_point(Vector2(0.24, 0.0))
+		slim.add_point(Vector2(0.32, 0.35))
+		slim.add_point(Vector2(1, 0.8))
+		var faint: Gradient = parts.trails[0].color_ramp.duplicate()
+		for i in faint.get_point_count():
+			var c := faint.get_color(i)
+			faint.set_color(i, Color(c, c.a * 0.28))
+		for t: CPUParticles3D in parts.trails:
+			t.mesh = puff
+			t.scale_amount_curve = slim
+			t.color_ramp = faint
 	if parts.has("rockets"):
 		_update_hardpoints()
+	if parts.get("trails"):
+		_update_ribbons()
 	if not buffs.is_empty() or shield_fx:
 		_tick_buffs(dt)
 	if multiplayer.is_server(): # short position history: hit checks rewind to what a lagging shooter saw
@@ -708,6 +728,62 @@ func _look() -> Array:
 		return [clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1), clampi(int(info.get("banner", 0)), 0, Planes.BANNERS.size() - 1)]
 	var h := absi(hash(pilot))
 	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size()]
+
+
+# The first stretch of each smoke trail is a smooth line (the puffs bloom after it): a ribbon through the
+# wingtip's last 0.3 s of path, facing the camera, white at the wing and widening into the trail colour.
+const RIBBON_MS := 300
+var ribbon: MeshInstance3D
+var ribbon_pts := [[], []]
+
+func _update_ribbons() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if not alive or not visible or not cam:
+		if ribbon:
+			ribbon.hide()
+		ribbon_pts = [[], []]
+		return
+	if not ribbon:
+		ribbon = MeshInstance3D.new()
+		ribbon.mesh = ImmediateMesh.new()
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.vertex_color_use_as_albedo = true
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		ribbon.material_override = mat
+		ribbon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ribbon.top_level = true
+		add_child(ribbon)
+	ribbon.show()
+	ribbon.global_transform = Transform3D.IDENTITY
+	var im: ImmediateMesh = ribbon.mesh
+	im.clear_surfaces()
+	var now := Time.get_ticks_msec()
+	var col: Color = parts.get("trail_col", Color.WHITE).lightened(0.35)
+	var faint := 0.3 if is_local() else 1.0
+	var thin := 0.5 if is_local() else 1.0
+	for k in 2:
+		var pts: Array = ribbon_pts[k]
+		pts.append([parts.trails[k].global_position, now])
+		while pts.size() > 2 and now - pts[0][1] > RIBBON_MS:
+			pts.pop_front()
+		if pts.size() < 2:
+			continue
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		for i in pts.size():
+			var p: Vector3 = pts[i][0]
+			var age := clampf((now - pts[i][1]) / float(RIBBON_MS), 0.0, 1.0)
+			var dir: Vector3 = pts[mini(i + 1, pts.size() - 1)][0] - pts[maxi(i - 1, 0)][0]
+			var side := dir.cross(cam.global_position - p).normalized()
+			var w := lerpf(0.1, 0.7, age) * thin
+			var c := Color.WHITE.lerp(col, age)
+			c.a = lerpf(0.95, 0.75, age) * faint
+			im.surface_set_color(c)
+			im.surface_add_vertex(p + side * w)
+			im.surface_set_color(c)
+			im.surface_add_vertex(p - side * w)
+		im.surface_end()
 
 
 # Remote copies: the owner's ammo counts arrive with its snapshots, so everyone sees the same hardpoints.
