@@ -1022,7 +1022,8 @@ func _start() -> void:
 			for i in range(counts[team], n):
 				var b := _base_for(team, i)
 				var w := _spawn_ai("wing", team, b[0], b[1], Vector3.ZERO, Planes.ORDER.pick_random(), names.pop_back())
-				w.ai = PilotAI.make(SKILL_NAMES[gs.skill])
+				# the difficulty is the enemy's: wingmen of an all-human-vs-AI side fly as "pilot"
+				w.ai = PilotAI.make("pilot" if counts[team] > 0 and counts[1 - team] == 0 else SKILL_NAMES[gs.skill])
 				w.ai.slot = i - counts[team]
 				w.ai.job = JOBS[(i + team) % JOBS.size()]
 	elif gs.mode == 2:
@@ -1431,8 +1432,12 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 			dmg = ceili(dmg * (0.4 if t.role == "bomber" else 0.6)) # raiders hit softer (bombers must be escortable)
 		elif a.role == "turret":
 			dmg = ceili(dmg * (0.15 if t.role == "bomber" else 0.6)) # defenses chip bombers, they don't erase them
+			if t.role == "pilot" and gs.mode in AI_MODES:
+				dmg = ceili(dmg * PilotAI.SKILLS[SKILL_NAMES[gs.skill]].hurt)
 		elif a.role == "wing" and t.role == "pilot":
-			dmg = ceili(dmg * 0.75) # AI wingmen/enemies go a bit easy on humans
+			dmg = ceili(dmg * PilotAI.SKILLS[a.ai.get("skill", "pilot")].hurt)
+		elif a.role == "pilot" and t.role == "wing":
+			dmg = ceili(dmg * PilotAI.SKILLS[t.ai.get("skill", "pilot")].frail)
 		if t.get("buffs") and t.buffs.has("shield"):
 			dmg = ceili(dmg * 0.5)
 		var c: PackedFloat32Array = t.comps.duplicate()
@@ -2389,8 +2394,8 @@ func _build_ui() -> void:
 	size_sel = Menus.Selector.new("SQUADRON SIZE", sizes)
 	size_sel.changed.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
 	battle_row.add_child(size_sel)
-	skill_sel = Menus.Selector.new("AI PILOTS", [{title = "ROOKIE", sub = "Slow to react, forgiving aim"},
-		{title = "PILOT", sub = "Solid wingmen and opponents"}, {title = "ACE", sub = "Sharp, fast and merciless"}])
+	skill_sel = Menus.Selector.new("ENEMY PILOTS", [{title = "ROOKIE", sub = "Easy kills: slow, clumsy, fragile"},
+		{title = "PILOT", sub = "A fair fight"}, {title = "ACE", sub = "Sharp, fast and merciless"}])
 	skill_sel.changed.connect(func(i): request_battle.rpc_id(1, gs.size, i))
 	battle_row.add_child(skill_sel)
 	battle_row.add_theme_constant_override("separation", 10)

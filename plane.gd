@@ -366,6 +366,8 @@ func _fly(dt: float) -> void:
 	var tail := 0.45 + 0.55 * comps[3]
 
 	ang = ang.lerp(Vector3(pitch, yaw, clampf(roll, -1, 1)), 1.0 - exp(-8.0 * dt))
+	if is_ai and ai.has("skill"):
+		tail *= PilotAI.SKILLS[ai.skill].turn
 	rotate_object_local(Vector3.RIGHT, ang.x * turn.x * tail * dt)
 	rotate_object_local(Vector3.UP, ang.y * turn.y * tail * dt)
 	rotate_object_local(Vector3.FORWARD, ang.z * turn.z * dt)
@@ -407,6 +409,8 @@ func _shoot(dt: float) -> void:
 		var dir := -basis.z
 		if is_ai:
 			dir = (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02).normalized()
+		else:
+			dir = _assist(dir)
 		main.bullets.fire(position - basis.z * 5.0, velocity + dir * BULLET_SPEED, self, true)
 		if is_ai:
 			main.stat_shots += 1
@@ -525,6 +529,24 @@ func component_at(world: Vector3) -> int:
 		if d < best_d:
 			best_d = d
 			best = i
+	return best
+
+
+# Gun assist for humans: within ~2 degrees of an enemy's lead point, the rounds go to it.
+func _assist(dir: Vector3) -> Vector3:
+	var best := dir
+	var best_a := deg_to_rad(2.2)
+	for t in get_tree().get_nodes_in_group("targets"):
+		if t.team == team or not t.alive or t == self:
+			continue
+		var d: float = position.distance_to(t.position)
+		if d > 900.0:
+			continue
+		var to: Vector3 = (t.position + (t.vel_estimate() - velocity) * (d / BULLET_SPEED) - position).normalized()
+		var a := dir.angle_to(to)
+		if a < best_a:
+			best_a = a
+			best = to
 	return best
 
 
