@@ -28,10 +28,10 @@ const ALARM := preload("res://assets/sfx/error_004.ogg")
 const PLUCK := preload("res://assets/sfx/pluck_001.ogg")
 const KILL := preload("res://assets/sfx/confirmation_002.ogg")
 const CLUNK := preload("res://assets/sfx/doorClose_001.ogg")
-# Quiet per-world music bed (Worlds.LIST order), like IGI's background: there, never in the way.
-const BEDS := [preload("res://assets/sfx/bed_valley.wav"), preload("res://assets/sfx/bed_volcano.wav"), preload("res://assets/sfx/bed_frozen.wav"),
-	preload("res://assets/sfx/bed_desert.wav"), preload("res://assets/sfx/bed_metro.wav"), preload("res://assets/sfx/bed_sky.wav")]
-const BED_DB := -17.0
+# Per-world music (Worlds.LIST order): folk tunes from tools/make_music.py, under the effects.
+const BEDS := [preload("res://assets/music/valley.ogg"), preload("res://assets/music/volcano.ogg"), preload("res://assets/music/frozen.ogg"),
+	preload("res://assets/music/desert.ogg"), preload("res://assets/music/metro.ogg"), preload("res://assets/music/sky.ogg")]
+const BED_DB := -15.0
 const WHIZ := preload("res://assets/sfx/whiz.wav")
 const THUNDER := preload("res://assets/sfx/thunder.wav")
 const LOCK := preload("res://assets/sfx/lock.wav")
