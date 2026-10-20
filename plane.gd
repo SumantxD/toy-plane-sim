@@ -86,6 +86,7 @@ var offset := Vector3.ZERO
 var snaps: Array = [] # [t, pos, quat], owner's game clock
 var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
+var hist: Array = [] # server: [msec, position], last ~0.6 s
 var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
 var last_arrival := 0
 
@@ -205,6 +206,10 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	if multiplayer.is_server(): # short position history: hit checks rewind to what a lagging shooter saw
+		hist.append([Time.get_ticks_msec(), position])
+		while hist.size() > 2 and hist[1][0] < hist[-1][0] - 600:
+			hist.pop_front()
 	if not is_multiplayer_authority():
 		_interpolate(dt)
 		return
@@ -218,7 +223,7 @@ func _process(dt: float) -> void:
 			_shoot(dt)
 		send_cd -= dt
 		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
-			send_cd = SEND_INTERVAL
+			send_cd = SEND_INTERVAL if not is_ai else 0.05 # AI at 20 Hz: a third less host upload, same smoothness
 			st.rpc(sim_clock, position, quaternion)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
@@ -441,6 +446,15 @@ func locked_by() -> Node:
 
 
 # Best enemy inside the seeker cone; nil = the rocket flies unguided.
+# Server: where this plane was `ago` seconds ago (bounded by the history kept).
+func position_at(ago: float) -> Vector3:
+	var at := Time.get_ticks_msec() - int(ago * 1000.0)
+	for i in range(hist.size() - 1, -1, -1):
+		if hist[i][0] <= at:
+			return hist[i][1]
+	return hist[0][1] if not hist.is_empty() else position
+
+
 func find_lock() -> Node:
 	var best: Node = null
 	var best_angle := LOCK_CONE
@@ -493,10 +507,15 @@ func _net_jump(before: Vector3, dt: float) -> void:
 # delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
 @rpc("authority", "unreliable")
 func st(t: float, p: Vector3, q: Quaternion) -> void:
+	# Owner-sent data: never trust it to be sane (a NaN here poisons rendering, audio and hit tests).
+	if not (is_finite(t) and p.is_finite() and q.is_finite()) or absf(p.x) > 9000.0 or absf(p.z) > 9000.0 or p.y < -2000.0 or p.y > 8000.0:
+		return
 	var now_ms := Time.get_ticks_msec()
-	if last_arrival > 0:
-		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 - SEND_INTERVAL), 0.08)
-	last_arrival = now_ms
+	if last_arrival > 0 and not snaps.is_empty() and t > snaps[-1][0]:
+		# Jitter = how far arrival spacing strays from send spacing (works for 20 Hz AI and 30 Hz pilots).
+		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 * Engine.time_scale - (t - snaps[-1][0])), 0.08)
+	if snaps.is_empty() or t > snaps[-1][0]:
+		last_arrival = now_ms
 	if main.netstats:
 		var now := Time.get_ticks_msec()
 		var gap: int = now - get_meta("last_snap", now)
