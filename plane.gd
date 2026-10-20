@@ -58,6 +58,7 @@ var wants_fire := false
 var wants_boost := false
 var fire_cd := 0.0
 var send_cd := 0.0
+var shots_out := 0 # guns fired since the last snapshot; remote tracers ride along with it
 var wants_rocket := false
 var rocket_aiming := false
 var rockets_left := ROCKETS
@@ -94,7 +95,7 @@ var body := Node3D.new()
 var tag := Label3D.new()
 var cam: Camera3D
 var hud: Control
-var hud_text := Label.new()
+var hud_text: Label # local plane only: a never-parented Label leaked once per freed plane
 var aim_yaw := 0.0
 var aim_pitch := 0.0
 
@@ -179,6 +180,7 @@ func _ready() -> void:
 		hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hud.draw.connect(_draw_hud)
 		hud.theme = main.ui_theme
+		hud_text = Label.new()
 		hud_text.position = Vector2(20, 60)
 		hud.add_child(hud_text)
 		var ui := CanvasLayer.new()
@@ -219,7 +221,7 @@ func _process(dt: float) -> void:
 		send_cd -= dt
 		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
 			send_cd = SEND_INTERVAL
-			st.rpc(sim_clock, position, quaternion)
+			main.send_snap(self)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
 		cam.global_position = position + aim * Vector3(0, 5.5, 19) * CAM_DIST[Settings.values.get("cam", 1)]
@@ -373,7 +375,7 @@ func _shoot(dt: float) -> void:
 		main.bullets.fire(position - basis.z * 5.0, velocity + dir * BULLET_SPEED, self, true)
 		if is_ai:
 			main.stat_shots += 1
-		fired.rpc()
+		shots_out += 1
 		if is_local():
 			Sfx.ui(main, Sfx.GUNS.get(kind, Sfx.GUN), -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
 		else:
@@ -489,9 +491,8 @@ func _net_jump(before: Vector3, dt: float) -> void:
 		main.netstats.jumps += 1 # visible teleport
 
 
-# Unordered on purpose: "ordered" made ENet throw away every snapshot that a reordering route
-# delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
-@rpc("authority", "unreliable")
+# Fed by main._apply_snaps. Unordered on purpose: "ordered" made ENet throw away every snapshot that a
+# reordering route delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
 func st(t: float, p: Vector3, q: Quaternion) -> void:
 	var now_ms := Time.get_ticks_msec()
 	if last_arrival > 0:
@@ -518,7 +519,6 @@ func st(t: float, p: Vector3, q: Quaternion) -> void:
 		snaps.pop_front()
 
 
-@rpc("authority", "unreliable")
 func fired() -> void:
 	main.bullets.fire(position - basis.z * 5.0, vel_estimate() - basis.z * BULLET_SPEED, self, false)
 	Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
@@ -635,6 +635,7 @@ func respawn(p: Vector3, yaw: float) -> void:
 	boost = 1.0
 	ang = Vector3.ZERO
 	snaps.clear()
+	shots_out = 0
 	body.show()
 	if not is_local():
 		tag.show()
