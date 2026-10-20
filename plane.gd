@@ -225,6 +225,9 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	var bubble := get_node_or_null("Bubble") as Node3D
+	if bubble:
+		bubble.global_position = global_position + Vector3.UP * (9.0 + hit_radius)
 	if parts.has("rockets"):
 		_update_hardpoints()
 	if not buffs.is_empty() or shield_fx:
@@ -895,8 +898,10 @@ func _sample(at: float) -> Array:
 	var turn_q: Quaternion = b[2] * a[2].inverse()
 	turn_q = -turn_q if turn_q.w < 0.0 else turn_q
 	var s := minf(at - b[0], EXTRAP_MAX)
-	var rate := turn_q.get_angle() / span
-	var axis := turn_q.get_axis().normalized() if rate > 1e-4 else Vector3.UP
+	# 16-bit packed rotations can give an angle with a zero axis: that's "not turning", not an error.
+	var axis := Vector3(turn_q.x, turn_q.y, turn_q.z)
+	var rate := turn_q.get_angle() / span if axis.length_squared() > 1e-12 else 0.0
+	axis = axis.normalized() if rate > 1e-4 else Vector3.UP
 	var v: Vector3 = (b[1] - a[1]) / span # average over a..b: the heading half a step back
 	return [b[1] + Quaternion(axis, rate * (span + s) * 0.5) * v * s, Quaternion(axis, rate * s) * b[2]]
 

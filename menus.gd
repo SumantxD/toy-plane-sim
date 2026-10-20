@@ -245,6 +245,7 @@ static func settings_panel(tree: SceneTree, on_close: Callable) -> VBoxContainer
 	_check(box, "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
 	_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
 	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
+	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
 	var done := Button.new()
 	done.text = "Done"
 	done.pressed.connect(func():
@@ -266,7 +267,7 @@ static func howto_text() -> String:
   LOCKED ON means someone is locking you. MISSILE! means one is chasing you: X pops flares
   (they break the lock of rockets already fired), or turn hard and boost.
   Hold B to see where a bomb will land, release to drop. Bombs wreck HQs and defenses.
-  C = camera near / normal / far.  H = show / hide the controls card.
+  C = camera near / normal / far.  Hold T = taunt wheel (mouse picks, scroll = more, release sends).  H = show / hide the controls card.
 
 [b]DAMAGE[/b]
   A hit wing pulls you to that side, a hit engine sputters (dead = glide),

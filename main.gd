@@ -1584,6 +1584,8 @@ func radio(p: Node, text: String) -> void:
 	radio_cd = now + 2.5
 	radio_last[p.name] = now + 12.0
 	_feed('%s: "%s"' % [p.pilot, text])
+	if multiplayer.is_server(): # test bots run the same AI code on clients; only the host may broadcast
+		say_bubble.rpc(str(p.name), text)
 
 
 func repair(p: Node, amount: int) -> void:
@@ -1822,6 +1824,55 @@ func boom(pos: Vector3, size := 1.0) -> void:
 
 
 # ---------- input & UI ----------
+
+func _input(event: InputEvent) -> void:
+	if taunts and taunts.handle(event):
+		get_viewport().set_input_as_handled() # the wheel has the mouse: the plane flies straight meanwhile
+
+
+func can_taunt() -> bool:
+	return gs.phase == "playing" and not menu_open() and _plane(multiplayer.get_unique_id()) != null
+
+
+func send_taunt(i: int) -> void:
+	var p := _plane(multiplayer.get_unique_id())
+	if not p or Time.get_ticks_msec() < taunt_cd:
+		return
+	taunt_cd = Time.get_ticks_msec() + 2000
+	Taunts.pop(p, Taunts.LIST[i]) # instantly on your own screen
+	request_taunt.rpc_id(1, i)
+
+
+# Host: a valid message number, at most one per 2 s, then everyone else sees it.
+@rpc("any_peer", "call_local", "reliable")
+func request_taunt(i: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var id := _sender()
+	var p := _plane(id)
+	if not p or i < 0 or i >= Taunts.LIST.size() or not _allow(id, "taunt", 0.5, 1.0):
+		return
+	for peer in multiplayer.get_peers():
+		if peer != id:
+			show_taunt.rpc_id(peer, str(p.name), i)
+	if id != multiplayer.get_unique_id():
+		show_taunt(str(p.name), i)
+
+
+@rpc("authority", "reliable")
+func show_taunt(plane_name: String, i: int) -> void:
+	var p := players.get_node_or_null(plane_name)
+	if p and p.alive and i >= 0 and i < Taunts.LIST.size() and Settings.values.get("taunts", true):
+		Taunts.pop(p, Taunts.LIST[i])
+
+
+# AI radio lines pop up as bubbles over the speaker too (host-written text, not player input).
+@rpc("authority", "call_local", "reliable")
+func say_bubble(plane_name: String, text: String) -> void:
+	var p := players.get_node_or_null(plane_name)
+	if p and p.alive and Settings.values.get("taunts", true):
+		Taunts.pop(p, text.left(28))
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
@@ -2214,6 +2265,8 @@ func _build_ui() -> void:
 	feed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ui.add_child(feed)
 	_build_intro(ui)
+	taunts = Taunts.new(self)
+	ui.add_child(taunts)
 
 	var box := VBoxContainer.new()
 	Menus.big_title(box, "TOY PLANE", 60)
@@ -2526,6 +2579,7 @@ func _show_intro() -> void:
 	if gs.mode != 2:
 		keys.append("         Supplies buy: 3 AA  4 SAM  5 Radar" + ("  6 Repair HQ" if gs.mode == 5 else ""))
 	keys.append("[color=#e0c8ff]VIEW[/color]   C camera  |  M map  N zoom  |  Esc menu")
+	keys.append("[color=#ffd34d]FUN[/color]    Hold T: taunt wheel, release to send")
 	keys_label.text = "\n".join(keys)
 	var runs: int = Settings.values.get("matches", 0)
 	Settings.values.matches = runs + 1
@@ -2655,6 +2709,8 @@ var load_hold := 0.0
 var stale_drops := 0
 var acked_world := -1
 var world_frame := 0
+var taunts: Taunts
+var taunt_cd := 0
 var netstats := {} # --netstats: what lag does to remote planes, printed every 10 s
 var seen_phase := "lobby"
 var world_env: WorldEnvironment
