@@ -1,10 +1,13 @@
 # UDP relay that makes a bad network on purpose: python3 tools/lagproxy.py LISTEN_PORT SERVER_PORT RTT_MS JITTER_MS LOSS_PCT
 # Point a client at LISTEN_PORT. Each direction gets RTT/2 delay + random jitter, and drops LOSS_PCT of packets.
 # Packets keep their order per direction (jitter bunches them up, like real links), unless --reorder is passed.
+# --burst EVERY_S LEN_MS: on top of that, an outage drops everything (both ways) for LEN_MS every EVERY_S seconds.
 import asyncio, random, sys
 
 listen, server, rtt, jitter, loss = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4]), float(sys.argv[5])
 reorder = "--reorder" in sys.argv
+bi = sys.argv.index("--burst") if "--burst" in sys.argv else -1
+burst_every, burst_len = (float(sys.argv[bi + 1]), float(sys.argv[bi + 2]) / 1000.0) if bi > 0 else (0.0, 0.0)
 stats = {"up": 0, "down": 0, "dropped": 0}
 
 
@@ -13,7 +16,7 @@ class Link:
         self.last = 0.0  # release time of the previous packet, keeps order
 
     def delay(self, loop):
-        if random.random() < loss / 100.0:
+        if random.random() < loss / 100.0 or (burst_every and loop.time() % burst_every < burst_len):
             stats["dropped"] += 1
             return None
         d = rtt / 2000.0 + max(0.0, random.gauss(0.0, jitter / 1000.0))
@@ -71,7 +74,7 @@ class Front(asyncio.DatagramProtocol):  # clients -> proxy
 async def main():
     loop = asyncio.get_running_loop()
     await loop.create_datagram_endpoint(Front, local_addr=("127.0.0.1", listen))
-    print(f"lagproxy :{listen} -> :{server}  rtt {rtt}ms  jitter {jitter}ms  loss {loss}%", flush=True)
+    print(f"lagproxy :{listen} -> :{server}  rtt {rtt}ms  jitter {jitter}ms  loss {loss}%  burst {burst_len * 1000:.0f}ms/{burst_every}s", flush=True)
     while True:
         await asyncio.sleep(10)
         print(f"proxy up {stats['up']} down {stats['down']} dropped {stats['dropped']}", flush=True)

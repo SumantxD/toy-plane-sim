@@ -14,6 +14,7 @@ const HIT_RADIUS := 4.5
 const MAX_HP := 100
 const SEND_INTERVAL := 1.0 / 30.0
 const INTERP_DELAY := 0.1
+const EXTRAP_MAX := 1.0 # dead-reckon this long past the newest snapshot (covers ~1 s outages), then hold
 const TEAM_COLORS := [Color(0.3, 0.55, 1.0), Color(1.0, 0.35, 0.3)]
 const ROCKETS := 4
 const ROCKET_RELOAD := 6.0
@@ -88,6 +89,10 @@ var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
 var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
 var last_arrival := 0
+var clock_off := 0.0 # owner's clock minus ours (smoothed), so render time keeps running through gaps
+var floor_t := -1.0 # snapshots at or before this are from a previous life
+var err_p := Vector3.ZERO # visual offset left by a correction, fades out instead of snapping
+var err_q := Quaternion.IDENTITY
 
 var main: Node
 var body := Node3D.new()
@@ -158,6 +163,8 @@ func _ready() -> void:
 		add_child(engine_snd)
 		engine_snd.play(randf() * 0.9)
 
+	if not is_multiplayer_authority():
+		hide() # until its first snapshot: by then the spawn position is stale
 	if is_local():
 		tag.hide()
 		cam = Camera3D.new()
@@ -217,9 +224,9 @@ func _process(dt: float) -> void:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
-		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
+		if send_cd <= 0.0:
 			send_cd = SEND_INTERVAL
-			st.rpc(sim_clock, position, quaternion)
+			main.st.rpc(str(name).to_int() * (-1 if is_ai else 1), sim_clock, position, quaternion)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
 		cam.global_position = position + aim * Vector3(0, 5.5, 19) * CAM_DIST[Settings.values.get("cam", 1)]
@@ -487,12 +494,31 @@ func _net_jump(before: Vector3, dt: float) -> void:
 	var moved := position.distance_to(before)
 	if moved > maxf(vel_estimate().length() * dt * 3.0, 6.0):
 		main.netstats.jumps += 1 # visible teleport
+	# kinks: change of per-frame step (m) and of per-frame rotation (deg) vs the previous frame
+	var step := position - before
+	var dq: Quaternion = quaternion * get_meta("nq", quaternion).inverse()
+	dq = -dq if dq.w < 0.0 else dq
+	var turn_v: Vector3 = dq.get_axis() * rad_to_deg(dq.get_angle()) if dq.get_angle() > 1e-6 else Vector3.ZERO
+	if has_meta("ns"):
+		var ns: Dictionary = main.netstats
+		ns.dev_max = maxf(ns.dev_max, (step - get_meta("ns")).length())
+		var rd: float = (turn_v - get_meta("nr")).length()
+		ns.rdev_max = maxf(ns.rdev_max, rd)
+		ns.rdev_sum += rd
+	set_meta("ns", step)
+	set_meta("nr", turn_v)
+	set_meta("nq", quaternion)
 
 
-# Unordered on purpose: "ordered" made ENet throw away every snapshot that a reordering route
-# delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
-@rpc("authority", "unreliable")
+# Snapshot from the owner, relayed by main.st. Late ones get slotted in by time.
 func st(t: float, p: Vector3, q: Quaternion) -> void:
+	if t <= floor_t or not is_finite(t) or not p.is_finite() or p.length() > 1e5 or absf(q.length_squared() - 1.0) > 0.01:
+		if main.netstats:
+			main.netstats.stale += 1
+		return
+	q = q.normalized()
+	var o := t - sim_clock
+	clock_off = o if snaps.is_empty() else lerpf(clock_off, o, 0.05)
 	var now_ms := Time.get_ticks_msec()
 	if last_arrival > 0:
 		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 - SEND_INTERVAL), 0.08)
@@ -505,17 +531,30 @@ func st(t: float, p: Vector3, q: Quaternion) -> void:
 		main.netstats.gap_max = maxi(main.netstats.gap_max, gap)
 		if gap > 150:
 			main.netstats.gaps150 += 1
-	if not snaps.is_empty() and t <= snaps[-1][0]:
-		for i in range(snaps.size() - 1, -1, -1): # arrived late: insert in time order, or drop a duplicate
-			if snaps[i][0] == t:
-				return
-			if snaps[i][0] < t:
-				snaps.insert(i + 1, [t, p, q])
-				return
+	if snaps.is_empty():
+		snaps.append([t, p, q])
+		position = p
+		quaternion = q
+		show()
 		return
-	snaps.append([t, p, q])
+	var i := snaps.size()
+	while i > 0 and snaps[i - 1][0] > t: # arrived late: slot in by time
+		i -= 1
+	if i == 0 or snaps[i - 1][0] == t:
+		return # older than the buffer, or a duplicate
+	# The new snapshot may move where render_t lands (it ends a guess past the newest); keep the
+	# drawn pose where it was and fade the difference out in _interpolate.
+	var before := _sample(render_t)
+	snaps.insert(i, [t, p, q])
 	if snaps.size() > 30:
 		snaps.pop_front()
+	var after := _sample(render_t)
+	var fix: Vector3 = before[0] - after[0]
+	err_p += fix
+	err_q = before[1] * after[1].inverse() * err_q
+	if main.netstats and fix.length() > 1.0:
+		main.netstats.corr_n += 1 # a guess past the newest snapshot was off by > 1 m
+		main.netstats.corr_sum += fix.length()
 
 
 @rpc("authority", "unreliable")
@@ -634,7 +673,13 @@ func respawn(p: Vector3, yaw: float) -> void:
 	throttle = 0.5
 	boost = 1.0
 	ang = Vector3.ZERO
+	if not snaps.is_empty():
+		floor_t = snaps[-1][0]
 	snaps.clear()
+	err_p = Vector3.ZERO
+	err_q = Quaternion.IDENTITY
+	if not is_multiplayer_authority():
+		hide() # until a new-life snapshot: one that beat this RPC here was just cleared
 	body.show()
 	if not is_local():
 		tag.show()
@@ -642,35 +687,58 @@ func respawn(p: Vector3, yaw: float) -> void:
 	_reset_aim()
 
 
-# Remote planes render ~100 ms in the past, between two real snapshots,
-# so packet jitter never shows. Small extrapolation covers a late packet.
+# Remote planes render ~100 ms in the past, between two real snapshots, so packet jitter never
+# shows. Past the newest one they dead-reckon (velocity + turn rate) for up to EXTRAP_MAX.
 func _interpolate(dt: float) -> void:
 	if snaps.is_empty():
 		return
 	# Steady links: 100 ms behind. Jittery or lossy ones: wait longer so there is always a next snapshot.
-	var target: float = snaps[-1][0] - clampf(INTERP_DELAY + 2.5 * jitter, INTERP_DELAY, 0.35)
-	render_t += dt
-	render_t = target if absf(render_t - target) > 0.5 else lerpf(render_t, target, 0.05)
-	if main.netstats and alive:
+	# Render time follows the owner's clock (not the newest arrival), so it keeps running through
+	# an outage; it only speeds up or slows down to re-centre, never runs backwards.
+	var target := sim_clock + clock_off - clampf(INTERP_DELAY + 2.5 * jitter, INTERP_DELAY, 0.35)
+	var behind := target - render_t
+	render_t = target if absf(behind) > 1.0 else render_t + dt * clampf(1.0 + 2.0 * behind, 0.75, 1.25)
+	if main.netstats and alive and visible:
 		var ns: Dictionary = main.netstats
 		ns.frames += 1
 		if render_t > snaps[-1][0]:
 			ns.extrap += 1 # guessing past the newest snapshot
-		if render_t > snaps[-1][0] + 0.25:
+		if render_t > snaps[-1][0] + EXTRAP_MAX:
 			ns.stall += 1 # out of guesses: frozen
 		var before := position
 		call_deferred("_net_jump", before, dt)
-	for i in range(snaps.size() - 1, 0, -1):
-		var a: Array = snaps[i - 1]
-		if a[0] <= render_t:
-			var b: Array = snaps[i]
-			var span: float = maxf(b[0] - a[0], 0.001)
-			var w := clampf((render_t - a[0]) / span, 0.0, 1.0 + 0.25 / span)
-			position = a[1].lerp(b[1], w)
-			quaternion = a[2].slerp(b[2], minf(w, 1.0))
-			return
-	position = snaps[0][1]
-	quaternion = snaps[0][2]
+	elif has_meta("ns"):
+		remove_meta("ns")
+		remove_meta("nq")
+	var k := 1.0 - exp(-3.0 * dt)
+	err_p = Vector3.ZERO if err_p.length() > 100.0 else err_p.lerp(Vector3.ZERO, k) # way off: snap
+	err_q = err_q.slerp(Quaternion.IDENTITY, k)
+	var pose := _sample(render_t)
+	position = pose[0] + err_p
+	quaternion = (err_q * pose[1]).normalized()
+
+
+# Pose at owner time `at`: between two snapshots, or dead-reckoned (constant turn) past the newest.
+func _sample(at: float) -> Array:
+	var n := snaps.size()
+	if n == 1 or at <= snaps[0][0]:
+		return [snaps[0][1], snaps[0][2]]
+	var i := n - 1
+	while i > 1 and snaps[i - 1][0] > at:
+		i -= 1
+	var a: Array = snaps[i - 1]
+	var b: Array = snaps[i]
+	var span: float = maxf(b[0] - a[0], 0.001)
+	if at <= b[0]:
+		var w: float = (at - a[0]) / span
+		return [a[1].lerp(b[1], w), a[2].slerp(b[2], w)]
+	var turn_q: Quaternion = b[2] * a[2].inverse()
+	turn_q = -turn_q if turn_q.w < 0.0 else turn_q
+	var s := minf(at - b[0], EXTRAP_MAX)
+	var rate := turn_q.get_angle() / span
+	var axis := turn_q.get_axis().normalized() if rate > 1e-4 else Vector3.UP
+	var v: Vector3 = (b[1] - a[1]) / span # average over a..b: the heading half a step back
+	return [b[1] + Quaternion(axis, rate * (span + s) * 0.5) * v * s, Quaternion(axis, rate * s) * b[2]]
 
 
 func _reset_aim() -> void:
