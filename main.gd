@@ -285,6 +285,7 @@ func _new_rooms() -> void:
 		status.text = t
 		net_label.text = t if gs.phase == "lobby" else ""
 		print("rooms: ", t))
+	rooms.failed.connect(_room_failed)
 	add_child(rooms)
 
 
@@ -310,15 +311,22 @@ func join() -> void:
 	_new_rooms()
 	multiplayer.multiplayer_peer = rooms.join(room)
 	_watch_connection()
-	var attempt := room
+	var attempt := rooms.get_instance_id() # a rejoin into the same room must not be cut short by this timer
 	get_tree().create_timer(40.0).timeout.connect(func():
-		if gs.phase == "menu" and room == attempt and joining:
-			joining = false
-			multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
-			if Engine.has_meta("rejoin"):
-				_try_rejoin()
-				return
-			status.text = "Could not connect to room %s. Check the code, make sure everyone clicked Allow on the firewall prompt, or see How to play > Internet tips." % attempt)
+		if gs.phase == "menu" and rooms and rooms.get_instance_id() == attempt:
+			_room_failed("Could not connect to room %s. Check the code, make sure everyone clicked Allow on the firewall prompt, or see How to play > Internet tips." % room))
+
+
+func _room_failed(msg: String) -> void:
+	if not joining:
+		return
+	joining = false
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	if Engine.has_meta("rejoin"):
+		get_tree().create_timer(3.0).timeout.connect(_try_rejoin)
+		return
+	status.text = msg
+	print("MENU: ", msg)
 
 
 func _connect_client(addr: String, port: int, local_port: int) -> void:
@@ -532,7 +540,7 @@ func _try_rejoin() -> void:
 
 # Host leaving on purpose: tell everyone, so they don't sit trying to reconnect.
 func _host_goodbye() -> bool:
-	if not multiplayer.is_server() or multiplayer.multiplayer_peer is OfflineMultiplayerPeer or multiplayer.get_peers().is_empty():
+	if multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED or not multiplayer.is_server() or multiplayer.multiplayer_peer is OfflineMultiplayerPeer or multiplayer.get_peers().is_empty():
 		return false
 	kicked.rpc("The host ended the game.")
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
