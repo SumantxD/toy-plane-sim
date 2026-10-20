@@ -129,8 +129,10 @@ func _ready() -> void:
 			print("AIM shots=%d hits=%d (%.1f%%)" % [stat_shots, stat_hits, 100.0 * stat_hits / maxf(stat_shots, 1)])
 			print("STATS nodes=%d orphans=%d mem=%.1fMB" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6])
 			_quit())
+		# Test hook backstop: bound to the SceneTree, so it still fires after a reconnect reloaded the scene.
+		get_tree().create_timer(float(args[qa + 1]) + 10.0).timeout.connect(get_tree().quit)
 	if "--netstats" in args:
-		netstats = {frames = 0, extrap = 0, stall = 0, jumps = 0, snaps = 0, gap_max = 0, gaps150 = 0, sync_bytes = 0, syncs = 0}
+		netstats = {frames = 0, extrap = 0, stall = 0, jumps = 0, snaps = 0, gap_max = 0, gaps150 = 0, sync_bytes = 0, syncs = 0, dev_max = 0.0, rdev_max = 0.0, rdev_sum = 0.0, stale = 0, corr_n = 0, corr_sum = 0.0}
 		var nt := Timer.new()
 		nt.wait_time = 10.0
 		nt.autostart = true
@@ -713,10 +715,22 @@ func _print_netstats() -> void:
 		lossp = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_PACKET_LOSS) / float(ENetPacketPeer.PACKET_LOSS_SCALE) * 100.0
 		kb = peer.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0 / 10.0
 	var f := maxf(ns.frames, 1)
-	print("NET rtt %dms loss %.1f%%  down %.1f KB/s  snaps %d  gap_max %dms  gaps>150ms %d  extrap %.1f%%  frozen %.2f%%  jumps %d  sync %d B" % [
-		rtt, lossp, kb, ns.snaps, ns.gap_max, ns.gaps150, 100.0 * ns.extrap / f, 100.0 * ns.stall / f, ns.jumps, ns.sync_bytes / maxi(ns.syncs, 1)])
+	print("NET rtt %dms loss %.1f%%  down %.1f KB/s  snaps %d  gap_max %dms  gaps>150ms %d  extrap %.1f%%  frozen %.2f%%  jumps %d  kink %.1fm  rkink %.1fdeg  wobble %.3fdeg  stale %d  corr %d avg %.1fm  fps %d  sync %d B" % [
+		rtt, lossp, kb, ns.snaps, ns.gap_max, ns.gaps150, 100.0 * ns.extrap / f, 100.0 * ns.stall / f, ns.jumps, ns.dev_max, ns.rdev_max, ns.rdev_sum / f, ns.stale, ns.corr_n, ns.corr_sum / maxi(ns.corr_n, 1), Engine.get_frames_per_second(), ns.sync_bytes / maxi(ns.syncs, 1)])
 	for k in ns:
-		ns[k] = 0
+		ns[k] = 0 if ns[k] is int else 0.0
+
+
+# Plane snapshots go through Main, which always exists, keyed by plane (peer id, or -N for "aiN").
+# One for a plane not spawned here yet, or already freed, is dropped quietly: a per-plane RPC
+# logged "Node not found" for those (spawn racing the first snapshots, rematch cleanup).
+@rpc("any_peer", "unreliable")
+func st(key: int, t: float, p: Vector3, q: Quaternion) -> void:
+	var n := players.get_node_or_null(str(key) if key > 0 else "ai%d" % -key)
+	if n and n.get_multiplayer_authority() == multiplayer.get_remote_sender_id() and not n.is_multiplayer_authority():
+		n.st(t, p, q)
+	elif netstats:
+		netstats.stale += 1
 
 
 @rpc("authority", "call_local", "reliable")

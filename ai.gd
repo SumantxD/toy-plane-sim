@@ -408,10 +408,10 @@ static func _run_move(p: Node, s: Dictionary, dt: float) -> Vector3:
 			return m.dir
 		"headon":
 			# Play chicken: guns blazing nose to nose, break at the last moment.
-			var o: Node = m.other
-			if not is_instance_valid(o) or not o.alive:
+			if not is_instance_valid(m.other) or not m.other.alive: # a freed plane can't go in a typed var
 				s.move = {}
 				return fwd
+			var o: Node = m.other
 			var d: float = p.position.distance_to(o.position)
 			if d < m.get("nerve", 140.0):
 				_start_move(p, s, ["roll", "jink"].pick_random(), o)
@@ -420,10 +420,10 @@ static func _run_move(p: Node, s: Dictionary, dt: float) -> Vector3:
 			p.wants_fire = d < 500.0
 			return (o.position + o.vel_estimate() * (d / BULLET_SPEED) - p.position).normalized()
 		"boomzoom":
-			var o: Node = m.other
-			if not is_instance_valid(o) or not o.alive:
+			if not is_instance_valid(m.other) or not m.other.alive: # a freed plane can't go in a typed var
 				s.move = {}
 				return fwd
+			var o: Node = m.other
 			if m.phase == 0:
 				# Climb for an altitude advantage first.
 				if p.position.y > o.position.y + 150.0 or k > 0.5:
