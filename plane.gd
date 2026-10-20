@@ -302,7 +302,7 @@ func _read_input(dt: float) -> void:
 			ai = PilotAI.make("pilot", "hunter")
 		PilotAI.think(self, dt, main) # test bots fly with the real AI brain
 		return
-	if main.pause_root.visible:
+	if main.menu_open():
 		wants_fire = false
 		wants_rocket = false
 		return
@@ -335,7 +335,7 @@ func _fly(dt: float) -> void:
 		pitch = 1.0 # target straight behind: pull up instead of dithering
 
 	var manual := Vector3(_axis(KEY_DOWN, KEY_UP), _axis(KEY_E, KEY_Q), _axis(KEY_LEFT, KEY_RIGHT))
-	if not is_ai and manual != Vector3.ZERO:
+	if not is_ai and manual != Vector3.ZERO and not main.menu_open():
 		pitch = manual.x
 		yaw = manual.y
 		roll = manual.z

@@ -37,6 +37,195 @@ static func theme() -> Theme:
 	return t
 
 
+# Menus behave like a game's: W/A/S/D work everywhere the arrow keys do.
+static func bind_wasd() -> void:
+	for pair in [["ui_up", KEY_W], ["ui_down", KEY_S], ["ui_left", KEY_A], ["ui_right", KEY_D]]:
+		var e := InputEventKey.new()
+		e.physical_keycode = pair[1]
+		if not InputMap.action_has_event(pair[0], e):
+			InputMap.action_add_event(pair[0], e)
+
+
+# Dark full-height strip the big menus sit on, so text reads over the live 3D world behind.
+static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right := false) -> Control:
+	var root := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.03, 0.05, 0.1, 0.72)
+	sb.set_content_margin_all(48)
+	sb.content_margin_top = 56
+	root.add_theme_stylebox_override("panel", sb)
+	root.set_anchors_preset(Control.PRESET_RIGHT_WIDE if right else Control.PRESET_LEFT_WIDE)
+	root.custom_minimum_size.x = width
+	if right:
+		root.offset_left = -width
+	box.add_theme_constant_override("separation", 10)
+	root.add_child(box)
+	ui.add_child(root)
+	return root
+
+
+static func big_title(box: VBoxContainer, text: String, size := 64) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", Color.WHITE)
+	l.add_theme_color_override("font_outline_color", Color(0.05, 0.08, 0.2))
+	l.add_theme_constant_override("outline_size", 14)
+	box.add_child(l)
+	return l
+
+
+# A menu entry the way games do it: big text, no button box; the selected one glows amber with a bar.
+static func menu_item(box: Container, text: String, cb: Callable, host: Node, size := 30) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	b.add_theme_font_size_override("font_size", size)
+	var idle := StyleBoxEmpty.new()
+	idle.content_margin_left = 20
+	idle.content_margin_top = 6
+	idle.content_margin_bottom = 6
+	var lit := StyleBoxFlat.new()
+	lit.bg_color = Color(AMBER, 0.14)
+	lit.border_color = AMBER
+	lit.border_width_left = 6
+	lit.content_margin_left = 20
+	lit.content_margin_top = 6
+	lit.content_margin_bottom = 6
+	for st in ["normal", "disabled"]:
+		b.add_theme_stylebox_override(st, idle)
+	for st in ["hover", "focus", "pressed", "hover_pressed"]:
+		b.add_theme_stylebox_override(st, lit)
+	b.add_theme_color_override("font_color", Color(0.9, 0.93, 1.0, 0.85))
+	for st in ["font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(st, AMBER)
+	b.mouse_entered.connect(b.grab_focus) # mouse and keyboard share one highlight
+	b.focus_entered.connect(func(): Sfx.ui(host, Sfx.CLICK, -18.0, 1.4))
+	b.pressed.connect(func(): Sfx.ui(host, Sfx.CONFIRM, -8.0))
+	b.pressed.connect(cb)
+	box.add_child(b)
+	return b
+
+
+# Game-menu row: small header, < value >, optional picture. W/S (or up/down) moves between rows,
+# A/D (or left/right) and the arrows change the value. Locked rows only show it (non-leaders).
+class Selector extends PanelContainer:
+	signal changed(i: int)
+	var items: Array = [] # [{title, sub, pic}]
+	var index := 0
+	var locked := false
+	var title := Label.new()
+	var sub := Label.new()
+	var pic := TextureRect.new()
+	var count := Label.new()
+	var prev := Button.new()
+	var next := Button.new()
+
+	func _init(header: String, entries: Array, pic_size := Vector2.ZERO) -> void:
+		items = entries
+		focus_mode = Control.FOCUS_ALL
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		add_child(v)
+		var top := HBoxContainer.new()
+		v.add_child(top)
+		var head := Label.new()
+		head.text = header
+		head.add_theme_font_size_override("font_size", 13)
+		head.modulate = Color(1, 1, 1, 0.55)
+		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top.add_child(head)
+		count.add_theme_font_size_override("font_size", 13)
+		count.modulate = Color(1, 1, 1, 0.55)
+		top.add_child(count)
+		var row := HBoxContainer.new()
+		v.add_child(row)
+		var mid := VBoxContainer.new()
+		mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mid.alignment = BoxContainer.ALIGNMENT_CENTER
+		for b: Button in [prev, next]:
+			b.focus_mode = Control.FOCUS_NONE
+			b.flat = true
+			b.custom_minimum_size = Vector2(34, 34)
+			b.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+			b.add_theme_font_size_override("font_size", 28)
+			b.add_theme_color_override("font_color", Menus.AMBER)
+			b.add_theme_color_override("font_hover_color", Color.WHITE)
+		prev.draw.connect(_arrow.bind(prev, -1.0)) # drawn triangles: the display font has no arrow glyphs
+		next.draw.connect(_arrow.bind(next, 1.0))
+		prev.pressed.connect(step.bind(-1))
+		next.pressed.connect(step.bind(1))
+		row.add_child(prev)
+		row.add_child(mid)
+		row.add_child(next)
+		if pic_size != Vector2.ZERO:
+			pic.custom_minimum_size = pic_size
+			pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			mid.add_child(pic)
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+		title.add_theme_font_size_override("font_size", 22)
+		mid.add_child(title)
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sub.autowrap_mode = TextServer.AUTOWRAP_WORD
+		sub.add_theme_font_size_override("font_size", 14)
+		sub.modulate = Color(1, 1, 1, 0.75)
+		mid.add_child(sub)
+		focus_entered.connect(_style.bind(true))
+		focus_exited.connect(_style.bind(false))
+		mouse_entered.connect(grab_focus)
+		_style(false)
+		_show()
+
+	func _arrow(b: Button, dir: float) -> void:
+		var c := b.size / 2.0
+		var col := Color.WHITE if b.is_hovered() else Menus.AMBER
+		b.draw_colored_polygon(PackedVector2Array([c + Vector2(9 * dir, 0), c + Vector2(-7 * dir, -11), c + Vector2(-7 * dir, 11)]), col)
+
+	func _style(on: bool) -> void:
+		add_theme_stylebox_override("panel", Menus._box(Color(0.12, 0.18, 0.32, 0.92) if on else Color(0.05, 0.08, 0.16, 0.7),
+			Menus.AMBER if on else Color(1, 1, 1, 0.1), 3 if on else 1, 10))
+
+	func set_index(i: int) -> void:
+		if i != index:
+			index = clampi(i, 0, items.size() - 1)
+			_show()
+
+	func set_locked(on: bool) -> void:
+		locked = on
+		for b: Button in [prev, next]:
+			b.disabled = on
+			b.modulate.a = 0.0 if on else 1.0
+
+	func step(d: int) -> void:
+		if locked or items.size() < 2:
+			return
+		index = wrapi(index + d, 0, items.size())
+		_show()
+		Sfx.ui(self, Sfx.CLICK, -10.0, 1.2)
+		changed.emit(index)
+
+	func _gui_input(e: InputEvent) -> void:
+		if e.is_action_pressed("ui_left", true):
+			step(-1)
+			accept_event()
+		elif e.is_action_pressed("ui_right", true):
+			step(1)
+			accept_event()
+
+	func _show() -> void:
+		var it: Dictionary = items[index]
+		title.text = it.title
+		sub.text = it.get("sub", "")
+		sub.visible = sub.text != ""
+		if pic.custom_minimum_size != Vector2.ZERO:
+			pic.texture = it.get("pic")
+		count.text = "%d / %d" % [index + 1, items.size()] if items.size() > 2 else ""
+
+
 static func _box(bg: Color, border: Color, bw: int, pad: int) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg

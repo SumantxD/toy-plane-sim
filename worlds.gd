@@ -11,6 +11,9 @@ extends RefCounted
 #   static func nodes(root: Node3D)      add animated / effect / audio nodes (optional)
 const LIST := ["valley", "volcano", "frozen", "desert", "metro", "sky"]
 const NAMES := ["Green Valley", "Volcanic Islands", "Frozen Frontier", "Desert Wasteland", "Neon Metropolis", "Sky Kingdom"]
+const TAGLINES := ["Open skies over rolling hills, a river and a lake.", "Thermals lift you, lava bombs rain from the volcano.",
+	"Gusting wind and blinding snowstorms.", "Canyon runs, crosswinds and sandstorms.", "Skyscraper corridors and lightning storms.",
+	"Floating islands over a deadly sea of clouds."]
 
 const DEFAULT := {
 	terrain = {seed = 1337, base = 18.0, amp = 220.0, power = 1.6, freq = 0.0011, mountain = 1.0, lake = true, river = true, floating = false},

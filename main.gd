@@ -59,12 +59,14 @@ var name_edit := LineEdit.new()
 var address := LineEdit.new()
 var status := Label.new()
 var lobby_list := Label.new()
-var mode_btn := OptionButton.new()
-var plane_btn := OptionButton.new()
-var battle_row := HBoxContainer.new()
-var world_btn := OptionButton.new()
-var size_btn := OptionButton.new()
-var skill_btn := OptionButton.new()
+var mode_sel: Menus.Selector
+var world_sel: Menus.Selector
+var size_sel: Menus.Selector
+var skill_sel: Menus.Selector
+var plane_sel: Menus.Selector
+var battle_row := VBoxContainer.new()
+var mp_root: Control # Multiplayer screen (host / join), part of the main menu
+var mp_open := false
 var plane_choice := "cub"
 var start_btn: Button
 var copy_btn: Button
@@ -98,6 +100,7 @@ func _ready() -> void:
 		status.text = Engine.get_meta("leave_msg")
 		Engine.remove_meta("leave_msg")
 		print("MENU: ", status.text)
+	Menus.bind_wasd()
 	get_tree().set_auto_accept_quit(false) # closing the window says goodbye to clients first
 	if Engine.has_meta("rejoin"):
 		call_deferred("_try_rejoin")
@@ -1045,7 +1048,7 @@ func _end(text: String) -> void:
 # arrows/Tab move, Enter/Space press, Left/Right adjust sliders, Esc backs out of overlays.
 func _keep_menu_focus() -> void:
 	var top_panel: Control = null
-	for r in [credits_root, howto_root, settings_root, pause_root, results_root, lobby_root, menu_root]:
+	for r in [credits_root, howto_root, settings_root, pause_root, results_root, lobby_root, mp_root, menu_root]:
 		if r and r.visible:
 			top_panel = r
 			break
@@ -1062,7 +1065,7 @@ func _keep_menu_focus() -> void:
 func _first_focusable(n: Node) -> Control:
 	for c in n.get_children():
 		if c is Control and c.is_visible_in_tree():
-			if (c is BaseButton or c is Slider) and c.focus_mode != Control.FOCUS_NONE and not (c is BaseButton and c.disabled):
+			if (c is BaseButton or c is Slider or c is Menus.Selector) and c.focus_mode != Control.FOCUS_NONE and not (c is BaseButton and c.disabled):
 				return c
 			var deeper := _first_focusable(c)
 			if deeper:
@@ -1748,8 +1751,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		howto_root.hide()
 		credits_root.hide()
 		return
+	if event.keycode == KEY_ESCAPE and mp_open and gs.phase == "menu":
+		mp_open = false
+		_refresh_ui()
+		return
 	if gs.phase != "playing":
 		return
+	if menu_open() and event.keycode != KEY_ESCAPE:
+		return # menu keys (W/A/S/D, arrows, numbers) belong to the menu, not the plane
 	if spectating and event.keycode == KEY_TAB:
 		spec_t = 0.0
 		return
@@ -1782,21 +1791,27 @@ func _unhandled_input(event: InputEvent) -> void:
 			Settings.save()
 
 
+# A menu is over the game: the plane ignores the keyboard (W/A/S/D and arrows drive the menu).
+func menu_open() -> bool:
+	return pause_root.visible or settings_root.visible or howto_root.visible or credits_root.visible
+
+
 func _refresh_ui() -> void:
-	menu_root.visible = gs.phase == "menu"
+	menu_root.visible = gs.phase == "menu" and not mp_open
+	mp_root.visible = gs.phase == "menu" and mp_open
+	status.visible = gs.phase == "menu"
 	lobby_root.visible = gs.phase == "lobby"
 	var leader: bool = gs.leader == multiplayer.get_unique_id()
-	mode_btn.disabled = not leader
-	mode_btn.selected = gs.mode
+	for sel: Menus.Selector in [mode_sel, world_sel, size_sel, skill_sel]:
+		sel.set_locked(not leader)
+	mode_sel.set_index(gs.mode)
+	world_sel.set_index(gs.get("world", 0))
+	size_sel.set_index(gs.size)
+	skill_sel.set_index(gs.skill)
+	plane_sel.set_index(Planes.ORDER.find(plane_choice))
 	start_btn.visible = leader
 	switch_btn.visible = gs.mode in TEAM_MODES
 	battle_row.visible = gs.mode in AI_MODES
-	size_btn.disabled = not leader
-	world_btn.disabled = not leader
-	world_btn.selected = gs.get("world", 0)
-	skill_btn.disabled = not leader
-	size_btn.selected = gs.size
-	skill_btn.selected = gs.skill
 	leave_btn.text = "Close room" if multiplayer.is_server() and gs.players.size() > 1 else "Leave"
 	if gs.room:
 		room_label.text = "ROOM CODE:  %s" % gs.room
@@ -2116,83 +2131,128 @@ func _build_ui() -> void:
 	_build_intro(ui)
 
 	var box := VBoxContainer.new()
-	_title(box, "TOY PLANE SIM")
+	Menus.big_title(box, "TOY PLANE", 60)
+	Menus.big_title(box, "SIM", 60).add_theme_color_override("font_color", Menus.AMBER)
 	var ver := Label.new()
-	ver.text = "v" + VERSION
-	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ver.text = "v%s   -   six worlds, friends online, no server needed" % VERSION
 	ver.modulate = Color(1, 1, 1, 0.6)
 	box.add_child(ver)
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 30
+	box.add_child(gap)
+	Menus.menu_item(box, "BATTLE VS AI", solo_battle, self)
+	Menus.menu_item(box, "FREE FLIGHT", free_flight, self)
+	Menus.menu_item(box, "MULTIPLAYER", func():
+		mp_open = true
+		_refresh_ui(), self)
+	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
+	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
+	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
+	Menus.menu_item(box, "QUIT", _quit, self)
+	menu_root = Menus.side_panel(ui, box)
+
+	box = VBoxContainer.new()
+	Menus.big_title(box, "MULTIPLAYER", 44)
+	var hint := Label.new()
+	hint.text = "Play with friends anywhere: host a room and send them the code."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+	hint.modulate = Color(1, 1, 1, 0.7)
+	box.add_child(hint)
+	var cl := Label.new()
+	cl.text = "CALLSIGN"
+	cl.modulate = Color(1, 1, 1, 0.55)
+	box.add_child(cl)
 	name_edit.text = Settings.values.name if Settings.values.name else "Pilot%d" % randi_range(10, 99)
 	name_edit.max_length = 16
 	name_edit.placeholder_text = "Your name"
+	name_edit.add_theme_font_size_override("font_size", 22)
 	name_edit.text_changed.connect(func(t):
 		Settings.values.name = t.strip_edges()
 		Settings.save())
 	box.add_child(name_edit)
-	_button(box, "Battle vs AI (solo)", solo_battle)
-	_button(box, "Free Flight (solo practice)", free_flight)
-	_button(box, "Host online (get a room code)", host_online)
-	_button(box, "Host on LAN", host)
+	Menus.menu_item(box, "HOST ONLINE", host_online, self)
+	Menus.menu_item(box, "HOST ON LAN", host, self)
+	var jl := Label.new()
+	jl.text = "JOIN A FRIEND - room code or LAN address"
+	jl.modulate = Color(1, 1, 1, 0.55)
+	box.add_child(jl)
 	var join_row := HBoxContainer.new()
-	address.placeholder_text = "Room code or IP"
+	address.placeholder_text = "e.g. KNHXC"
+	address.add_theme_font_size_override("font_size", 22)
 	address.text_submitted.connect(func(_t): join()) # Enter joins
 	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	join_row.add_child(address)
-	var jb := Button.new()
-	jb.text = "Join"
-	jb.pressed.connect(join)
-	join_row.add_child(jb)
+	Menus.menu_item(join_row, "JOIN", join, self, 26)
 	box.add_child(join_row)
-	_button(box, "Settings", func(): settings_root.show())
-	_button(box, "How to play", func(): howto_root.show())
-	_button(box, "Credits", func(): credits_root.show())
-	_button(box, "Quit", _quit)
+	Menus.menu_item(box, "BACK", func():
+		mp_open = false
+		_refresh_ui(), self)
+	mp_root = Menus.side_panel(ui, box)
+	mp_root.hide()
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
-	box.add_child(status)
-	menu_root = _panel(ui, box)
+	status.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	status.custom_minimum_size.x = 470
+	status.position = Vector2(48, -110)
+	status.add_theme_color_override("font_color", Menus.AMBER)
+	ui.add_child(status)
 
 	box = VBoxContainer.new()
-	_title(box, "LOBBY")
-	room_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	Menus.big_title(box, "MISSION SETUP", 30)
+	room_label.add_theme_color_override("font_color", Menus.AMBER)
 	box.add_child(room_label)
-	net_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	net_label.modulate = Menus.AMBER
 	net_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	box.add_child(net_label)
-	copy_btn = _button(box, "Copy room code", func(): DisplayServer.clipboard_set(gs.room))
-	for mo in MODES:
-		mode_btn.add_item(mo)
-	mode_btn.item_selected.connect(func(i): request_mode.rpc_id(1, i))
-	box.add_child(mode_btn)
-	for wn in Worlds.NAMES:
-		world_btn.add_item(wn)
-	world_btn.item_selected.connect(func(i): request_world.rpc_id(1, i))
-	box.add_child(world_btn)
-	battle_row.add_theme_constant_override("separation", 8)
-	for sz in SIZES:
-		size_btn.add_item("%dv%d" % [sz, sz])
-	for sk in ["Rookie AI", "Pilot AI", "Ace AI"]:
-		skill_btn.add_item(sk)
-	size_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	size_btn.item_selected.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
-	skill_btn.item_selected.connect(func(i): request_battle.rpc_id(1, gs.size, i))
-	battle_row.add_child(size_btn)
-	battle_row.add_child(skill_btn)
+	var worlds: Array = []
+	for i in Worlds.LIST.size():
+		worlds.append({title = Worlds.NAMES[i].to_upper(), sub = Worlds.TAGLINES[i], pic = load("res://assets/ui/worlds/%s.png" % Worlds.LIST[i])})
+	world_sel = Menus.Selector.new("WORLD", worlds, Vector2(384, 164))
+	world_sel.changed.connect(func(i): request_world.rpc_id(1, i))
+	box.add_child(world_sel)
+	var modes: Array = []
+	for i in MODES.size():
+		modes.append({title = MODES[i].to_upper(), sub = OBJECTIVES[i]})
+	mode_sel = Menus.Selector.new("MODE", modes)
+	mode_sel.changed.connect(func(i): request_mode.rpc_id(1, i))
+	box.add_child(mode_sel)
+	var sizes: Array = SIZES.map(func(sz): return {title = "%d  VS  %d" % [sz, sz]})
+	size_sel = Menus.Selector.new("SQUADRON SIZE", sizes)
+	size_sel.changed.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
+	battle_row.add_child(size_sel)
+	skill_sel = Menus.Selector.new("AI PILOTS", [{title = "ROOKIE", sub = "Slow to react, forgiving aim"},
+		{title = "PILOT", sub = "Solid wingmen and opponents"}, {title = "ACE", sub = "Sharp, fast and merciless"}])
+	skill_sel.changed.connect(func(i): request_battle.rpc_id(1, gs.size, i))
+	battle_row.add_child(skill_sel)
+	battle_row.add_theme_constant_override("separation", 10)
 	box.add_child(battle_row)
-	for k in Planes.ORDER:
-		plane_btn.add_item(Planes.TYPES[k].name)
-	plane_btn.item_selected.connect(func(i):
+	plane_sel = Menus.Selector.new("YOUR PLANE", Planes.ORDER.map(func(k): return {title = Planes.TYPES[k].name.to_upper(), sub = Planes.TYPES[k].desc}))
+	plane_sel.changed.connect(func(i):
 		plane_choice = Planes.ORDER[i]
 		request_plane.rpc_id(1, plane_choice)
 		_refresh_preview())
-	box.add_child(plane_btn)
-	box.add_child(lobby_list)
-	switch_btn = _button(box, "Switch team", func(): request_switch_team.rpc_id(1))
-	start_btn = _button(box, "Start match", func(): request_start.rpc_id(1))
-	_button(box, "How to play", func(): howto_root.show())
-	leave_btn = _button(box, "Leave", _leave)
-	lobby_root = _panel(ui, box, Control.PRESET_CENTER_LEFT, 50)
+	box.add_child(plane_sel)
+	start_btn = Menus.menu_item(box, "LAUNCH", func(): request_start.rpc_id(1), self, 36)
+	start_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	start_btn.add_theme_stylebox_override("normal", Menus._box(Color(Menus.AMBER, 0.22), Menus.AMBER, 2, 8))
+	lobby_root = Control.new() # full-screen layer: setup strip left, roster top-right, plane stats bottom-right
+	lobby_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lobby_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(lobby_root)
+	Menus.side_panel(lobby_root, box, 520).get_theme_stylebox("panel").content_margin_top = 30
+	box.add_theme_constant_override("separation", 7)
+	var rbox := VBoxContainer.new()
+	var sq := Label.new()
+	sq.text = "SQUADRONS"
+	sq.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	sq.add_theme_font_size_override("font_size", 22)
+	rbox.add_child(sq)
+	rbox.add_child(lobby_list)
+	copy_btn = Menus.menu_item(rbox, "COPY ROOM CODE", func(): DisplayServer.clipboard_set(gs.room), self, 18)
+	switch_btn = Menus.menu_item(rbox, "SWITCH TEAM", func(): request_switch_team.rpc_id(1), self, 18)
+	Menus.menu_item(rbox, "HOW TO PLAY", func(): howto_root.show(), self, 18)
+	leave_btn = Menus.menu_item(rbox, "LEAVE", _leave, self, 18)
+	var roster_root := _panel(ui, rbox, Control.PRESET_TOP_RIGHT, 30)
+	roster_root.reparent(lobby_root)
 	var sbox := VBoxContainer.new()
 	stats_label.add_theme_font_size_override("font_size", 22)
 	sbox.add_child(stats_label)
@@ -2213,17 +2273,21 @@ func _build_ui() -> void:
 	stats_root.reparent(lobby_root)
 
 	box = VBoxContainer.new()
-	_title(box, "PAUSED")
-	_button(box, "Resume", func():
+	Menus.big_title(box, "PAUSED", 48)
+	var note := Label.new()
+	note.text = "The battle goes on while you're in here."
+	note.modulate = Color(1, 1, 1, 0.6)
+	box.add_child(note)
+	Menus.menu_item(box, "RESUME", func():
 		pause_root.hide()
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
-	_button(box, "Settings", func(): settings_root.show())
-	_button(box, "How to play", func(): howto_root.show())
-	end_btn = _button(box, "End match (back to lobby)", func():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED, self)
+	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
+	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
+	end_btn = Menus.menu_item(box, "END MATCH", func():
 		pause_root.hide()
-		request_end.rpc_id(1))
-	_button(box, "Leave game", _leave)
-	pause_root = _panel(ui, box)
+		request_end.rpc_id(1), self)
+	Menus.menu_item(box, "LEAVE GAME", _leave, self)
+	pause_root = Menus.side_panel(ui, box, 480)
 
 	box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
