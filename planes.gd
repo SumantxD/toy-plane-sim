@@ -182,11 +182,11 @@ static func _sticker(i: int, root: Node3D, parts: Dictionary, w: Array, hull: Ar
 	var size: float = minf(w[1] * 0.8, 1.6)
 	if name == "Shark Mouth": # on both nose sides
 		for side in [-1.0, 1.0]:
-			var t := Transform3D(Basis(Vector3.UP, side * PI / 2.0), Vector3(side * (hull[0] + 0.03), -0.1, hull[2] + 1.0))
+			var t := Transform3D(Basis(Vector3.UP, side * PI / 2.0), Vector3(side * (hull[0] + 0.03), -0.1, hull[2] + 1.7)) # fully on the fuselage side, not hanging off the nose
 			_shape(root, _circle(0.55, 14), Color(0.8, 0.12, 0.12), t, Vector2(1.0, 0.55), toon)
 			for k in 5:
 				var tx := -0.45 + k * 0.22
-				_shape(root, PackedVector2Array([Vector2(tx, 0.0), Vector2(tx + 0.18, 0.0), Vector2(tx + 0.09, -0.22)]), Color.WHITE, t.translated_local(Vector3(0, 0, 0.004)), Vector2.ONE, toon)
+				_shape(root, PackedVector2Array([Vector2(tx, 0.0), Vector2(tx + 0.18, 0.0), Vector2(tx + 0.09, -0.22)]), Color.WHITE, t.translated_local(Vector3(0, 0, 0.03)), Vector2.ONE, toon)
 		return
 	var spots: Array = []
 	for side in [-1.0, 1.0]: # top of each inner wing
@@ -211,11 +211,11 @@ static func _sticker(i: int, root: Node3D, parts: Dictionary, w: Array, hull: Ar
 				_shape(root, PackedVector2Array([Vector2(0, 0.5), Vector2(0.32, 0.2), Vector2(0.28, -0.15), Vector2(0.12, -0.05), Vector2(0.15, -0.5),
 					Vector2(-0.05, -0.2), Vector2(-0.18, -0.42), Vector2(-0.3, 0.05), Vector2(-0.3, 0.25)]), Color(1.0, 0.45, 0.1), t, Vector2.ONE * sz, toon)
 				_shape(root, PackedVector2Array([Vector2(0, 0.38), Vector2(0.16, 0.15), Vector2(0.08, -0.15), Vector2(-0.02, 0.0), Vector2(-0.15, 0.15)]),
-					Color(1.0, 0.85, 0.2), t.translated_local(Vector3(0, 0, 0.004)), Vector2.ONE * sz, toon)
+					Color(1.0, 0.85, 0.2), t.translated_local(Vector3(0, 0, 0.03)), Vector2.ONE * sz, toon)
 			"Roundel":
 				_shape(root, _circle(0.5, 18), Color.WHITE, t, Vector2.ONE * sz, toon)
-				_shape(root, _circle(0.32, 18), Color(0.85, 0.2, 0.15), t.translated_local(Vector3(0, 0, 0.004)), Vector2.ONE * sz, toon)
-				_shape(root, _circle(0.14, 14), Color(0.2, 0.3, 0.75), t.translated_local(Vector3(0, 0, 0.008)), Vector2.ONE * sz, toon)
+				_shape(root, _circle(0.32, 18), Color(0.85, 0.2, 0.15), t.translated_local(Vector3(0, 0, 0.03)), Vector2.ONE * sz, toon)
+				_shape(root, _circle(0.14, 14), Color(0.2, 0.3, 0.75), t.translated_local(Vector3(0, 0, 0.06)), Vector2.ONE * sz, toon)
 			"Checkers":
 				for cx in 4:
 					for cy in 4:
@@ -251,7 +251,7 @@ static func _shape(root: Node3D, poly: PackedVector2Array, color: Color, t: Tran
 	var mat: Material = toon.call(color)
 	m.material_override = mat
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	m.transform = t.translated_local(Vector3(0, 0, 0.02))
+	m.transform = t.translated_local(Vector3(0, 0, 0.06)) # layers sit 3 cm apart: closer than that they z-fight at range
 	root.add_child(m)
 
 
