@@ -208,4 +208,15 @@ def sky(o):
     air(o, 0.04, 2.0, 2)
 
 bed("bed_metro.wav", metro); bed("bed_sky.wav", sky)
+
+def pop():  # 0.35 s balloon pop: sharp snap, a rubbery flap, no explosion
+    n = int(0.35 * SR); out = []
+    for i in range(n):
+        t = i / SR
+        snap = random.uniform(-1, 1) * math.exp(-t / 0.004) * 1.6
+        flap = math.sin(2 * math.pi * (420 - 600 * t) * t) * math.exp(-t / 0.05) * 0.6
+        out.append((snap + flap + random.uniform(-1, 1) * math.exp(-t / 0.06) * 0.3) * min(1.0, (n - i) / 110))
+    return out
+
+save("pop.wav", pop())
 print("ok")

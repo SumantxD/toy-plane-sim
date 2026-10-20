@@ -14,6 +14,7 @@ const AA_GUN := preload("res://assets/sfx/aa_gun.wav")
 const FLAK := preload("res://assets/sfx/flak.wav")
 const BOMB_WHISTLE := preload("res://assets/sfx/bomb_whistle.wav")
 const FLARE := preload("res://assets/sfx/flare.wav")
+const POP := preload("res://assets/sfx/pop.wav")
 const SIREN := preload("res://assets/sfx/siren.wav")
 const FANFARE := preload("res://assets/sfx/fanfare.wav")
 const LAUNCHES := [preload("res://assets/sfx/thrusterFire_000.ogg"), preload("res://assets/sfx/thrusterFire_001.ogg"),

@@ -99,6 +99,44 @@ class Wreck extends Node3D:
 			queue_free()
 
 
+# A balloon bursts: confetti and rubber scraps fly out and flutter down; no fire, no falling wreck.
+static func pop(main: Node, at: Vector3, big: bool) -> void:
+	Sfx.at(main, at, Sfx.POP, 8.0 if big else 4.0, 1600.0)
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 70 if big else 36
+	p.lifetime = 2.4
+	p.local_coords = false
+	var bit := BoxMesh.new()
+	bit.size = Vector3(0.9, 0.06, 0.6) * (1.4 if big else 1.0)
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	bit.material = mat
+	p.mesh = bit
+	p.direction = Vector3.UP
+	p.spread = 180.0
+	p.initial_velocity_min = 8.0
+	p.initial_velocity_max = 24.0 if big else 16.0
+	p.gravity = Vector3(0, -9, 0)
+	p.damping_min = 3.0
+	p.damping_max = 6.0
+	p.angular_velocity_min = -400.0
+	p.angular_velocity_max = 400.0
+	p.particle_flag_rotate_y = true
+	var colors := Gradient.new() # each scrap gets a colour from this
+	colors.colors = PackedColorArray([Color(1, 0.8, 0.2), Color(1, 0.3, 0.3), Color(0.3, 0.6, 1), Color(0.5, 1, 0.4), Color(1, 1, 1)]) if big \
+		else PackedColorArray([Color(0.95, 0.35, 0.3), Color(1, 0.6, 0.4), Color(1, 1, 1)])
+	colors.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0]) if big else PackedFloat32Array([0.0, 0.5, 1.0])
+	p.color_initial_ramp = colors
+	p.finished.connect(p.queue_free)
+	main.add_child(p)
+	p.global_position = at
+	p.restart() # a one-shot emitter only bursts on restart once it's in the tree
+
+
 static func shoot_down(main: Node, body: Node3D, at: Transform3D, vel: Vector3) -> void:
 	var w := Wreck.new()
 	w.main = main

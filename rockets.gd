@@ -23,7 +23,10 @@ var rockets := {} # id -> {p, v, t, owner, target, local, mesh, trail}
 var count := 0
 var trails := ImmediateMesh.new()
 var trail_mat := StandardMaterial3D.new()
-var rocket_mesh := BoxMesh.new()
+var rocket_mesh := CylinderMesh.new()
+var nose_mesh := CylinderMesh.new()
+var fin_mesh := BoxMesh.new()
+var glow_mesh := SphereMesh.new()
 var bomb_mesh := CapsuleMesh.new()
 
 
@@ -35,7 +38,27 @@ func _ready() -> void:
 	trail_node.mesh = trails
 	trail_node.material_override = trail_mat
 	add_child(trail_node)
-	rocket_mesh.size = Vector3(0.5, 0.5, 2.5)
+	rocket_mesh.top_radius = 0.28
+	rocket_mesh.bottom_radius = 0.28
+	rocket_mesh.height = 2.6
+	rocket_mesh.radial_segments = 8
+	nose_mesh.top_radius = 0.0
+	nose_mesh.bottom_radius = 0.28
+	nose_mesh.height = 0.8
+	nose_mesh.radial_segments = 8
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color(0.9, 0.2, 0.15)
+	nose_mesh.material = red
+	fin_mesh.size = Vector3(1.1, 0.06, 0.6)
+	var fin := StandardMaterial3D.new()
+	fin.albedo_color = Color(0.25, 0.25, 0.28)
+	fin_mesh.material = fin
+	glow_mesh.radius = 0.55
+	glow_mesh.height = 1.1
+	var hot := StandardMaterial3D.new()
+	hot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hot.albedo_color = Color(4.0, 2.2, 0.6) # over-bright: blooms into a flame you can spot
+	glow_mesh.material = hot
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.95, 0.95, 0.95)
 	m.emission_enabled = true
@@ -133,8 +156,9 @@ func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, 
 		Sfx.at(main(), p, Sfx.LAUNCHES.pick_random(), -6.0)
 	else:
 		Sfx.at(main(), p, Sfx.BOMB_WHISTLE, 0.0, 1500.0)
-	var m := MeshInstance3D.new()
-	m.mesh = bomb_mesh if bomb else rocket_mesh
+	var m: Node3D = _missile() if not bomb else MeshInstance3D.new()
+	if bomb:
+		m.mesh = bomb_mesh
 	add_child(m)
 	rockets[id] = {p = p, v = v, t = 0.0, owner = owner, team = owner.team, local = local, mesh = m, trail = [], bomb = bomb,
 		target = main().find_unit(target_name) if target_name else null} # planes, turrets or HQs
@@ -142,8 +166,53 @@ func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, 
 
 func _remove(id: String) -> void:
 	if rockets.has(id):
+		var smoke := rockets[id].mesh.get_node_or_null("Smoke") as CPUParticles3D
+		if smoke: # the trail hangs in the air and fades instead of vanishing with the missile
+			smoke.reparent(self)
+			smoke.emitting = false
+			var sid := smoke.get_instance_id()
+			get_tree().create_timer(smoke.lifetime + 0.2).timeout.connect(func():
+				var s = instance_from_id(sid)
+				if is_instance_valid(s):
+					s.queue_free())
 		rockets[id].mesh.queue_free()
 		rockets.erase(id)
+
+
+# White body, red nose, four fins, an over-bright exhaust flame and a thick smoke trail behind it.
+func _missile() -> Node3D:
+	var root := Node3D.new()
+	var body := MeshInstance3D.new()
+	body.mesh = rocket_mesh
+	body.rotation_degrees.x = 90
+	root.add_child(body)
+	var nose := MeshInstance3D.new()
+	nose.mesh = nose_mesh
+	nose.rotation_degrees.x = -90
+	nose.position.z = -1.7
+	root.add_child(nose)
+	for k in 2:
+		var f := MeshInstance3D.new()
+		f.mesh = fin_mesh
+		f.position.z = 1.0
+		f.rotation_degrees.z = 90.0 * k
+		root.add_child(f)
+	var flame := MeshInstance3D.new()
+	flame.mesh = glow_mesh
+	flame.position.z = 1.6
+	flame.scale = Vector3(1, 1, 1.8)
+	root.add_child(flame)
+	var smoke := Fx.smoke(0.55, 1.8, Color(0.93, 0.93, 0.9))
+	smoke.name = "Smoke"
+	smoke.amount = 130
+	smoke.direction = Vector3(0, 0, 1)
+	smoke.spread = 8.0
+	smoke.initial_velocity_min = 2.0
+	smoke.initial_velocity_max = 5.0
+	smoke.gravity = Vector3(0, 1.5, 0)
+	smoke.position.z = 1.8
+	root.add_child(smoke)
+	return root
 
 
 # One physics step. Shared by real rockets and the preview, so the preview never lies.

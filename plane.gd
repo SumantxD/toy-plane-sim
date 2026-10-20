@@ -792,7 +792,9 @@ func die(fx: bool) -> void:
 	body.hide()
 	tag.hide()
 	_show_damage()
-	if fx:
+	if fx and role in ["balloon", "prize"]:
+		Fx.pop(main, position, role == "prize") # balloons burst, they don't crash like planes
+	elif fx:
 		main.boom(position, 0.7)
 		Fx.shoot_down(main, body, global_transform, velocity if is_multiplayer_authority() else vel_estimate())
 
@@ -956,8 +958,39 @@ func _draw_hud() -> void:
 			hud.draw_string(ThemeDB.fallback_font, q + Vector2(20, -10), "BOMB  %dm" % position.distance_to(at), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.6, 0.2))
 	if main.rockets.incoming(self):
 		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 110, hud.size.y - 120), "MISSILE!  [X] FLARES", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.RED)
+		_draw_threats()
 	elif locked_by():
 		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 70, hud.size.y - 120), "LOCKED ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 0.6, 0.2))
+
+
+# Missiles chasing you: a red diamond on each with its distance, or a red arrow on the screen edge
+# pointing at it when it's off-screen / behind, so you know which way to break.
+func _draw_threats() -> void:
+	var red := Color(1.0, 0.22, 0.18)
+	var font := ThemeDB.fallback_font
+	var c := hud.size / 2.0
+	for r in main.rockets.rockets.values():
+		if r.target != self or r.bomb:
+			continue
+		var dist := position.distance_to(r.p)
+		if not cam.is_position_behind(r.p):
+			var q := cam.unproject_position(r.p)
+			if Rect2(Vector2.ZERO, hud.size).grow(-30.0).has_point(q):
+				var d := PackedVector2Array([q + Vector2(0, -16), q + Vector2(16, 0), q + Vector2(0, 16), q + Vector2(-16, 0), q + Vector2(0, -16)])
+				hud.draw_polyline(d, red, 3.0)
+				hud.draw_string(font, q + Vector2(20, 6), "%dm" % dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, red)
+				continue
+		var local: Vector3 = cam.global_transform.basis.inverse() * (r.p - cam.global_position)
+		var behind := local.z > 0.0
+		var dir := Vector2(local.x, -local.y).normalized()
+		if behind: # bottom of the screen = behind you, nudged toward its side
+			dir = (dir * 0.5 + Vector2.DOWN).normalized()
+		if dir == Vector2.ZERO:
+			dir = Vector2.DOWN
+		var tip := c + dir * (minf(hud.size.x, hud.size.y) / 2.0 - 50.0)
+		var side := dir.orthogonal()
+		hud.draw_colored_polygon(PackedVector2Array([tip + dir * 22.0, tip - dir * 10.0 + side * 16.0, tip - dir * 10.0 - side * 16.0]), red)
+		hud.draw_string(font, tip - dir * 44.0 + Vector2(-36, 6), ("BEHIND %dm" if behind else "%dm") % dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, red)
 
 
 func _build_mesh() -> void:
