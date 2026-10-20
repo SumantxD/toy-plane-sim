@@ -1970,6 +1970,7 @@ func _refresh_ui() -> void:
 	world_sel.set_index(gs.get("world", 0))
 	size_sel.set_index(gs.size)
 	skill_sel.set_index(gs.skill)
+	plane_sel.set_items(Planes.ORDER.map(func(k): return {title = Planes.variant(k).name.to_upper(), sub = Planes.variant(k).desc})) # this world's lineup
 	plane_sel.set_index(Planes.ORDER.find(plane_choice))
 	start_btn.visible = leader
 	switch_btn.visible = gs.mode in TEAM_MODES
@@ -1992,7 +1993,7 @@ func _refresh_ui() -> void:
 			if gs.players[id].team == team:
 				var info: Dictionary = gs.players[id]
 				var ping := "  host" if id == 1 else ("  %d ms" % info.ping if info.has("ping") else "")
-				lines.append("   %s  [%s]%s%s" % [info.name, Planes.TYPES[info.get("plane", "cub")].name, "  (leader)" if id == gs.leader else "", ping])
+				lines.append("   %s  [%s]%s%s" % [info.name, Planes.variant(info.get("plane", "cub")).name, "  (leader)" if id == gs.leader else "", ping])
 	if not leader:
 		lines.append("\nWaiting for the leader to start...")
 	lobby_list.text = "\n".join(lines)
@@ -2006,7 +2007,7 @@ func _refresh_ui() -> void:
 			_cell(h, Menus.AMBER)
 		for id in gs.players:
 			var p: Dictionary = gs.players[id]
-			for v in [p.name, TEAM_NAMES[p.team], Planes.TYPES[p.get("plane", "cub")].name, p.kills, p.deaths, p.get("revives", 0)]:
+			for v in [p.name, TEAM_NAMES[p.team], Planes.variant(p.get("plane", "cub")).name, p.kills, p.deaths, p.get("revives", 0)]:
 				_cell(str(v), Color.WHITE)
 		var ai_rows: Array = gs.ai_board.keys()
 		ai_rows.sort_custom(func(a, b): return gs.ai_board[a].kills > gs.ai_board[b].kills)
@@ -2033,7 +2034,7 @@ func _cell(text: String, color: Color) -> void:
 # Spinning model of the chosen plane next to the lobby panel, plus its stat bars.
 func _refresh_preview() -> void:
 	preview.visible = gs.phase == "lobby"
-	var key := "%s/%d" % [plane_choice, _my_team()]
+	var key := "%s/%d/%d" % [plane_choice, _my_team(), Worlds.index]
 	if not preview.visible or key == preview_key:
 		return
 	preview_key = key
@@ -2046,7 +2047,8 @@ func _refresh_preview() -> void:
 	var pt: Dictionary = Planes.TYPES[plane_choice]
 	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, Settings.values.get("sticker", 0), Settings.values.get("banner", 0), toon(Color(0.2, 0.2, 0.22)), toon)
 	var t: Dictionary = Planes.TYPES[plane_choice]
-	stats_label.text = "%s\n%s" % [t.name, t.desc]
+	var v := Planes.variant(plane_choice)
+	stats_label.text = "%s\n%s" % [v.name, v.desc]
 	var vals := [inverse_lerp(85.0, 140.0, t.max), inverse_lerp(3.0, 6.5, t.turn.x + t.turn.z), inverse_lerp(50.0, 200.0, t.hp), inverse_lerp(0.0, 6.0, t.rockets)]
 	for i in 4:
 		stat_bars[i].value = vals[i] * 100.0
@@ -2393,7 +2395,7 @@ func _build_ui() -> void:
 	battle_row.add_child(skill_sel)
 	battle_row.add_theme_constant_override("separation", 10)
 	box.add_child(battle_row)
-	plane_sel = Menus.Selector.new("YOUR PLANE", Planes.ORDER.map(func(k): return {title = Planes.TYPES[k].name.to_upper(), sub = Planes.TYPES[k].desc}))
+	plane_sel = Menus.Selector.new("YOUR PLANE", Planes.ORDER.map(func(k): return {title = Planes.variant(k).name.to_upper(), sub = Planes.variant(k).desc}))
 	plane_sel.changed.connect(func(i):
 		plane_choice = Planes.ORDER[i]
 		request_plane.rpc_id(1, plane_choice)
@@ -2596,7 +2598,7 @@ func _show_intro() -> void:
 		var col := ["#5c9bff", "#ff6b5c"]
 		lines.append("[font_size=18][color=%s]%s SQUADRON (%d)%s[/color]   vs   [color=%s]%s SQUADRON (%d)%s[/color][/font_size]" % [
 			col[0], TEAM_NAMES[0].to_upper(), size[0], "  <- you" if team == 0 else "", col[1], TEAM_NAMES[1].to_upper(), size[1], "  <- you" if team == 1 else ""])
-	lines.append("[font_size=16]Your plane: [b]%s[/b]  -  guns, %d rockets, %d bombs, %d flares[/font_size][/center]" % [t.name, t.rockets, t.bombs, t.flares])
+	lines.append("[font_size=16]Your plane: [b]%s[/b]  -  guns, %d rockets, %d bombs, %d flares[/font_size][/center]" % [Planes.variant(me.get("plane", "cub")).name, t.rockets, t.bombs, t.flares])
 	intro_label.text = "\n".join(lines)
 	var keys := ["[font_size=20][b]CONTROLS[/b][/font_size]  [font_size=13](H hides)[/font_size]",
 		"[color=#9fd3ff]FLY[/color]   Mouse aims  |  W / S throttle  |  Shift boost",
