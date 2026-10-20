@@ -205,7 +205,7 @@ func _ready() -> void:
 
 # ---------- connection ----------
 # LAN / IP: plain ENet on PORT. Online: rooms.gd (WebRTC P2P + room code over public MQTT).
-const VERSION := "0.7"
+const VERSION := "0.8"
 
 var room := "" # online room code we host or joined
 var rooms: Rooms
