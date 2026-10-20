@@ -47,6 +47,8 @@ var beacons := {} # server only: victim id -> {pos, t, team}
 var respawning := {} # server only: victim id -> team, waiting out RESPAWN_DELAY
 var pings: Array = [] # local: [pos, text, time_left]
 var push_cd := 0.0
+var gs_sent := {} # server: gs as last pushed, so a push only carries the keys that changed
+var synced := false # client: got a full gs, deltas apply from here on
 var ai_count := 0
 var bot := "--bot" in OS.get_cmdline_user_args()
 
@@ -503,7 +505,7 @@ func register(info: Dictionary) -> void:
 		_spawn_pilot(id, _base(id))
 		if back.get("down", false):
 			_down_again(id, back)
-		sync.rpc_id(id, gs) # world + match reset land first, or they would wipe the replays below
+		sync.rpc_id(id, gs, true) # world + match reset land first, or they would wipe the replays below
 		for c in players.get_children():
 			if c.name != str(id):
 				c.set_hp.rpc_id(id, c.hp, c.comps)
@@ -522,7 +524,7 @@ func register(info: Dictionary) -> void:
 		if objectives:
 			for h in objectives.hqs:
 				h.set_hp.rpc_id(id, h.hp, h.comps)
-	_push()
+	_push(true)
 
 
 # A pilot who dropped while shot down: down again once their new plane exists on every peer,
@@ -726,10 +728,18 @@ func _print_netstats() -> void:
 	var rtt := -1.0
 	var lossp := -1.0
 	var kb := 0.0
-	if peer and not multiplayer.is_server():
+	if peer and not multiplayer.is_server() and peer.get_peer(1):
 		rtt = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
 		lossp = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_PACKET_LOSS) / float(ENetPacketPeer.PACKET_LOSS_SCALE) * 100.0
 		kb = peer.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0 / 10.0
+	if multiplayer.is_server() and peer:
+		var up := peer.host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA) / 1024.0 / 10.0
+		var down := peer.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0 / 10.0
+		var pk := peer.host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_PACKETS) / 10.0
+		print("HOST up %.1f KB/s (%d pkt/s) down %.1f KB/s  peers %d  fps %d  proc avg %.2f max %.1f ms  nodes %d orphans %d  mem %.1f MB  objs %d  gs %d B  planes %d bullets %d rockets %d" % [
+			up, pk, down, multiplayer.get_peers().size(), Engine.get_frames_per_second(), 1000.0 * ns.get("proc", 0.0) / maxf(ns.get("pframes", 0), 1), 1000.0 * ns.get("proc_max", 0.0),
+			Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6,
+			Performance.get_monitor(Performance.OBJECT_COUNT), var_to_bytes(gs).size(), players.get_child_count(), bullets.shots.size(), rockets.rockets.size()])
 	var f := maxf(ns.frames, 1)
 	print("NET rtt %dms loss %.1f%%  down %.1f KB/s  snaps %d  gap_max %dms  gaps>150ms %d  extrap %.1f%%  frozen %.2f%%  jumps %d  kink %.1fm  rkink %.1fdeg  wobble %.3fdeg  stale %d  corr %d avg %.1fm  fps %d  sync %d B" % [
 		rtt, lossp, kb, ns.snaps, ns.gap_max, ns.gaps150, 100.0 * ns.extrap / f, 100.0 * ns.stall / f, ns.jumps, ns.dev_max, ns.rdev_max, ns.rdev_sum / f, ns.stale, ns.corr_n, ns.corr_sum / maxi(ns.corr_n, 1), Engine.get_frames_per_second(), ns.sync_bytes / maxi(ns.syncs, 1)])
@@ -737,27 +747,18 @@ func _print_netstats() -> void:
 		ns[k] = 0 if ns[k] is int else 0.0
 
 
-# Plane snapshots go through Main, which always exists, keyed by plane (peer id, or -N for "aiN").
-# One for a plane not spawned here yet, or already freed, is dropped quietly: a per-plane RPC
-# logged "Node not found" for those (spawn racing the first snapshots, rematch cleanup).
-@rpc("any_peer", "unreliable")
-func st(key: int, t: float, p: Vector3, q: Quaternion) -> void:
-	var n := players.get_node_or_null(str(key) if key > 0 else "ai%d" % -key)
-	if n and n.get_multiplayer_authority() == multiplayer.get_remote_sender_id() and not n.is_multiplayer_authority():
-		n.st(t, p, q)
-	elif netstats:
-		netstats.stale += 1
-
-
 @rpc("authority", "call_local", "reliable")
-func sync(state: Dictionary) -> void:
+func sync(state: Dictionary, full: bool) -> void:
 	last_sync_ms = Time.get_ticks_msec()
+	if not (full or synced):
+		return # a delta that beat our first full state (we connected but aren't registered yet)
+	synced = true
 	if netstats:
 		netstats.sync_bytes += var_to_bytes(state).size()
 		netstats.syncs += 1
 	var was := seen_phase # not gs.phase: the server already changed that before pushing
-	seen_phase = state.phase
-	gs = state
+	gs.merge(state, true) # only the keys that changed since the last push (all of them for a full push)
+	seen_phase = gs.phase
 	# Countdown: lead the server's value by our one-way lag so every peer hits GO together (capped:
 	# a long local hitch, like building a world, inflates the measured ping for a few seconds).
 	var lag: float = 0.0 if gs.get("loading", false) else minf(gs.players.get(multiplayer.get_unique_id(), {}).get("ping", 0) / 2000.0, 0.25)
@@ -780,14 +781,84 @@ func sync(state: Dictionary) -> void:
 	_refresh_ui()
 
 
-func _push() -> void:
+# Reliable+ordered, so peers can't miss a delta; `full` is for a peer that just joined. gs keys are never erased.
+# Sent every time even when empty: it doubles as the host's heartbeat (no-sync watchdog).
+func _push(full := false) -> void:
 	if not multiplayer.is_server():
 		return
 	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
 		if gs.phase != "menu":
-			sync(gs.duplicate(true)) # solo free flight: apply locally
+			sync(gs.duplicate(true), true) # solo free flight: apply locally
 	else:
-		sync.rpc(gs)
+		full = full or gs_sent.is_empty()
+		var d := {}
+		for k in gs:
+			if full or not gs_sent.has(k) or gs_sent[k] != gs[k]:
+				d[k] = gs[k]
+		gs_sent = gs.duplicate(true)
+		sync.rpc(d, full)
+
+
+# Snapshots ride in one packed batch per host frame, not one RPC (= one UDP datagram) per plane per peer.
+# Entry: id s32 (peer id, or -n for "ai<n>"), t f32, pos 3 x f32, quat 4 x s16, shots u8.
+const SNAP := 29
+var snap_out := PackedByteArray() # server: entries waiting for the end-of-frame flush
+
+
+func send_snap(p: Node) -> void:
+	var b := PackedByteArray()
+	b.resize(SNAP)
+	var n := str(p.name)
+	b.encode_s32(0, -int(n.substr(2)) if n.begins_with("ai") else int(n))
+	b.encode_float(4, p.sim_clock)
+	for i in 3:
+		b.encode_float(8 + i * 4, p.position[i])
+	for i in 4:
+		b.encode_s16(20 + i * 2, roundi(p.quaternion[i] * 32767.0))
+	b[28] = mini(p.shots_out, 255)
+	p.shots_out = 0
+	if multiplayer.is_server():
+		_queue_snap(b)
+	else:
+		snap_up.rpc_id(1, b)
+
+
+func _queue_snap(b: PackedByteArray) -> void:
+	if snap_out.is_empty():
+		_flush_snaps.call_deferred() # end of this frame, after every plane has queued
+	snap_out.append_array(b)
+	if snap_out.size() > 1100: # stay under one MTU: a fragmented unreliable packet dies with any fragment
+		_flush_snaps()
+
+
+func _flush_snaps() -> void:
+	if snap_out and multiplayer.get_peers():
+		snaps.rpc(snap_out)
+	snap_out.clear()
+
+
+@rpc("any_peer", "unreliable")
+func snap_up(b: PackedByteArray) -> void:
+	if b.size() == SNAP and b.decode_s32(0) == multiplayer.get_remote_sender_id(): # only your own plane
+		_apply_snaps(b)
+		_queue_snap(b)
+
+
+@rpc("authority", "unreliable")
+func snaps(b: PackedByteArray) -> void:
+	_apply_snaps(b)
+
+
+func _apply_snaps(b: PackedByteArray) -> void:
+	for o in range(0, b.size() - SNAP + 1, SNAP):
+		var id := b.decode_s32(o)
+		var p := players.get_node_or_null(str(id) if id > 0 else "ai%d" % -id)
+		if not p or p.is_multiplayer_authority():
+			continue
+		var q := Quaternion(b.decode_s16(o + 20), b.decode_s16(o + 22), b.decode_s16(o + 24), b.decode_s16(o + 26)).normalized()
+		p.st(b.decode_float(o + 4), Vector3(b.decode_float(o + 8), b.decode_float(o + 12), b.decode_float(o + 16)), q)
+		for i in mini(b[o + 28], 4):
+			p.fired()
 
 
 func _sender() -> int:
@@ -1007,6 +1078,11 @@ func _process(dt: float) -> void:
 	pings = pings.filter(func(p): return p[2] > 0.0)
 	overlay.queue_redraw()
 	_tick_intro(dt)
+	if netstats:
+		var pt := Performance.get_monitor(Performance.TIME_PROCESS)
+		netstats.proc = netstats.get("proc", 0.0) + pt
+		netstats.proc_max = maxf(netstats.get("proc_max", 0.0), pt)
+		netstats.pframes = netstats.get("pframes", 0) + 1
 	if map_img:
 		_bake_map()
 	_refresh_hud()
@@ -1410,6 +1486,8 @@ func _respawn_later(victim: Node, delay: float) -> void:
 
 func _feed(text: String) -> void:
 	print("[%5.1f] %s" % [Time.get_ticks_msec() / 1000.0, text])
+	if not multiplayer.is_server():
+		return # gs is the host's (a --bot client's own radio chatter used to flicker in until the next sync)
 	gs.feed.append(text)
 	gs.feed = gs.feed.slice(-5)
 

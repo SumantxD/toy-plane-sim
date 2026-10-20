@@ -60,6 +60,7 @@ var wants_fire := false
 var wants_boost := false
 var fire_cd := 0.0
 var send_cd := 0.0
+var shots_out := 0 # guns fired since the last snapshot; remote tracers ride along with it
 var wants_rocket := false
 var rocket_aiming := false
 var rockets_left := ROCKETS
@@ -103,7 +104,7 @@ var body := Node3D.new()
 var tag := Label3D.new()
 var cam: Camera3D
 var hud: Control
-var hud_text := Label.new()
+var hud_text: Label # local plane only: a never-parented Label leaked once per freed plane
 var aim_yaw := 0.0
 var aim_pitch := 0.0
 
@@ -190,6 +191,7 @@ func _ready() -> void:
 		hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hud.draw.connect(_draw_hud)
 		hud.theme = main.ui_theme
+		hud_text = Label.new()
 		hud_text.position = Vector2(20, 60)
 		hud.add_child(hud_text)
 		var ui := CanvasLayer.new()
@@ -236,7 +238,7 @@ func _process(dt: float) -> void:
 		# After the match: quiet, so no late snapshot lands after the planes are cleared for the lobby.
 		if send_cd <= 0.0 and main.gs.phase == "playing":
 			send_cd = SEND_INTERVAL if not is_ai else 0.05 # AI at 20 Hz: a third less host upload, same smoothness
-			main.st.rpc(str(name).to_int() * (-1 if is_ai else 1), sim_clock, position, quaternion)
+			main.send_snap(self)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
 		cam.global_position = position + aim * Vector3(0, 5.5, 19) * CAM_DIST[Settings.values.get("cam", 1)]
@@ -390,7 +392,7 @@ func _shoot(dt: float) -> void:
 		main.bullets.fire(position - basis.z * 5.0, velocity + dir * BULLET_SPEED, self, true)
 		if is_ai:
 			main.stat_shots += 1
-		fired.rpc()
+		shots_out += 1
 		if is_local():
 			Sfx.ui(main, Sfx.GUNS.get(kind, Sfx.GUN), -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
 		else:
@@ -536,7 +538,8 @@ func _net_jump(before: Vector3, dt: float) -> void:
 	set_meta("nq", quaternion)
 
 
-# Snapshot from the owner, relayed by main.st. Late ones get slotted in by time.
+# Fed by main._apply_snaps. Unordered on purpose: "ordered" made ENet throw away every snapshot that a
+# reordering route delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
 func st(t: float, p: Vector3, q: Quaternion) -> void:
 	# Owner-sent data: never trust it to be sane (a NaN here poisons rendering, audio and hit tests).
 	if t <= floor_t: # from a previous life
@@ -610,7 +613,6 @@ func _snap_ok(t: float, p: Vector3) -> bool:
 	return true
 
 
-@rpc("authority", "unreliable")
 func fired() -> void:
 	if get_multiplayer_authority() != 1 and not main._allow(get_multiplayer_authority(), "fired", 1.3 / fire_interval, 10.0):
 		return
@@ -734,6 +736,7 @@ func respawn(p: Vector3, yaw: float) -> void:
 	if not snaps.is_empty():
 		floor_t = snaps[-1][0]
 	snaps.clear()
+	shots_out = 0
 	last_arrival = Time.get_ticks_msec() # the owner's snapshots resume after this reaches them
 	err_p = Vector3.ZERO
 	err_q = Quaternion.IDENTITY
