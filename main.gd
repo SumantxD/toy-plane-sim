@@ -2,7 +2,7 @@ extends Node3D
 
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 8
-var PORT := DEFAULT_PORT # --port N overrides (tests run beside a real game)
+static var PORT := DEFAULT_PORT # --port N overrides (tests run beside a real game); static: survives the reload before a rejoin
 const WORLD_SIZE := 2000.0
 const Aircraft := preload("res://plane.gd")
 const Bullets := preload("res://bullets.gd")
@@ -127,7 +127,7 @@ func _ready() -> void:
 		get_tree().create_timer(float(args[qa + 1])).timeout.connect(func():
 			print("AIM shots=%d hits=%d (%.1f%%)" % [stat_shots, stat_hits, 100.0 * stat_hits / maxf(stat_shots, 1)])
 			print("STATS nodes=%d orphans=%d mem=%.1fMB" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6])
-			get_tree().quit())
+			_quit())
 	if "--netstats" in args:
 		netstats = {frames = 0, extrap = 0, stall = 0, jumps = 0, snaps = 0, gap_max = 0, gaps150 = 0, sync_bytes = 0, syncs = 0}
 		var nt := Timer.new()
@@ -375,8 +375,7 @@ func kicked(reason: String) -> void:
 func _leave(msg := "") -> void:
 	if msg:
 		Engine.set_meta("leave_msg", msg)
-	if await _host_goodbye():
-		pass
+	await _goodbye()
 	multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -388,22 +387,37 @@ func _on_peer_left(id: int) -> void:
 		rooms.forget(id)
 	var token: String = tokens.get(id, "")
 	tokens.erase(id)
+	var p := _plane(id)
 	if token and gs.players.has(id) and gs.phase in ["playing", "ended"]:
-		away[token] = {info = gs.players[id].duplicate(), until = Time.get_ticks_msec() + 60000, match = gs.match_id}
+		# Kept as they left: a pilot who was down comes back down (no free respawn by reconnecting).
+		away[token] = {info = gs.players[id].duplicate(), until = Time.get_ticks_msec() + 60000, match = gs.match_id,
+			down = p != null and not p.alive, respawn = respawning.has(str(id)), beacon = beacons.get(id, {})}
 		_feed("%s lost connection (60 s to rejoin)" % gs.players[id].name)
+	elif gs.players.has(id) and gs.phase != "lobby":
+		_feed("%s left the game" % gs.players[id].name)
 	gs.players.erase(id)
 	beacons.erase(id)
-	var p := _plane(id)
 	if p:
 		p.queue_free()
-	respawning.erase(id)
+	respawning.erase(str(id))
 	if gs.leader == id:
 		gs.leader = 1 if gs.players.has(1) else (gs.players.keys()[0] if gs.players else 0)
-	if gs.players.is_empty() and gs.phase != "lobby":
+	_back_to_lobby_if_empty()
+	_push()
+
+
+# Nobody left (and nobody about to rejoin): stop the match.
+func _back_to_lobby_if_empty() -> void:
+	if gs.players.is_empty() and away.is_empty() and gs.phase != "lobby":
 		for c in players.get_children():
 			c.queue_free()
 		gs.phase = "lobby"
-	_push()
+
+
+# Client: leaving on purpose (Leave / Quit), so the host doesn't hold a rejoin slot or say "lost connection".
+@rpc("any_peer", "reliable")
+func leaving() -> void:
+	tokens.erase(_sender())
 
 
 @rpc("any_peer", "reliable")
@@ -415,6 +429,13 @@ func register(info: Dictionary) -> void:
 	var pilot := str(info.get("name", ""))
 	var version := str(info.get("version", "?"))
 	var plane := str(info.get("plane", "cub"))
+	var token := str(info.get("token", "")).left(40)
+	var ghost = tokens.find_key(token) if token else null
+	if ghost != null and ghost != id:
+		# Same pilot on a new connection (network switch, or back before we noticed the old one drop):
+		# retire the old peer now so it frees its slot and its state goes to `away` for this one.
+		_on_peer_left(ghost)
+		multiplayer.disconnect_peer(ghost) # SceneMultiplayer's: also stops sending to it right away
 	var reject := ""
 	if version != VERSION:
 		reject = "Version mismatch: the host has v%s, you have v%s. Everyone needs the same download." % [VERSION, version]
@@ -427,27 +448,53 @@ func register(info: Dictionary) -> void:
 	_add_player(id, pilot)
 	if Planes.TYPES.has(plane):
 		gs.players[id].plane = plane
-	var token := str(info.get("token", "")).left(40)
+	var back: Dictionary = {}
 	if token and not token in tokens.values():
 		tokens[id] = token
-		var back: Dictionary = away.get(token, {})
+		back = away.get(token, {})
 		away.erase(token)
 		if back and back.match == gs.match_id and Time.get_ticks_msec() < back.until:
 			gs.players[id] = back.info # same team, score and plane as before the drop
 			_feed("%s reconnected" % back.info.name)
+		else:
+			back = {}
 	if gs.leader == 0:
 		gs.leader = id
+	_push() # first: a client entering a live match resets its world on this sync, so the replay below must come after
 	if gs.phase == "playing":
 		_spawn_pilot(id, _base(id))
+		if back.get("down", false):
+			_down_again(id, back)
 		for c in players.get_children():
 			if c.name != str(id):
 				c.set_hp.rpc_id(id, c.hp, c.comps)
 				if not c.alive:
 					c.die.rpc_id(id, false)
-		if battlefield: # replay deployed defenses in order so turret indices match
+		if battlefield: # replay deployed defenses in order so turret indices match, then what's destroyed
 			for g in battlefield.guns.slice(battlefield.base_count):
 				bf_event.rpc_id(id, "deploy", g.team * 10 + Battlefield.KINDS.find(g.kind), g.position, g.position + Vector3.UP * 5.0)
-	_push()
+			for g in battlefield.guns:
+				if not g.alive and g.visible:
+					g.die.rpc_id(id, false)
+			for cid in battlefield.crates:
+				bf_event.rpc_id(id, "drop", cid, battlefield.crates[cid].pos, Vector3.ZERO)
+
+
+# A pilot who dropped while shot down: down again once their new plane exists on every peer,
+# then back on the respawn timer / revive beacon they had.
+func _down_again(id: int, back: Dictionary) -> void:
+	var pid := _plane(id).get_instance_id()
+	var mid: int = gs.match_id
+	get_tree().create_timer(0.5).timeout.connect(func():
+		var v = instance_from_id(pid)
+		if not is_instance_valid(v) or gs.match_id != mid or gs.phase != "playing":
+			return
+		v.die.rpc(false)
+		if back.respawn:
+			_respawn_later(v, RESPAWN_DELAY)
+		if back.beacon:
+			beacons[id] = back.beacon
+		_push())
 
 
 func _add_player(id: int, pilot: String) -> void:
@@ -458,6 +505,8 @@ func _add_player(id: int, pilot: String) -> void:
 
 # ---------- connection health: pings, stalls, reconnects, goodbyes ----------
 func _tick_network(dt: float) -> void:
+	if Engine.has_meta("rejoin") and Time.get_ticks_msec() > Engine.get_meta("rejoin").until:
+		_try_rejoin() # gives up on time, even mid-attempt
 	var online := not multiplayer.multiplayer_peer is OfflineMultiplayerPeer
 	if multiplayer.is_server():
 		ping_t -= dt / maxf(Engine.time_scale, 0.01)
@@ -469,11 +518,15 @@ func _tick_network(dt: float) -> void:
 		for token in away.keys():
 			if now > away[token].until:
 				away.erase(token)
+				_back_to_lobby_if_empty()
 	elif online and gs.phase == "playing":
 		var quiet := Time.get_ticks_msec() - last_sync_ms
 		stall_label.visible = last_sync_ms > 0 and quiet > 3000
 		if stall_label.visible:
 			stall_label.text = "Connection to the host interrupted - waiting (%d s)" % (quiet / 1000)
+		if last_sync_ms > 0 and quiet > 15000: # any transport: a host this silent is gone (or frozen)
+			last_sync_ms = 0
+			_lost_host()
 	else:
 		stall_label.hide()
 
@@ -498,8 +551,10 @@ func pong(t: int) -> void:
 
 
 func _player_token() -> String:
-	if bot:
-		return "bot%d" % randi() # test bots on one machine must not share an identity
+	if bot: # test bots on one machine must not share an identity, but keep theirs across a rejoin
+		if not Engine.has_meta("bot_token"):
+			Engine.set_meta("bot_token", "bot%d" % randi())
+		return Engine.get_meta("bot_token")
 	if Settings.values.get("player_id", "") == "":
 		Settings.values.player_id = "%08x%08x" % [randi(), randi()]
 		Settings.save()
@@ -509,9 +564,7 @@ func _player_token() -> String:
 # Lost the host without a goodbye (Wi-Fi blip, network switch): reconnect to the same room / address
 # for up to 60 s. The host keeps our team, score and plane for that long.
 func _lost_host() -> void:
-	if last_target == "" and not bot:
-		_leave("The host left the game.")
-		return
+	multiplayer.multiplayer_peer.close() # no "leaving" goodbye: the host must keep our slot
 	Engine.set_meta("rejoin", {target = last_target, until = Time.get_ticks_msec() + 60000, name = name_edit.text})
 	_leave("Connection lost - reconnecting...")
 
@@ -522,19 +575,29 @@ func _try_rejoin() -> void:
 	var r: Dictionary = Engine.get_meta("rejoin")
 	if Time.get_ticks_msec() > r.until:
 		Engine.remove_meta("rejoin")
+		joining = false
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new() # drop an attempt still in flight
 		status.text = "Could not reconnect - the host may have closed the game."
+		print("MENU: ", status.text)
+		return
+	if joining:
 		return
 	address.text = r.target
 	name_edit.text = r.name
 	status.text = "Connection lost - reconnecting... (%d s left)" % ((r.until - Time.get_ticks_msec()) / 1000)
+	print("MENU: ", status.text)
 	join()
 
 
-# Host leaving on purpose: tell everyone, so they don't sit trying to reconnect.
-func _host_goodbye() -> bool:
-	if not multiplayer.is_server() or multiplayer.multiplayer_peer is OfflineMultiplayerPeer or multiplayer.get_peers().is_empty():
+# Leaving on purpose: the host tells everyone (so they don't sit trying to reconnect), a client tells the host.
+func _goodbye() -> bool:
+	var peer := multiplayer.multiplayer_peer
+	if peer is OfflineMultiplayerPeer or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED or multiplayer.get_peers().is_empty():
 		return false
-	kicked.rpc("The host ended the game.")
+	if multiplayer.is_server():
+		kicked.rpc("The host ended the game.")
+	else:
+		leaving.rpc_id(1)
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	if enet:
 		enet.host.flush()
@@ -548,7 +611,7 @@ func _notification(what: int) -> void:
 
 
 func _quit() -> void:
-	await _host_goodbye()
+	await _goodbye()
 	get_tree().quit()
 
 
@@ -1030,7 +1093,7 @@ func report_crash() -> void:
 func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 	if a.is_ai and weapon == 0:
 		stat_hits += 1
-	if t.alive and a.team != t.team and gs.phase == "playing" and gs.get("countdown", 0.0) <= 0.0:
+	if t.alive and t.is_in_group("targets") and a.team != t.team and gs.phase == "playing" and gs.get("countdown", 0.0) <= 0.0:
 		var dmg: int = DAMAGE[weapon]
 		if weapon == 2:
 			dmg = dmg * 3 if t.role in ["hq", "turret"] else dmg / 2 # bombs are for the ground
@@ -2298,7 +2361,7 @@ func deploy(p: Node, kind: String) -> bool:
 
 # Damage from the world itself (lava, lightning): server only.
 func env_hit(p: Node, dmg: int, cause: String) -> void:
-	if not p.alive or gs.phase != "playing":
+	if not p.alive or not p.is_in_group("targets") or gs.phase != "playing":
 		return
 	p.set_hp.rpc(p.hp - dmg, p.comps)
 	if p.hp <= 0:
