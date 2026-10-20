@@ -1176,6 +1176,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			request_deploy.rpc_id(1, "radar")
 		KEY_6:
 			request_repair.rpc_id(1)
+		KEY_M:
+			show_map = not show_map
 
 
 func _refresh_ui() -> void:
@@ -1347,6 +1349,8 @@ func _draw_overlay() -> void:
 		for g in battlefield.guns:
 			if g.alive and g.visible and g.team != team and cam.global_position.distance_to(g.global_position) < 1300.0:
 				_marker(cam, g.global_position + Vector3.UP * 8.0, Color(1.0, 0.3, 0.25), Battlefield.Turret.SPEC[g.kind].tag)
+	if show_map:
+		_draw_minimap(team)
 	var me := _plane(multiplayer.get_unique_id())
 	if not me or not me.alive:
 		return
@@ -1357,6 +1361,59 @@ func _draw_overlay() -> void:
 			var lead: Vector3 = t.position + (t.vel_estimate() - me.velocity) * (d / Aircraft.BULLET_SPEED)
 			if d < 900.0 and not cam.is_position_behind(lead):
 				overlay.draw_arc(cam.unproject_position(lead), 7, 0, TAU, 16, Color(1, 0.3, 0.3), 2)
+
+
+# North-up map of the whole arena, bottom-right. M toggles it.
+const MAP_SIZE := 220.0
+const MAP_WORLD := 5000.0 # metres across (the arena is about +-2500)
+var show_map := true
+
+
+func _draw_minimap(team: int) -> void:
+	var r := Rect2(overlay.size - Vector2(MAP_SIZE + 16, MAP_SIZE + 16), Vector2(MAP_SIZE, MAP_SIZE))
+	overlay.draw_rect(r, Color(0.04, 0.06, 0.1, 0.82))
+	for k in range(1, 4):
+		var off := MAP_SIZE * k / 4.0
+		overlay.draw_line(r.position + Vector2(off, 0), r.position + Vector2(off, MAP_SIZE), Color(1, 1, 1, 0.07))
+		overlay.draw_line(r.position + Vector2(0, off), r.position + Vector2(MAP_SIZE, off), Color(1, 1, 1, 0.07))
+	overlay.draw_rect(r, Color(1, 1, 1, 0.5), false, 1.5)
+	var at := func(p: Vector3) -> Vector2:
+		return (r.get_center() + Vector2(p.x, p.z) * (MAP_SIZE / MAP_WORLD)).clamp(r.position + Vector2(3, 3), r.end - Vector2(3, 3))
+	var dot := func(p: Vector3, c: Color, size: float) -> void:
+		var q: Vector2 = at.call(p)
+		overlay.draw_rect(Rect2(q - Vector2.ONE * (size / 2.0 + 1.0), Vector2.ONE * (size + 2.0)), Color(0, 0, 0, 0.8))
+		overlay.draw_rect(Rect2(q - Vector2.ONE * size / 2.0, Vector2.ONE * size), c)
+	for c in battlefield.crates.values() if battlefield else []:
+		dot.call(c.pos, Color(1.0, 0.85, 0.2), 6.0)
+	for g in battlefield.guns if battlefield else []:
+		if g.alive and g.visible and g.kind != "radar":
+			dot.call(g.global_position, Battlefield.Aircraft_TEAM[g.team].darkened(0.3), 4.0)
+	for b in gs.beacons:
+		if b[1] == team:
+			dot.call(b[0], Color.ORANGE, 6.0)
+	for p in pings:
+		dot.call(p[0], Color.CYAN, 6.0)
+	if objectives and gs.mode == 4 and gs.get("flags") != null:
+		for ft in 2:
+			var fp: Vector2 = at.call(gs.flags[ft].pos)
+			overlay.draw_line(fp, fp + Vector2(0, -12), Color.WHITE, 1.5)
+			overlay.draw_colored_polygon(PackedVector2Array([fp + Vector2(0, -12), fp + Vector2(9, -9), fp + Vector2(0, -6)]), Battlefield.Aircraft_TEAM[ft])
+	if objectives and gs.mode == 5:
+		for h in objectives.hqs:
+			if h.alive:
+				overlay.draw_rect(Rect2(at.call(h.position) - Vector2(6, 6), Vector2(12, 12)), Battlefield.Aircraft_TEAM[h.team])
+				overlay.draw_rect(Rect2(at.call(h.position) - Vector2(6, 6), Vector2(12, 12)), Color.WHITE, false, 1.0)
+	var me := _plane(multiplayer.get_unique_id())
+	for p in players.get_children():
+		if not p.alive or p == me:
+			continue
+		var c: Color = Color(0.85, 0.85, 0.9) if p.role == "balloon" else Battlefield.Aircraft_TEAM[p.team]
+		dot.call(p.position, c, 9.0 if p.role in ["bomber", "striker"] else (4.0 if p.role == "balloon" else 6.0))
+	if me and me.alive:
+		var fwd := Vector2(-me.basis.z.x, -me.basis.z.z).normalized()
+		var m: Vector2 = at.call(me.position)
+		var side := fwd.orthogonal()
+		overlay.draw_colored_polygon(PackedVector2Array([m + fwd * 11.0, m - fwd * 7.0 + side * 7.0, m - fwd * 3.0, m - fwd * 7.0 - side * 7.0]), Color.WHITE)
 
 
 func _marker(cam: Camera3D, pos: Vector3, color: Color, text: String) -> void:

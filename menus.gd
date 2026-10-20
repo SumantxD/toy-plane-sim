@@ -80,7 +80,7 @@ static func howto_text() -> String:
 
 [b]TEAMWORK[/b]
   Shot down? Teammates fly through your orange beacon within 15 s to revive you.
-  1 = "Help!",  2 = "On me".  Lives are shared by the team.
+  1 = "Help!",  2 = "On me".  Lives are shared by the team.  M = minimap on/off.
 
 [b]MODES[/b]
   Co-op Escort: get 2 of 3 bombers to the factory through 8 raider waves.
