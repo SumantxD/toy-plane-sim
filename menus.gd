@@ -114,7 +114,8 @@ static func howto_text() -> String:
   Host clicks "Host online" and sends the 5-letter room code. Everyone must click Allow
   on the firewall prompt the first time. If a code still won't connect (very strict mobile
   networks), install Tailscale (free), have the host share their computer, click "Host on LAN",
-  and join with the host's Tailscale address (100.x.x.x)."""
+  and join with the host's Tailscale address (100.x.x.x). Or add a free TURN relay (e.g. metered.ca):
+  put turn_urls, turn_username and turn_credential in settings.cfg (Toy Plane Sim's user folder)."""
 
 
 static func credits_text() -> String:

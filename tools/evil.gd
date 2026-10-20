@@ -25,25 +25,35 @@ func _attack() -> void:
 	var foes: Array = get_tree().get_nodes_in_group("targets").filter(func(t): return t.team != me.team and t.alive)
 	foes.sort_custom(func(a, b): return a.position.distance_to(me.position) < b.position.distance_to(me.position))
 	var sent := {}
+	var mid: int = main.gs.match_id
 	# Fake damage: from 2.5 km+, through a mountain, rockets never launched, 200 gun hits in one burst.
 	for t in foes:
 		var d: float = t.position.distance_to(me.position)
 		if d > 2500.0:
-			main.report_hit.rpc_id(1, t.name, 0, 0)
+			main.report_hit.rpc_id(1, t.name, 0, 0, mid)
 			sent.far = sent.get("far", 0) + 1
 		elif d < 1000.0 and not main._clear_line(me.position, t.position):
-			main.report_hit.rpc_id(1, t.name, 0, 0)
+			main.report_hit.rpc_id(1, t.name, 0, 0, mid)
 			sent.hidden = sent.get("hidden", 0) + 1
 	for t in foes.slice(0, 3):
-		main.report_hit.rpc_id(1, t.name, 2, -1)
+		main.report_hit.rpc_id(1, t.name, 2, -1, mid)
 		sent.nolaunch = sent.get("nolaunch", 0) + 1
 	if foes and round_n == 1:
 		for i in 200:
-			main.report_hit.rpc_id(1, foes[0].name, 0, 2)
+			main.report_hit.rpc_id(1, foes[0].name, 0, 2, mid)
 		sent.burst = 200
+	# Stale: a kill claimed for an earlier match, launches and deploys from it too.
+	main.report_hit.rpc_id(1, foes[0].name if foes else "x", 0, 0, mid - 1)
+	main.rockets.spawn_remote.rpc("%s_old%d" % [me.name, round_n], me.position, me.velocity, str(me.name), "", false, mid - 1)
+	main.request_deploy.rpc_id(1, "sam", mid - 1)
+	# New RPCs: world_ready with junk, leaving spam (each one is a netlog write).
+	main.world_ready.rpc_id(1, -12345)
+	main.rpc_id(1, "world_ready", "junk")
+	for i in 20:
+		main.leaving.rpc_id(1)
 	# Malformed: unknown names, out-of-range indices, a 100 KB name, wrong types and arg counts.
-	main.report_hit.rpc_id(1, "nobody", -5, 99)
-	main.report_hit.rpc_id(1, "x".repeat(100000), 99999, -99999)
+	main.report_hit.rpc_id(1, "nobody", -5, 99, mid)
+	main.report_hit.rpc_id(1, "x".repeat(100000), 99999, -99999, mid)
 	main.rpc_id(1, "report_hit", 5, "x", null)
 	main.rpc_id(1, "report_hit")
 	main.rpc_id(1, "register", "not a dict")
@@ -66,21 +76,21 @@ func _attack() -> void:
 			other = p
 			break
 	if other:
-		main.rockets.spawn_remote.rpc("%s_900" % other.name, other.position, Vector3.ZERO, str(other.name), str(me.name), false)
-		main.rockets.spawn_remote.rpc("%s_901" % other.name, me.position, Vector3.ZERO, str(me.name), "", false)
+		main.rockets.spawn_remote.rpc("%s_900" % other.name, other.position, Vector3.ZERO, str(other.name), str(me.name), false, mid)
+		main.rockets.spawn_remote.rpc("%s_901" % other.name, me.position, Vector3.ZERO, str(me.name), "", false, mid)
 		main.rockets.detonate_remote.rpc("%s_1" % other.name, other.position)
 		other.set_hp.rpc(0, other.comps)
 		other.die.rpc(true)
-	main.rockets.spawn_remote.rpc("%s_far%d" % [me.name, round_n], me.position + Vector3(0, 0, 1000), me.velocity, str(me.name), "", false)
-	main.rockets.spawn_remote.rpc("%s_fast%d" % [me.name, round_n], me.position, Vector3(5000, 0, 0), str(me.name), "", false)
+	main.rockets.spawn_remote.rpc("%s_far%d" % [me.name, round_n], me.position + Vector3(0, 0, 1000), me.velocity, str(me.name), "", false, mid)
+	main.rockets.spawn_remote.rpc("%s_fast%d" % [me.name, round_n], me.position, Vector3(5000, 0, 0), str(me.name), "", false, mid)
 	for i in 15:
-		main.rockets.spawn_remote.rpc("%s_e%d_%d" % [me.name, round_n, i], me.position, me.velocity, str(me.name), "", true)
-	main.rockets.spawn_remote.rpc("%s_e%d_0" % [me.name, round_n], me.position, me.velocity, str(me.name), "", true) # replay
+		main.rockets.spawn_remote.rpc("%s_e%d_%d" % [me.name, round_n, i], me.position, me.velocity, str(me.name), "", true, mid)
+	main.rockets.spawn_remote.rpc("%s_e%d_0" % [me.name, round_n], me.position, me.velocity, str(me.name), "", true, mid) # replay
 	# One real-looking bomb, then its hit replayed on the same target and claimed on far targets.
 	if foes:
 		for i in 3:
-			main.report_hit.rpc_id(1, foes[0].name, 2, -1)
-		main.report_hit.rpc_id(1, foes[-1].name, 2, -1)
+			main.report_hit.rpc_id(1, foes[0].name, 2, -1, mid)
+		main.report_hit.rpc_id(1, foes[-1].name, 2, -1, mid)
 		get_tree().create_timer(8.0).timeout.connect(_late_bomb_hits.bind(str(foes[0].name)))
 	# Unlimited flares, guns, explosions; spammed requests (round 1 only: the strikes add up to a kick).
 	for i in 20:
@@ -91,9 +101,9 @@ func _attack() -> void:
 		for i in 100:
 			me.fired.rpc()
 		for i in 25:
-			main.request_deploy.rpc_id(1, "rapid")
+			main.request_deploy.rpc_id(1, "rapid", mid)
 			main.request_ping.rpc_id(1, "Help!")
-			main.request_repair.rpc_id(1)
+			main.request_repair.rpc_id(1, mid)
 			main.request_plane.rpc_id(1, "racer")
 	# Host-only requests sent to the other clients through the relay.
 	for id in main.gs.players:
@@ -101,7 +111,7 @@ func _attack() -> void:
 			main.request_start.rpc_id(id)
 			main.request_end.rpc_id(id)
 			main.register.rpc_id(id, {name = "evil", version = main.VERSION})
-			main.report_hit.rpc_id(id, me.name, 0, 0)
+			main.report_hit.rpc_id(id, me.name, 0, 0, mid)
 	print("EVIL round %d sent %s" % [round_n, sent])
 	if round_n == 3: # a dead plane's guns: crash, then claim hits after the grace period
 		get_tree().create_timer(1.5).timeout.connect(_crash.bind(foes.slice(0, 1).map(func(t): return str(t.name))))
@@ -112,18 +122,18 @@ func _attack() -> void:
 
 
 func _crash(names: Array) -> void: # after the round's spam has drained from the reliable channel
-	main.report_crash.rpc_id(1)
+	main.report_crash.rpc_id(1, main.gs.match_id)
 	get_tree().create_timer(2.6).timeout.connect(_dead_hits.bind(names))
 
 
 func _dead_hits(names: Array) -> void:
 	for n in names:
 		for i in 5:
-			main.report_hit.rpc_id(1, n, 0, 0)
+			main.report_hit.rpc_id(1, n, 0, 0, main.gs.match_id)
 	print("EVIL dead hits sent (we are %s)" % ("alive" if main._plane(multiplayer.get_unique_id()).alive else "dead"))
 
 
 # 8 s after our two bombs: far enough for a plausible reach. Two may land (two bombs), the third is a replay.
 func _late_bomb_hits(target: String) -> void:
 	for i in 3:
-		main.report_hit.rpc_id(1, target, 2, -1)
+		main.report_hit.rpc_id(1, target, 2, -1, main.gs.match_id)
