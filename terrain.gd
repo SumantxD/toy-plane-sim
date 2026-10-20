@@ -337,6 +337,52 @@ static func _face_color(p: Vector3, up: float) -> Color:
 	return Color(k.r + jit, k.g + jit, k.b + jit)
 
 
+# Top-down minimap picture of the current world: same face colours as the 3D terrain, hill-shaded,
+# with water / cloud sea. Painted a few rows at a time (map_rows) so the bake never stalls a frame.
+const MAP_PX := 256
+
+
+static func map_rows(img: Image, i0: int, i1: int) -> void:
+	var px := img.get_width()
+	var cell := FINE_EXTENT * 2.0 / px
+	var cfg: Dictionary = Worlds.cur
+	var wat: Dictionary = cfg.water
+	var light := Vector3(-0.6, 0.7, -0.4).normalized() # from the north-west, like a printed map
+	var w := px + 2 # one sample of border so every pixel has neighbours for its normal
+	var rows := i1 - i0 + 2
+	var hs := PackedFloat32Array()
+	hs.resize(w * (rows + 1))
+	for r in rows + 1:
+		for j in w:
+			hs[r * w + j] = height(-FINE_EXTENT + (j - 0.5) * cell, -FINE_EXTENT + (i0 + r - 0.5) * cell)
+	for i in range(i0, i1 + 1):
+		for j in px:
+			var c := (i - i0 + 1) * w + j + 1
+			var h := hs[c]
+			var n := Vector3(hs[c - 1] - hs[c + 1], 2.0 * cell, hs[c - w] - hs[c + w]).normalized()
+			var k := _face_color(Vector3(-FINE_EXTENT + (j + 0.5) * cell, h, -FINE_EXTENT + (i + 0.5) * cell), n.y)
+			if _floating and h < cfg.env.kill_y + 2.0:
+				k = cfg.clouds.mid
+			elif wat.get("visible", true) and h < wat.get("y", WATER_Y):
+				k = (wat.shallow as Color).lerp(wat.deep, clampf((wat.get("y", WATER_Y) - h) / 12.0, 0.0, 1.0))
+			else:
+				k = k * (0.75 + 0.4 * clampf(n.dot(light), 0.0, 1.0))
+			img.set_pixel(j, i, Color(k.r, k.g, k.b))
+
+
+# Prop footprints (Metro's towers, bases, bridges) darkened onto the finished map.
+static func map_stamp(img: Image, obstacles: Array) -> void:
+	var px := img.get_width()
+	var cell := FINE_EXTENT * 2.0 / px
+	for a in obstacles:
+		var b: AABB = a
+		var p0 := Vector2i(floori((b.position.x + FINE_EXTENT) / cell), floori((b.position.z + FINE_EXTENT) / cell))
+		var p1 := Vector2i(floori((b.end.x + FINE_EXTENT) / cell), floori((b.end.z + FINE_EXTENT) / cell))
+		for i in range(maxi(p0.y, 0), mini(p1.y, px - 1) + 1):
+			for j in range(maxi(p0.x, 0), mini(p1.x, px - 1) + 1):
+				img.set_pixel(j, i, img.get_pixel(j, i).darkened(0.45))
+
+
 static func _runway_marks(pos: PackedVector3Array, col: PackedColorArray) -> void:
 	var y := RUNWAY_Y + 0.3
 	var cx := RUNWAY.get_center().x
