@@ -60,3 +60,23 @@ What made the difference:
 Unchanged by design: your own plane is client-authoritative (no input lag at any ping), hits favour
 the shooter, the host decides everything else. Not covered: the WebRTC room transport can't be put
 behind this relay; it uses the same unreliable/unordered snapshots.
+
+## Network architecture (summary, after the 6-stream hardening pass)
+- Star topology: everyone talks to the host (ENet on LAN, WebRTC rooms online; TURN optional, see above).
+- Authority: your own plane is simulated on your machine (no input lag at any ping); the host owns
+  everything else (state, scores, flags, HQs, damage) and validates every client claim: snapshot
+  sanity + max speed, hits (range, terrain line of sight, rewind <= 0.3 s, launch exists, ammo,
+  fire rate), ordnance only from its owner, match_id on gameplay RPCs, rate limits with auto-kick.
+- Motion: all plane snapshots batched into one unreliable packet per host frame (29 B each, AI 20 Hz,
+  pilots 30 Hz); clients interpolate on an estimated owner clock with an adaptive buffer, dead-reckon
+  up to 1 s through gaps and fade corrections instead of snapping.
+- State: delta sync of `gs` every 0.5 s (full sync for joiners), reliable events for the rest.
+- Lifecycle: GO waits for loading pilots (15 s max) and is lag-led so everyone fires at once;
+  stale RPCs from a previous match are dropped; late joiners get full state.
+- Connections: app-level ping for everyone (roster/HUD/feed), "connection interrupted" notice,
+  60 s rejoin grace keyed by a saved player id, auto-reconnect, frozen pilots hidden + unhittable,
+  host/client goodbyes on leave/quit, user://netlog.txt for post-mortems.
+- Measured (8 pilots + AI, mixed bad links): host upload ~115 KB/s, client download ~6-15 KB/s,
+  0 teleports / 0% frozen up to 500 ms + 8% loss + reordering, 1 s outages bridged smoothly.
+- Test kit: tools/lagproxy.py (ping/jitter/loss/reorder/--burst/--blackout), tools/lagtest.sh,
+  tools/evil.gd (malicious client, `--evil`), `--netstats` (client NET / host HOST lines).
