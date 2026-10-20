@@ -86,8 +86,11 @@ var offset := Vector3.ZERO
 var snaps: Array = [] # [t, pos, quat], owner's game clock
 var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
+var hist: Array = [] # server: [msec, position], last ~0.6 s
 var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
 var last_arrival := 0
+var clock0 := Vector2(-1, 0) # first snapshot: [owner clock, our clock], catches a sped-up sender
+var died_ms := 0
 
 var main: Node
 var body := Node3D.new()
@@ -205,6 +208,10 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	if multiplayer.is_server(): # short position history: hit checks rewind to what a lagging shooter saw
+		hist.append([Time.get_ticks_msec(), position])
+		while hist.size() > 2 and hist[1][0] < hist[-1][0] - 600:
+			hist.pop_front()
 	if not is_multiplayer_authority():
 		_interpolate(dt)
 		return
@@ -218,7 +225,7 @@ func _process(dt: float) -> void:
 			_shoot(dt)
 		send_cd -= dt
 		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
-			send_cd = SEND_INTERVAL
+			send_cd = SEND_INTERVAL if not is_ai else 0.05 # AI at 20 Hz: a third less host upload, same smoothness
 			st.rpc(sim_clock, position, quaternion)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
@@ -421,12 +428,19 @@ func _track_lock(dt: float) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func locking(target_name: String) -> void:
+	if target_name.length() > 32:
+		return
 	locking_name = target_name
 
 
 # Flares: every rocket already chasing this plane loses it (same on all peers: deterministic).
 @rpc("authority", "call_local", "reliable")
 func flare() -> void:
+	if not is_multiplayer_authority(): # count them here too: no endless flares
+		if flares_left <= 0:
+			main.tally("flare_empty")
+			return
+		flares_left -= 1
 	main.rockets.decoy(self)
 	Sfx.at(main, position, Sfx.FLARE, 2.0, 1500.0)
 	Fx.flare_burst(self)
@@ -441,6 +455,15 @@ func locked_by() -> Node:
 
 
 # Best enemy inside the seeker cone; nil = the rocket flies unguided.
+# Server: where this plane was `ago` seconds ago (bounded by the history kept).
+func position_at(ago: float) -> Vector3:
+	var at := Time.get_ticks_msec() - int(ago * 1000.0)
+	for i in range(hist.size() - 1, -1, -1):
+		if hist[i][0] <= at:
+			return hist[i][1]
+	return hist[0][1] if not hist.is_empty() else position
+
+
 func find_lock() -> Node:
 	var best: Node = null
 	var best_angle := LOCK_CONE
@@ -493,10 +516,18 @@ func _net_jump(before: Vector3, dt: float) -> void:
 # delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
 @rpc("authority", "unreliable")
 func st(t: float, p: Vector3, q: Quaternion) -> void:
+	# Owner-sent data: never trust it to be sane (a NaN here poisons rendering, audio and hit tests).
+	if not (is_finite(t) and p.is_finite() and q.is_finite()) or absf(p.x) > 9000.0 or absf(p.z) > 9000.0 or p.y < -2000.0 or p.y > 8000.0:
+		main.tally("snap_bad")
+		return
+	if get_multiplayer_authority() != 1 and alive and not _snap_ok(t, p): # dead: a respawn we haven't heard of yet may jump
+		return
 	var now_ms := Time.get_ticks_msec()
-	if last_arrival > 0:
-		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 - SEND_INTERVAL), 0.08)
-	last_arrival = now_ms
+	if last_arrival > 0 and not snaps.is_empty() and t > snaps[-1][0]:
+		# Jitter = how far arrival spacing strays from send spacing (works for 20 Hz AI and 30 Hz pilots).
+		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 * Engine.time_scale - (t - snaps[-1][0])), 0.08)
+	if snaps.is_empty() or t > snaps[-1][0]:
+		last_arrival = now_ms
 	if main.netstats:
 		var now := Time.get_ticks_msec()
 		var gap: int = now - get_meta("last_snap", now)
@@ -518,8 +549,27 @@ func st(t: float, p: Vector3, q: Quaternion) -> void:
 		snaps.pop_front()
 
 
+# Client-owned planes: no teleports, no speed hacks, no clock running fast. Respawn clears snaps,
+# so its legit jump passes; a refused jump fades in once the real elapsed time could cover it.
+const SNAP_MAX_SPEED := 320.0 # 200 m/s cap + strongest wind and updraft
+
+func _snap_ok(t: float, p: Vector3) -> bool:
+	var now := Time.get_ticks_msec() / 1000.0 * Engine.time_scale
+	if clock0.x < 0.0:
+		clock0 = Vector2(t, now)
+	if t - clock0.x > (now - clock0.y) * 1.02 + 1.0:
+		main.tally("snap_clock")
+		return false
+	if not snaps.is_empty() and p.distance_to(snaps[-1][1]) > SNAP_MAX_SPEED * absf(t - snaps[-1][0]) + 25.0:
+		main.tally("snap_jump")
+		return false
+	return true
+
+
 @rpc("authority", "unreliable")
 func fired() -> void:
+	if get_multiplayer_authority() != 1 and not main._allow(get_multiplayer_authority(), "fired", 1.3 / fire_interval, 10.0):
+		return
 	main.bullets.fire(position - basis.z * 5.0, vel_estimate() - basis.z * BULLET_SPEED, self, false)
 	Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 
@@ -599,6 +649,7 @@ func resupply() -> void:
 	flares_left = max_flares
 	bombs_left = max_bombs
 	boost = 1.0
+	main.refill(self)
 	if is_local():
 		Sfx.ui(main, Sfx.CONFIRM, 0.0)
 
@@ -608,6 +659,7 @@ func die(fx: bool) -> void:
 	if multiplayer.get_remote_sender_id() > 1:
 		return
 	alive = false
+	died_ms = Time.get_ticks_msec()
 	body.hide()
 	tag.hide()
 	_show_damage()
@@ -627,6 +679,7 @@ func respawn(p: Vector3, yaw: float) -> void:
 	bombs_left = max_bombs
 	lock_on = null
 	lock = null
+	main.refill(self)
 	comps = PackedFloat32Array([1, 1, 1, 1])
 	position = p
 	rotation = Vector3(0, yaw, 0)
