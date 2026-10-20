@@ -520,11 +520,15 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		puff.material = mat
 		var col: Color = BANNER_COLORS[banner]
-		var ramp := Gradient.new()
-		ramp.colors = PackedColorArray([Color(col, 0.85), Color(col.lightened(0.15), 0.0)])
-		var swell := Curve.new()
-		swell.add_point(Vector2(0, 0.7))
-		swell.add_point(Vector2(1, 2.4))
+		if col.get_luminance() < 0.2: # "black" reads as smoky charcoal, not soot
+			col = Color(0.32, 0.33, 0.38)
+		var ramp := Gradient.new() # white-hot off the wingtip, into the colour, then gone
+		ramp.offsets = PackedFloat32Array([0.0, 0.18, 0.55, 1.0])
+		ramp.colors = PackedColorArray([Color(1, 1, 1, 0.95), Color(col.lightened(0.35), 0.9), Color(col, 0.6), Color(col.lightened(0.25), 0.0)])
+		var swell := Curve.new() # a thin streak at the wing that blooms as it trails back
+		swell.add_point(Vector2(0, 0.18))
+		swell.add_point(Vector2(0.3, 0.9))
+		swell.add_point(Vector2(1, 2.8))
 		for side in [-1.0, 1.0]:
 			var smoke := CPUParticles3D.new()
 			smoke.mesh = puff
