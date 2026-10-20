@@ -195,6 +195,11 @@ class Selector extends PanelContainer:
 			index = clampi(i, 0, items.size() - 1)
 			_show()
 
+	func set_items(entries: Array) -> void:
+		items = entries
+		index = clampi(index, 0, items.size() - 1)
+		_show()
+
 	func set_locked(on: bool) -> void:
 		locked = on
 		for b: Button in [prev, next]:
