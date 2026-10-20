@@ -190,3 +190,65 @@ static func flak(main: Node, at: Vector3) -> void:
 	tw.tween_property(puff, "scale", Vector3.ONE * 0.1, 1.0)
 	tw.tween_callback(puff.queue_free)
 	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)
+
+
+# Movie-style flare dump: two streams kicked out left and right behind the plane, each flare a hot
+# white-orange ball dragging smoke, drooping as it slows: the "angel wings" V. Lives in world space.
+static func flare_burst(plane: Node3D) -> void:
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(5.0, 3.6, 1.6)
+	var ball := SphereMesh.new()
+	ball.radius = 0.7
+	ball.height = 1.4
+	ball.radial_segments = 8
+	ball.rings = 4
+	ball.material = glow
+	for side in [-1.0, 1.0]:
+		var dir := Vector3(side, -0.45, 0.25).normalized() # sideways, down, a little back (plane-local)
+		var hot := CPUParticles3D.new()
+		hot.mesh = ball
+		hot.amount = 32
+		hot.lifetime = 2.0
+		hot.local_coords = false
+		hot.direction = dir
+		hot.spread = 6.0
+		hot.initial_velocity_min = 50.0
+		hot.initial_velocity_max = 64.0
+		hot.damping_min = 14.0
+		hot.damping_max = 18.0
+		hot.gravity = Vector3(0, -9, 0)
+		hot.scale_amount_curve = Curve.new()
+		hot.scale_amount_curve.add_point(Vector2(0, 1.3))
+		hot.scale_amount_curve.add_point(Vector2(0.7, 0.8))
+		hot.scale_amount_curve.add_point(Vector2(1, 0.0))
+		var trail := smoke(0.55, 2.6, Color(0.92, 0.92, 0.9))
+		trail.amount = 220
+		trail.direction = dir
+		trail.spread = 8.0
+		trail.initial_velocity_min = 46.0
+		trail.initial_velocity_max = 60.0
+		trail.damping_min = 14.0
+		trail.damping_max = 18.0
+		trail.gravity = Vector3(0, -6, 0)
+		for e in [trail, hot]:
+			plane.add_child(e)
+			e.position = Vector3(side * 1.5, -0.8, 2.0)
+			e.emitting = true
+			# Dump for 0.6 s (about 10 flares a side), then let them burn out where they fell.
+			var eid: int = e.get_instance_id() # never capture the node: the plane may be freed first
+			plane.get_tree().create_timer(0.6).timeout.connect(func():
+				var n = instance_from_id(eid)
+				if is_instance_valid(n):
+					n.emitting = false)
+			plane.get_tree().create_timer(3.4).timeout.connect(func():
+				var n = instance_from_id(eid)
+				if is_instance_valid(n):
+					n.queue_free())
+	var flash := OmniLight3D.new()
+	flash.light_color = Color(1.0, 0.75, 0.4)
+	flash.light_energy = 6.0
+	flash.omni_range = 80.0
+	plane.add_child(flash)
+	flash.position = Vector3(0, -2, 6)
+	flash.create_tween().tween_property(flash, "light_energy", 0.0, 1.2).finished.connect(flash.queue_free)

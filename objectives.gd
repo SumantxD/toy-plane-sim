@@ -126,6 +126,7 @@ func _tick_cargo(gs: Dictionary) -> void:
 			gs.cargo.erase(n)
 			gs.bank[p.team] = mini(gs.bank[p.team] + 1, 9)
 			main.feed_msg("%s delivered supplies (+1 %s)" % [p.pilot, Main_TEAM[p.team]])
+			main.sfx_event.rpc("deliver", p.team, p.position, str(p.name))
 
 
 const Main_TEAM := ["Blue", "Red"]
@@ -153,9 +154,11 @@ func _tick_ctf(gs: Dictionary, dt: float) -> void:
 						f.state = "carried"
 						f.carrier = str(p.name)
 						main.feed_msg("%s grabbed the %s flag!" % [p.pilot, Main_TEAM[team]])
+						main.sfx_event.rpc("grab", team, f.pos, str(p.name))
 						break
 					elif f.state == "dropped":
 						_flag_home(team, "%s returned the %s flag" % [p.pilot, Main_TEAM[team]])
+						main.sfx_event.rpc("return", team, f.pos, str(p.name))
 						break
 			"carried":
 				var c: Node = main.players.get_node_or_null(f.carrier)
@@ -167,6 +170,7 @@ func _tick_ctf(gs: Dictionary, dt: float) -> void:
 				if own.state == "home" and _in_column(c.position, flag_base(c.team), 150.0):
 					gs.score[c.team] += 1
 					_flag_home(team, "%s CAPTURED the %s flag! (%d-%d)" % [c.pilot, Main_TEAM[team], gs.score[0], gs.score[1]])
+					main.sfx_event.rpc("capture", c.team, c.position, str(c.name))
 	if gs.score[0] >= CAPS_TO_WIN or gs.score[1] >= CAPS_TO_WIN:
 		main._end("%s team wins %d-%d!" % [Main_TEAM[0 if gs.score[0] > gs.score[1] else 1], gs.score[0], gs.score[1]])
 
@@ -203,6 +207,7 @@ func drop_flag_of(carrier: String, at: Vector3) -> void:
 			f.t = 0.0
 			f.pos = Vector3(at.x, maxf(at.y, Terrain.floor_below(at) + 12.0), at.z)
 			main.feed_msg("The %s flag was dropped!" % Main_TEAM[team])
+			main.sfx_event.rpc("drop", team, f.pos, "")
 
 
 func _tick_assault(gs: Dictionary, dt: float) -> void:
@@ -215,6 +220,7 @@ func _tick_assault(gs: Dictionary, dt: float) -> void:
 			var to: Vector3 = hqs[1 - team].position
 			main._spawn_ai("striker", team, from, main._yaw_to(to - from), Vector3.ZERO, "twin", "%s bomber" % Main_TEAM[team])
 			main.feed_msg("%s bomber raid launched!" % Main_TEAM[team])
+			main.sfx_event.rpc("raid", team, from, "")
 		# AI teams patch their HQ when it's hurting and they can afford it.
 		if hqs[team].hp < HQ_HP * 0.6 and gs.bank[team] >= 2 and _team_has_ai(team) and randf() < dt * 0.05:
 			repair_hq(team)
@@ -231,6 +237,7 @@ func repair_hq(team: int) -> bool:
 	gs.bank[team] -= 2
 	hqs[team].set_hp.rpc(mini(hqs[team].hp + 1000, HQ_HP), hqs[team].comps)
 	main.feed_msg("%s team repaired its HQ" % Main_TEAM[team])
+	main.sfx_event.rpc("repair", team, hqs[team].position, "")
 	return true
 
 
@@ -245,6 +252,7 @@ func strike_move(p: Node, dt: float) -> void:
 		if target.alive:
 			target.set_hp.rpc(target.hp - RAID_DAMAGE, target.comps)
 			main.feed_msg("%s hit the %s HQ!" % [p.pilot, Main_TEAM[1 - p.team]])
+			main.sfx_event.rpc("hq_hit", 1 - p.team, target.position, "")
 			if target.hp <= 0:
 				main.kill(target, p)
 	elif p.ai.get("bombed", false) and Vector2(to.x, to.z).length() < 200.0:
@@ -366,7 +374,7 @@ func show_bombs(from: Vector3, at: Vector3) -> void:
 		get_tree().create_timer(0.25 * i + 0.6).timeout.connect(func():
 			if is_instance_valid(main):
 				main.boom(at_i + Vector3.UP * 4.0, 1.3))
-	Sfx.at(main, from, Sfx.LAUNCH, 0.0, 2000.0)
+	Sfx.at(main, from, Sfx.BOMB_WHISTLE, 0.0, 2000.0)
 
 
 func _make_flag(team: int) -> Node3D:

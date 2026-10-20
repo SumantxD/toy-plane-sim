@@ -106,6 +106,7 @@ func server_tick(dt: float) -> void:
 				if main.objectives and main.gs.mode != 2:
 					main.objectives.pick_cargo(p) # now carry it home for the team bank
 				main.feed_msg("%s grabbed a supply crate" % p.pilot)
+				main.sfx_event.rpc("crate", p.team, cr.pos, str(p.name))
 				break
 
 
@@ -277,14 +278,14 @@ func shot(i: int, kind: String, at: Vector3, tof: float) -> void:
 	g.aim_point = at
 	match kind:
 		"flak":
-			Sfx.at(main, g.global_position, Sfx.GUN, 4.0, 1500.0)
+			Sfx.at(main, g.global_position, Sfx.FLAK, 2.0, 1500.0, 0.8)
 			get_tree().create_timer(tof).timeout.connect(func():
 				if is_instance_valid(main):
 					Fx.flak(main, at))
 		"rapid":
 			if not multiplayer.is_server():
 				main.bullets.fire(g.muzzle(), (at - g.muzzle()).normalized() * 450.0, g, false)
-			Sfx.at(main, g.global_position, Sfx.GUN, 0.0, 900.0)
+			Sfx.at(main, g.global_position, Sfx.AA_GUN, 0.0, 900.0)
 
 
 class Turret extends Node3D:

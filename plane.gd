@@ -373,9 +373,9 @@ func _shoot(dt: float) -> void:
 			main.stat_shots += 1
 		fired.rpc()
 		if is_local():
-			Sfx.ui(main, Sfx.GUN, -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
+			Sfx.ui(main, Sfx.GUNS.get(kind, Sfx.GUN), -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
 		else:
-			Sfx.at(main, position, Sfx.GUN, 2.0, 1000.0)
+			Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 	_track_lock(dt)
 	flare_cd -= dt
 	if wants_flare and flare_cd <= 0.0 and flares_left > 0:
@@ -421,33 +421,8 @@ func locking(target_name: String) -> void:
 @rpc("authority", "call_local", "reliable")
 func flare() -> void:
 	main.rockets.decoy(self)
-	Sfx.at(main, position, Sfx.LAUNCH, -2.0, 1500.0)
-	var f := CPUParticles3D.new()
-	f.one_shot = true
-	f.explosiveness = 0.7
-	f.amount = 8
-	f.lifetime = 2.2
-	f.local_coords = false
-	f.direction = Vector3.DOWN
-	f.spread = 70.0
-	f.initial_velocity_min = 15.0
-	f.initial_velocity_max = 35.0
-	f.gravity = Vector3(0, -12, 0)
-	var ball := SphereMesh.new()
-	ball.radius = 0.9
-	ball.height = 1.8
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(4.0, 3.2, 1.6)
-	ball.material = mat
-	f.mesh = ball
-	f.scale_amount_curve = Curve.new()
-	f.scale_amount_curve.add_point(Vector2(0, 1))
-	f.scale_amount_curve.add_point(Vector2(1, 0.2))
-	main.add_child(f)
-	f.global_position = position - basis.z * -4.0
-	f.emitting = true
-	main.get_tree().create_timer(2.5).timeout.connect(f.queue_free)
+	Sfx.at(main, position, Sfx.FLARE, 2.0, 1500.0)
+	Fx.flare_burst(self)
 
 
 # Who is locking me right now (an enemy plane announcing my name), or null.
@@ -473,7 +448,7 @@ func find_lock() -> Node:
 
 func report_hit(target: Node, weapon := 0, comp := -1) -> void:
 	if is_local():
-		Sfx.ui(main, Sfx.HITS.pick_random(), -10.0) # hit marker
+		Sfx.ui(main, (Sfx.HEAVY_HITS if weapon > 0 else Sfx.HITS).pick_random(), -10.0 if weapon == 0 else -4.0) # hit marker
 	if multiplayer.is_server():
 		main.apply_hit(self, target, weapon, comp)
 	else:
@@ -513,7 +488,7 @@ func st(t: float, p: Vector3, q: Quaternion) -> void:
 @rpc("authority", "unreliable")
 func fired() -> void:
 	main.bullets.fire(position - basis.z * 5.0, vel_estimate() - basis.z * BULLET_SPEED, self, false)
-	Sfx.at(main, position, Sfx.GUN, 2.0, 1000.0)
+	Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -521,7 +496,7 @@ func set_hp(v: int, c: PackedFloat32Array) -> void:
 	if multiplayer.get_remote_sender_id() > 1:
 		return # only the server may change health / respawn
 	if v < hp and is_local():
-		Sfx.ui(main, Sfx.HURT, 0.0, randf_range(0.9, 1.15))
+		Sfx.ui(main, Sfx.HURTS.pick_random(), 0.0, randf_range(0.9, 1.15))
 		shake = minf(shake + 0.35, 1.0)
 	hp = v
 	comps = c

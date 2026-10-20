@@ -115,7 +115,9 @@ func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, 
 	if not owner:
 		return
 	if not bomb:
-		Sfx.at(main(), p, Sfx.LAUNCH, -6.0)
+		Sfx.at(main(), p, Sfx.LAUNCHES.pick_random(), -6.0)
+	else:
+		Sfx.at(main(), p, Sfx.BOMB_WHISTLE, 0.0, 1500.0)
 	var m := MeshInstance3D.new()
 	m.mesh = bomb_mesh if bomb else rocket_mesh
 	add_child(m)

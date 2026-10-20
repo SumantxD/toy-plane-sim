@@ -813,6 +813,7 @@ func kill(victim: Node, killer: Node, quiet := false) -> void:
 		_feed("%s shot down %s" % [killer.pilot, victim.pilot] if killer else "%s crashed" % victim.pilot)
 	if killer and killer.role == "pilot" and gs.players.has(int(str(killer.name))):
 		gs.players[int(str(killer.name))].kills += 1
+		sfx_event.rpc("kill", killer.team, victim.position, str(killer.name))
 	if killer and killer.team != victim.team:
 		gs.team_kills[killer.team] += 1
 	if killer and killer.role == "wing":
@@ -1129,7 +1130,12 @@ func hits_obstacle(p: Vector3) -> bool:
 
 
 func boom(pos: Vector3, size := 1.0) -> void:
-	Sfx.at(self, pos, Sfx.BOOMS.pick_random(), 4.0, 3000.0)
+	if size < 0.6:
+		Sfx.at(self, pos, Sfx.FLAK, 0.0, 2500.0) # flak bursts, sparks: a dull whump
+	elif size >= 2.0:
+		Sfx.at(self, pos, Sfx.BOOMS[0], 9.0, 4000.0, 0.7) # bombs: deeper and louder
+	else:
+		Sfx.at(self, pos, Sfx.BOOMS.pick_random(), 4.0, 3000.0)
 	var m := MeshInstance3D.new()
 	m.mesh = SphereMesh.new()
 	var mat := StandardMaterial3D.new()
@@ -1808,6 +1814,41 @@ func bf_event(kind: String, id: int, at: Vector3, v: Vector3) -> void:
 			battlefield.shot(id, kind, at, v.x)
 		"deploy":
 			battlefield.deploy(Battlefield.KINDS[id % 10], id / 10, v, at)
+			Sfx.at(self, at, Sfx.CLUNK, 4.0, 1200.0)
+
+
+# Objective sounds, heard from your own side: your flag taken is an alarm, theirs is a win.
+@rpc("authority", "call_local", "reliable")
+func sfx_event(kind: String, team: int, at: Vector3, who: String) -> void:
+	var mine := team == _my_team()
+	var me := str(multiplayer.get_unique_id()) == who
+	match kind:
+		"grab":
+			Sfx.ui(self, Sfx.ALARM if mine else Sfx.GRAB, -4.0)
+		"drop":
+			Sfx.ui(self, Sfx.DROP, -6.0)
+		"return":
+			Sfx.ui(self, Sfx.RETURN, -6.0)
+		"capture":
+			Sfx.ui(self, Sfx.FANFARE, -4.0 if mine else -10.0, 1.0 if mine else 0.7)
+		"deliver":
+			if mine:
+				Sfx.ui(self, Sfx.BELL, -6.0 if not me else -2.0)
+		"crate":
+			if me:
+				Sfx.ui(self, Sfx.PLUCK, -2.0)
+		"raid":
+			if not mine:
+				Sfx.ui(self, Sfx.SIREN, -16.0) # far-off warning: a raid is coming for your HQ
+		"hq_hit":
+			Sfx.at(self, at, Sfx.HEAVY_HITS.pick_random(), 8.0, 2500.0, 0.6)
+			if mine:
+				Sfx.ui(self, Sfx.ALARM, -8.0, 0.8)
+		"repair":
+			Sfx.at(self, at, Sfx.CLUNK, 6.0, 2000.0)
+		"kill":
+			if me:
+				Sfx.ui(self, Sfx.KILL, -4.0)
 
 
 @rpc("authority", "call_local", "reliable")
