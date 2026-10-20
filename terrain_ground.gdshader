@@ -12,9 +12,11 @@ void fragment() {
 }
 
 void light() {
-	float d = (dot(NORMAL, LIGHT) + (ATTENUATION - 1.0) + wrap) * steepness;
+	// Band only the sun angle (the cartoon look); shadows multiply in smoothly afterwards. Banding
+	// ATTENUATION too turned the filtered shadow edge into texel-sized stair steps.
+	float d = (dot(NORMAL, LIGHT) + wrap) * steepness;
 	float inv = 1.0 / float(cuts);
 	float stepped = clamp(d + mod(1.0 - d, inv), 0.0, 1.0);
-	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * stepped;
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * stepped * ATTENUATION;
 	SPECULAR_LIGHT += pow(1.0 - dot(NORMAL, VIEW), rim_width) * rim_color.rgb * rim_color.a * LIGHT_COLOR / PI;
 }

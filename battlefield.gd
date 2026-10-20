@@ -171,7 +171,7 @@ var base_count := 0
 static func base_spots() -> Array:
 	var r: Rect2 = Terrain.RUNWAY
 	var layout := []
-	var home := [["flak", -95.0, 0.2], ["rapid", 95.0, 0.35], ["sam", -95.0, 0.75], ["flak", 95.0, 0.85], ["radar", 140.0, 0.55]]
+	var home := [["flak", -95.0, 0.2], ["rapid", -95.0, 0.47], ["sam", -95.0, 0.75], ["flak", 95.0, 0.85], ["radar", 140.0, 0.55]]
 	for h in home:
 		layout.append([Vector2(r.position.x + h[1], r.position.y + r.size.y * h[2]), 0, h[0]])
 	for k in 5:

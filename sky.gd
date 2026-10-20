@@ -56,7 +56,7 @@ static func build_sun() -> DirectionalLight3D:
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.05
 	sun.shadow_normal_bias = 1.0
-	sun.shadow_blur = 0.6
+	sun.shadow_blur = 1.2
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 1200.0
 	sun.directional_shadow_split_1 = 0.05

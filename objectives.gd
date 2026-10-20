@@ -40,6 +40,10 @@ func setup(m: Node) -> void:
 		h.position = _clear_spot(hq_spot(team), 30.0) + Vector3.UP * HQ.MID # hit sphere centred on the building
 		add_child(h)
 		hqs[team] = h
+	# The final spots can move (water, buildings), so clear small decor there rather than trusting keep-out.
+	for team in 2:
+		_clear_decor(hqs[team].position, 34.0)
+		_clear_decor(bases[team], 16.0)
 
 
 static func flag_spot(team: int) -> Vector2:
@@ -48,6 +52,20 @@ static func flag_spot(team: int) -> Vector2:
 
 static func hq_spot(team: int) -> Vector2:
 	return Vector2(250, 1500) if team == 0 else Props.RED_RUNWAY + Vector2(250, 0) # mirrors blue: open ground beside the runway
+
+
+# Hide scattered trees / rocks (small, non-solid MultiMesh instances) standing on an objective.
+func _clear_decor(at: Vector3, r: float) -> void:
+	var props: Node = main.world_root.get_node_or_null("Props")
+	if not props:
+		return
+	for mmi: MultiMeshInstance3D in props.find_children("*", "MultiMeshInstance3D", true, false):
+		var mm := mmi.multimesh
+		var size := mm.mesh.get_aabb().size
+		for i in mm.instance_count:
+			var t := mmi.global_transform * mm.get_instance_transform(i)
+			if Vector2(t.origin.x - at.x, t.origin.z - at.z).length() < r and (t.basis * size).length() < 45.0:
+				mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ZERO), t.origin))
 
 
 func flag_base(team: int) -> Vector3:
@@ -73,7 +91,10 @@ func _blocked(g: Vector3, half: float) -> bool:
 				var q := g + Vector3(dx, h, dz)
 				if main.hits_obstacle(q) or Terrain.solid(q):
 					return true
-	return false
+	var cfg: Dictionary = Worlds.cur
+	if cfg.water.get("visible", true) and g.y < cfg.water.get("y", Terrain.WATER_Y) + 1.0:
+		return true # no HQ in the sea
+	return g.y < cfg.env.kill_y + 2.0 # or on Sky Kingdom's cloud sea
 
 
 func home(team: int) -> Vector3:

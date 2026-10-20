@@ -108,6 +108,9 @@ static func _layout() -> void:
 		Worlds.mod.layout() # world-specific landmarks via the helpers below
 	for s in Battlefield.base_spots(): # clear trees around gun emplacements
 		_keep_out.append(Vector3(s[0].x, s[0].y, 45.0))
+	for t in 2: # and around the CTF flags and Assault HQs
+		_keep_out.append(Vector3(Objectives.hq_spot(t).x, Objectives.hq_spot(t).y, 55.0))
+		_keep_out.append(Vector3(Objectives.flag_spot(t).x, Objectives.flag_spot(t).y, 30.0))
 
 
 static func _home_airfield() -> void:
