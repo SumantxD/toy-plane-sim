@@ -1095,9 +1095,39 @@ func _first_focusable(n: Node) -> Control:
 	return null
 
 
+# Home screen: a slow cinematic orbit around the whole map, always looking in at its heart (think the
+# Prince of Persia: The Two Thrones title screen). The lobby gets its fixed pose back for the plane preview.
+const LOBBY_EYE := Vector3(0, 230, 2450)
+const LOBBY_LOOK := Vector3(0, 60, 0)
+const ORBIT_LAP := 180.0 # seconds per lap
+const ORBIT_R := 1900.0
+var orbit := 0.0
+var orbit_y := 400.0
+var orbiting := false
+
+
+func _orbit_menu(dt: float) -> void:
+	if gs.phase == "menu" and not spectating:
+		orbit += dt * TAU / ORBIT_LAP
+		var at := func(a: float) -> Vector3: return Vector3(sin(a) * ORBIT_R, 0.0, cos(a) * ORBIT_R)
+		var eye: Vector3 = at.call(orbit)
+		var ahead: Vector3 = at.call(orbit + 0.12)
+		var ground := maxf(Terrain.floor_below(Vector3(eye.x, 3000.0, eye.z)), Terrain.floor_below(Vector3(ahead.x, 3000.0, ahead.z)))
+		var want := maxf(ground + 160.0, 420.0) + sin(orbit * 3.0) * 40.0
+		orbit_y = want if not orbiting else lerpf(orbit_y, want, 1.0 - exp(-0.8 * dt)) # glide over ridges, no jerks
+		orbit_y = maxf(orbit_y, ground + 60.0)
+		var look := Vector3(sin(orbit * 2.0) * 250.0, 80.0, cos(orbit * 1.3) * 250.0)
+		lobby_cam.look_at_from_position(Vector3(eye.x, orbit_y, eye.z), look)
+		orbiting = true
+	elif orbiting:
+		orbiting = false
+		lobby_cam.look_at_from_position(LOBBY_EYE, LOBBY_LOOK)
+
+
 func _process(dt: float) -> void:
 	if Sfx.enabled:
 		_keep_menu_focus()
+		_orbit_menu(dt)
 	for p in pings:
 		p[2] -= dt
 	pings = pings.filter(func(p): return p[2] > 0.0)
@@ -1967,7 +1997,7 @@ func _refresh_ui() -> void:
 		lines.append("\nWaiting for the leader to start...")
 	lobby_list.text = "\n".join(lines)
 	_refresh_preview()
-	$EscortGoal.visible = gs.mode == 0
+	$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu" # not hanging over the home-screen flyby
 	if gs.phase == "ended":
 		results_title.text = gs.msg
 		for c in results_grid.get_children():
@@ -2677,7 +2707,7 @@ func _build_world() -> void:
 func _build_static() -> void:
 	lobby_cam.far = 6000.0
 	add_child(lobby_cam)
-	lobby_cam.look_at_from_position(Vector3(0, 230, 2450), Vector3(0, 60, 0))
+	lobby_cam.look_at_from_position(LOBBY_EYE, LOBBY_LOOK)
 	lobby_cam.make_current()
 	add_outline(lobby_cam)
 	add_child(preview)
