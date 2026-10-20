@@ -659,7 +659,7 @@ func _show_damage() -> void:
 			smoke[i] = _make_smoke(parts.anchors[i])
 		if smoke[i]:
 			smoke[i].emitting = hurt
-			smoke[i].color = Color(0.12, 0.1, 0.1) if comps[i] <= 0.0 else Color(0.45, 0.45, 0.48)
+			smoke[i].color = Color(0.24, 0.23, 0.24) if comps[i] <= 0.0 else Color(0.55, 0.55, 0.58)
 	# Badly hurt or engine dead: the plane catches fire.
 	var burning := alive and (hp < max_hp * 0.25 or comps[2] <= 0.0)
 	if burning and not flames:
@@ -674,29 +674,15 @@ func _show_damage() -> void:
 
 
 func _make_smoke(at: Vector3) -> CPUParticles3D:
-	var p := CPUParticles3D.new()
+	var p := Fx.smoke(0.47, 1.4)
 	p.amount = 20
-	p.lifetime = 1.4
-	p.local_coords = false
 	p.position = at * body.scale.x
-	var m := SphereMesh.new()
-	m.radius = 0.7
-	m.height = 1.4
-	m.radial_segments = 6
-	m.rings = 3
-	var mat := ShaderMaterial.new()
-	mat.shader = preload("res://toon.gdshader")
-	mat.set_shader_parameter("specular_strength", 0.0)
-	mat.set_shader_parameter("rim_color", Color(1, 1, 1, 0))
-	m.material = mat
-	p.mesh = m
-	p.direction = Vector3.UP
 	p.spread = 25.0
 	p.initial_velocity_min = 1.0
 	p.initial_velocity_max = 3.0
 	p.gravity = Vector3(0, 2, 0)
 	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.8
+	p.scale_amount_max = 1.2
 	add_child(p)
 	return p
 

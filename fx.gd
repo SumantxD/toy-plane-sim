@@ -5,7 +5,8 @@ extends RefCounted
 # trail -> fireball, debris and a burning crash site that smoulders for a while.
 
 static var _fire_mat: StandardMaterial3D
-static var _smoke_mat: ShaderMaterial
+static var _smoke_mat: StandardMaterial3D
+static var _smoke_fade: Gradient
 
 
 static func fire(scale := 1.0) -> CPUParticles3D:
@@ -42,12 +43,15 @@ static func fire(scale := 1.0) -> CPUParticles3D:
 	return p
 
 
-static func smoke(scale := 1.0, life := 2.5, color := Color(0.1, 0.09, 0.09)) -> CPUParticles3D:
+static func smoke(scale := 1.0, life := 2.5, color := Color(0.22, 0.21, 0.21)) -> CPUParticles3D:
 	if not _smoke_mat:
-		_smoke_mat = ShaderMaterial.new()
-		_smoke_mat.shader = preload("res://toon.gdshader")
-		_smoke_mat.set_shader_parameter("specular_strength", 0.0)
-		_smoke_mat.set_shader_parameter("rim_color", Color(1, 1, 1, 0))
+		_smoke_mat = StandardMaterial3D.new() # soft see-through puffs, not shiny solid balls
+		_smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_smoke_mat.vertex_color_use_as_albedo = true
+		_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_smoke_fade = Gradient.new() # multiplies p.color: thickest early, gone by the end
+		_smoke_fade.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
+		_smoke_fade.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.7), Color(1.3, 1.3, 1.3, 0.0)])
 	var p := CPUParticles3D.new()
 	p.amount = 64
 	p.lifetime = life
@@ -71,6 +75,7 @@ static func smoke(scale := 1.0, life := 2.5, color := Color(0.1, 0.09, 0.09)) ->
 	grow.add_point(Vector2(1, 3.5))
 	p.scale_amount_curve = grow
 	p.color = color
+	p.color_ramp = _smoke_fade
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 

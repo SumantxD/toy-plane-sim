@@ -1614,6 +1614,8 @@ func radio(p: Node, text: String) -> void:
 	radio_cd = now + 2.5
 	radio_last[p.name] = now + 12.0
 	_feed('%s: "%s"' % [p.pilot, text])
+	if multiplayer.is_server(): # test bots run the same AI code on clients; only the host may broadcast
+		say_bubble.rpc(str(p.name), text)
 
 
 func repair(p: Node, amount: int) -> void:
@@ -1892,6 +1894,14 @@ func show_taunt(plane_name: String, i: int) -> void:
 	var p := players.get_node_or_null(plane_name)
 	if p and p.alive and i >= 0 and i < Taunts.LIST.size() and Settings.values.get("taunts", true):
 		taunts.say(p, Taunts.LIST[i])
+
+
+# AI radio lines are skywritten over the speaker too (host-written text, not player input) (same range as taunts).
+@rpc("authority", "call_local", "reliable")
+func say_bubble(plane_name: String, text: String) -> void:
+	var p := players.get_node_or_null(plane_name)
+	if p and p.alive and Settings.values.get("taunts", true):
+		taunts.say(p, text.left(28))
 
 
 func _unhandled_input(event: InputEvent) -> void:
