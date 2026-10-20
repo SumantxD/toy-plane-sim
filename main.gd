@@ -2418,7 +2418,7 @@ func _build_ui() -> void:
 	plane_sel.custom_minimum_size.x = 340
 	sbox.add_child(plane_sel)
 	sticker_sel = Menus.Selector.new("STICKER  (just for looks)", Array(Planes.STICKERS).map(func(n): return {title = n.to_upper()}))
-	banner_sel = Menus.Selector.new("TAIL BANNER  (just for looks)", Array(Planes.BANNERS).map(func(n): return {title = n.to_upper()}))
+	banner_sel = Menus.Selector.new("SMOKE TRAIL  (just for looks)", Array(Planes.BANNERS).map(func(n): return {title = n.to_upper()}))
 	for sel: Menus.Selector in [sticker_sel, banner_sel]:
 		sel.changed.connect(func(_i):
 			Settings.values.sticker = sticker_sel.index

@@ -225,6 +225,10 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	if parts.get("trails") and is_local() and parts.trails[0].lifetime > 0.3: # your own: a short wisp, not
+		for t: CPUParticles3D in parts.trails: # a ribbon streaming past your chase camera (known only now)
+			t.lifetime = 0.25
+			t.amount = 18
 	if parts.has("rockets"):
 		_update_hardpoints()
 	if not buffs.is_empty() or shield_fx:
@@ -1005,6 +1009,7 @@ func _build_mesh() -> void:
 	if role in ["pilot", "wing", "fighter", "showcase"]:
 		var look := _look()
 		Planes.dress(kind, body, parts, max_rockets, max_bombs, look[0], look[1], main.toon(Color(0.2, 0.2, 0.22)), Callable(main, "toon"))
+
 	elif role == "prize":
 		var light := OmniLight3D.new()
 		light.light_color = Color(1.0, 0.8, 0.3)

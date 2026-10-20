@@ -12,7 +12,7 @@ const TYPES := {
 	"fighter": {name = "Jet Fighter", desc = "Fast all-rounder, 4 homing rockets", hp = 100, min = 40.0, max = 125.0, boost = 165.0, turn = Vector3(1.7, 0.6, 3.6), fire = 0.07, rockets = 4, flares = 4, bombs = 2, radius = 4.5},
 }
 const COMPONENT_NAMES := ["left wing", "right wing", "engine", "tail"]
-# Cosmetics only (no stat changes): a sticker on the wings / tail and a waving tail banner.
+# Cosmetics only (no stat changes): a sticker on the wings / tail and coloured wingtip smoke trails.
 const STICKERS := ["None", "Star", "Lightning", "Flame", "Roundel", "Checkers", "Shark Mouth"]
 const BANNERS := ["None", "Gold", "Lime", "Violet", "White", "Black"]
 const BANNER_COLORS := [Color(0, 0, 0, 0), Color(1.0, 0.78, 0.2), Color(0.55, 0.95, 0.3), Color(0.7, 0.45, 1.0), Color(0.95, 0.95, 0.95), Color(0.12, 0.12, 0.14)]
@@ -163,18 +163,41 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 		_box(root, Vector3(0.09, 0.09, 1.0), Vector3(gx, w[2] - 0.05, w[3] - w[1] * 0.5 - 0.4 + absf(gx) * w[4]), dark)
 	if sticker > 0:
 		_sticker(sticker, root, parts, w, hull, toon)
-	if banner > 0:
-		var fin := Vector3(0.0, hull[4] + hull[6] * 0.35, hull[5] + 0.5) if hull[6] > 0.0 else Vector3(0, 0.4, 4.6)
-		var flag := MeshInstance3D.new()
-		flag.mesh = QuadMesh.new()
-		flag.mesh.size = Vector2(3.4, 0.6)
-		var mat := ShaderMaterial.new()
-		mat.shader = preload("res://banner.gdshader")
-		mat.set_shader_parameter("color", BANNER_COLORS[banner])
-		flag.material_override = mat
-		flag.rotation_degrees.y = 90 # streams straight back, ripples sideways
-		flag.position = fin + Vector3(0, 0, 1.7)
-		root.add_child(flag)
+	parts.trails = []
+	if banner > 0: # airshow smoke ribbons from both wingtips: true colour, thin, fading out behind
+		var puff := SphereMesh.new()
+		puff.radius = 0.6
+		puff.height = 1.2
+		puff.radial_segments = 6
+		puff.rings = 3
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.vertex_color_use_as_albedo = true
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		puff.material = mat
+		var col: Color = BANNER_COLORS[banner]
+		var ramp := Gradient.new()
+		ramp.colors = PackedColorArray([Color(col, 0.85), Color(col.lightened(0.15), 0.0)])
+		var swell := Curve.new()
+		swell.add_point(Vector2(0, 0.7))
+		swell.add_point(Vector2(1, 2.4))
+		for side in [-1.0, 1.0]:
+			var smoke := CPUParticles3D.new()
+			smoke.mesh = puff
+			smoke.amount = 130 # dense enough to read as a ribbon at full speed
+			smoke.lifetime = 1.0
+			smoke.local_coords = false
+			smoke.direction = Vector3(0, 0, 1)
+			smoke.spread = 3.0
+			smoke.initial_velocity_min = 1.0
+			smoke.initial_velocity_max = 2.0
+			smoke.gravity = Vector3.ZERO
+			smoke.color_ramp = ramp
+			smoke.scale_amount_curve = swell
+			smoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			smoke.position = Vector3(side * (w[0] - 0.2), w[2], w[3] + w[0] * w[4] + w[1] * 0.3)
+			root.add_child(smoke)
+			parts.trails.append(smoke)
 
 
 static func _sticker(i: int, root: Node3D, parts: Dictionary, w: Array, hull: Array, toon: Callable) -> void:
