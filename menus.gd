@@ -251,6 +251,7 @@ static func settings_panel(tree: SceneTree, on_close: Callable) -> VBoxContainer
 	_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
 	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
 	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
+	_check(box, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)
 	var done := Button.new()
 	done.text = "Done"
 	done.pressed.connect(func():

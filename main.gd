@@ -2035,7 +2035,7 @@ func _refresh_preview() -> void:
 	glow.albedo_color = Color(3.0, 1.4, 0.4)
 	var parts := Planes.build(plane_choice, preview, toon(Aircraft.TEAM_COLORS[_my_team()]), toon(Color(0.95, 0.93, 0.85)), toon(Color(0.15, 0.2, 0.3)), toon(Color(0.2, 0.2, 0.22)), glow)
 	var pt: Dictionary = Planes.TYPES[plane_choice]
-	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, Settings.values.get("sticker", 0), Settings.values.get("banner", 0), toon(Color(0.2, 0.2, 0.22)), toon)
+	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, Settings.values.get("sticker", 0), 0, toon(Color(0.2, 0.2, 0.22)), toon) # no trail on the turntable
 	var t: Dictionary = Planes.TYPES[plane_choice]
 	var v := Planes.variant(plane_choice)
 	stats_label.text = "%s\n%s" % [v.name, v.desc]

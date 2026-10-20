@@ -225,28 +225,8 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
-	if parts.get("trails") and is_local() and not has_meta("own_trail"): # (known only once spawned)
-		set_meta("own_trail", true)
-		# Your own trail: full length, but thin, faint, and melting away right at your chase camera.
-		var puff: Mesh = parts.trails[0].mesh.duplicate()
-		var mat: StandardMaterial3D = puff.material.duplicate()
-		mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
-		mat.distance_fade_min_distance = 3.0
-		mat.distance_fade_max_distance = 10.0
-		puff.material = mat
-		var slim := Curve.new() # your own view: a thin, faint wisp (others see the full blooming trail)
-		slim.add_point(Vector2(0, 0.0))
-		slim.add_point(Vector2(0.24, 0.0))
-		slim.add_point(Vector2(0.32, 0.35))
-		slim.add_point(Vector2(1, 0.8))
-		var faint: Gradient = parts.trails[0].color_ramp.duplicate()
-		for i in faint.get_point_count():
-			var c := faint.get_color(i)
-			faint.set_color(i, Color(c, c.a * 0.28))
-		for t: CPUParticles3D in parts.trails:
-			t.mesh = puff
-			t.scale_amount_curve = slim
-			t.color_ramp = faint
+	if parts.get("trails"):
+		_trail_look()
 	if parts.has("rockets"):
 		_update_hardpoints()
 	if parts.get("trails"):
@@ -730,6 +710,38 @@ func _look() -> Array:
 	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size()]
 
 
+# Smoke trails on this screen: off when the setting says so. Your own trail fades with how straight
+# behind you the camera looks: faint and thin from the chase view, normal when you look around at it.
+var trail_view := 1.0 # 1 = full look, 0 = faint chase-view wisp
+
+func _trail_look() -> void:
+	var on: bool = Settings.values.get("trails", true) and alive
+	for t: CPUParticles3D in parts.trails:
+		t.emitting = on
+		t.visible = on
+	if not on or not is_local():
+		trail_view = 1.0
+		return
+	if not has_meta("own_trail"): # (known only once spawned) give your own trail its own material
+		set_meta("own_trail", true)
+		var puff: Mesh = parts.trails[0].mesh.duplicate()
+		var mat: StandardMaterial3D = puff.material.duplicate()
+		mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA # melts away right at the lens
+		mat.distance_fade_min_distance = 3.0
+		mat.distance_fade_max_distance = 10.0
+		puff.material = mat
+		for t: CPUParticles3D in parts.trails:
+			t.mesh = puff
+	var cam := get_viewport().get_camera_3d()
+	var along := (-cam.global_basis.z).dot(-basis.z) if cam else 1.0 # 1 = camera looks where you fly
+	trail_view = lerpf(trail_view, 1.0 - clampf((along - 0.35) / 0.5, 0.0, 1.0), 1.0 - exp(-12.0 * get_process_delta_time()))
+	var mat: StandardMaterial3D = parts.trails[0].mesh.material
+	mat.albedo_color.a = lerpf(0.28, 1.0, trail_view)
+	for t: CPUParticles3D in parts.trails:
+		t.scale_amount_min = lerpf(0.3, 1.0, trail_view)
+		t.scale_amount_max = t.scale_amount_min
+
+
 # The first stretch of each smoke trail is a smooth line (the puffs bloom after it): a ribbon through the
 # wingtip's last 0.3 s of path, facing the camera, white at the wing and widening into the trail colour.
 const RIBBON_MS := 300
@@ -738,7 +750,7 @@ var ribbon_pts := [[], []]
 
 func _update_ribbons() -> void:
 	var cam := get_viewport().get_camera_3d()
-	if not alive or not visible or not cam:
+	if not alive or not visible or not cam or not Settings.values.get("trails", true):
 		if ribbon:
 			ribbon.hide()
 		ribbon_pts = [[], []]
@@ -761,8 +773,8 @@ func _update_ribbons() -> void:
 	im.clear_surfaces()
 	var now := Time.get_ticks_msec()
 	var col: Color = parts.get("trail_col", Color.WHITE).lightened(0.35)
-	var faint := 0.3 if is_local() else 1.0
-	var thin := 0.5 if is_local() else 1.0
+	var faint := lerpf(0.3, 1.0, trail_view)
+	var thin := lerpf(0.5, 1.0, trail_view)
 	for k in 2:
 		var pts: Array = ribbon_pts[k]
 		pts.append([parts.trails[k].global_position, now])
