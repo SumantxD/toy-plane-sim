@@ -86,6 +86,8 @@ var offset := Vector3.ZERO
 var snaps: Array = [] # [t, pos, quat], owner's game clock
 var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
+var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
+var last_arrival := 0
 
 var main: Node
 var body := Node3D.new()
@@ -215,7 +217,7 @@ func _process(dt: float) -> void:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
-		if send_cd <= 0.0:
+		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
 			send_cd = SEND_INTERVAL
 			st.rpc(sim_clock, position, quaternion)
 	if cam:
@@ -481,9 +483,35 @@ func vel_estimate() -> Vector3:
 	return (b[1] - a[1]) / maxf(b[0] - a[0], 0.001)
 
 
-@rpc("authority", "unreliable_ordered")
+func _net_jump(before: Vector3, dt: float) -> void:
+	var moved := position.distance_to(before)
+	if moved > maxf(vel_estimate().length() * dt * 3.0, 6.0):
+		main.netstats.jumps += 1 # visible teleport
+
+
+# Unordered on purpose: "ordered" made ENet throw away every snapshot that a reordering route
+# delivered late (~40% on a jittery link). Late ones are still useful, so they get slotted in.
+@rpc("authority", "unreliable")
 func st(t: float, p: Vector3, q: Quaternion) -> void:
+	var now_ms := Time.get_ticks_msec()
+	if last_arrival > 0:
+		jitter = lerpf(jitter, absf((now_ms - last_arrival) / 1000.0 - SEND_INTERVAL), 0.08)
+	last_arrival = now_ms
+	if main.netstats:
+		var now := Time.get_ticks_msec()
+		var gap: int = now - get_meta("last_snap", now)
+		set_meta("last_snap", now)
+		main.netstats.snaps += 1
+		main.netstats.gap_max = maxi(main.netstats.gap_max, gap)
+		if gap > 150:
+			main.netstats.gaps150 += 1
 	if not snaps.is_empty() and t <= snaps[-1][0]:
+		for i in range(snaps.size() - 1, -1, -1): # arrived late: insert in time order, or drop a duplicate
+			if snaps[i][0] == t:
+				return
+			if snaps[i][0] < t:
+				snaps.insert(i + 1, [t, p, q])
+				return
 		return
 	snaps.append([t, p, q])
 	if snaps.size() > 30:
@@ -619,9 +647,19 @@ func respawn(p: Vector3, yaw: float) -> void:
 func _interpolate(dt: float) -> void:
 	if snaps.is_empty():
 		return
-	var target: float = snaps[-1][0] - INTERP_DELAY
+	# Steady links: 100 ms behind. Jittery or lossy ones: wait longer so there is always a next snapshot.
+	var target: float = snaps[-1][0] - clampf(INTERP_DELAY + 2.5 * jitter, INTERP_DELAY, 0.35)
 	render_t += dt
 	render_t = target if absf(render_t - target) > 0.5 else lerpf(render_t, target, 0.05)
+	if main.netstats and alive:
+		var ns: Dictionary = main.netstats
+		ns.frames += 1
+		if render_t > snaps[-1][0]:
+			ns.extrap += 1 # guessing past the newest snapshot
+		if render_t > snaps[-1][0] + 0.25:
+			ns.stall += 1 # out of guesses: frozen
+		var before := position
+		call_deferred("_net_jump", before, dt)
 	for i in range(snaps.size() - 1, 0, -1):
 		var a: Array = snaps[i - 1]
 		if a[0] <= render_t:

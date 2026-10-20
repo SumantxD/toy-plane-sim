@@ -125,6 +125,13 @@ func _ready() -> void:
 			print("AIM shots=%d hits=%d (%.1f%%)" % [stat_shots, stat_hits, 100.0 * stat_hits / maxf(stat_shots, 1)])
 			print("STATS nodes=%d orphans=%d mem=%.1fMB" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1e6])
 			get_tree().quit())
+	if "--netstats" in args:
+		netstats = {frames = 0, extrap = 0, stall = 0, jumps = 0, snaps = 0, gap_max = 0, gaps150 = 0, sync_bytes = 0, syncs = 0}
+		var nt := Timer.new()
+		nt.wait_time = 10.0
+		nt.autostart = true
+		nt.timeout.connect(_print_netstats)
+		add_child(nt)
 	if "--free" in args:
 		free_flight()
 	if "--test-deploy" in args: # test hook: a joined client calls in a SAM site
@@ -331,8 +338,17 @@ func _on_connect_failed() -> void:
 	status.text = "Could not connect. Is the host's game open in the lobby, and did they allow it through the firewall?"
 
 
+# ENet's throttle throws away unreliable packets whenever ping wobbles (half our snapshots at 40 ms).
+# Snapshots are tiny and we never saturate a link, so let them all through.
+func _no_throttle(id: int) -> void:
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet and enet.get_peer(id):
+		enet.get_peer(id).throttle_configure(5000, 2, 0)
+
+
 func _on_connected() -> void:
 	joining = false
+	_no_throttle(1)
 	print("Connected as %d" % multiplayer.get_unique_id())
 	var fv := OS.get_cmdline_user_args().find("--fake-version") # test hook
 	register.rpc_id(1, {name = name_edit.text, version = OS.get_cmdline_user_args()[fv + 1] if fv >= 0 else VERSION, plane = Planes.ORDER.pick_random() if bot else plane_choice})
@@ -373,6 +389,7 @@ func _on_peer_left(id: int) -> void:
 
 @rpc("any_peer", "reliable")
 func register(info: Dictionary) -> void:
+	_no_throttle(_sender())
 	var id := multiplayer.get_remote_sender_id()
 	var pilot := str(info.get("name", ""))
 	var version := str(info.get("version", "?"))
@@ -410,8 +427,28 @@ func _add_player(id: int, pilot: String) -> void:
 	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in TEAM_MODES or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
 
 
+func _print_netstats() -> void:
+	var ns := netstats
+	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	var rtt := -1.0
+	var lossp := -1.0
+	var kb := 0.0
+	if peer and peer.get_peer(1):
+		rtt = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
+		lossp = peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_PACKET_LOSS) / float(ENetPacketPeer.PACKET_LOSS_SCALE) * 100.0
+		kb = peer.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0 / 10.0
+	var f := maxf(ns.frames, 1)
+	print("NET rtt %dms loss %.1f%%  down %.1f KB/s  snaps %d  gap_max %dms  gaps>150ms %d  extrap %.1f%%  frozen %.2f%%  jumps %d  sync %d B" % [
+		rtt, lossp, kb, ns.snaps, ns.gap_max, ns.gaps150, 100.0 * ns.extrap / f, 100.0 * ns.stall / f, ns.jumps, ns.sync_bytes / maxi(ns.syncs, 1)])
+	for k in ns:
+		ns[k] = 0
+
+
 @rpc("authority", "call_local", "reliable")
 func sync(state: Dictionary) -> void:
+	if netstats:
+		netstats.sync_bytes += var_to_bytes(state).size()
+		netstats.syncs += 1
 	var was := seen_phase # not gs.phase: the server already changed that before pushing
 	seen_phase = state.phase
 	gs = state
@@ -1307,7 +1344,8 @@ func _refresh_hud() -> void:
 	var rtt := ""
 	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	if peer and not multiplayer.is_server() and peer.get_peer(1):
-		rtt = "   Ping %dms" % peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
+		var ms := peer.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
+		rtt = "   Ping %dms%s" % [ms, " (laggy connection)" if ms > 200 else ""]
 	var bank := ""
 	if gs.mode != 2 and gs.get("bank") != null:
 		bank = "      Supplies  Blue %d  Red %d" % [gs.bank[0], gs.bank[1]]
@@ -1878,6 +1916,7 @@ var world_root: Node3D
 var env: Env
 var battlefield: Battlefield
 var objectives: Objectives
+var netstats := {} # --netstats: what lag does to remote planes, printed every 10 s
 var seen_phase := "lobby"
 var world_env: WorldEnvironment
 
