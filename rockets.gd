@@ -16,12 +16,15 @@ const SEEKER_FOV := 1.05 # ~60 deg
 const FUSE := 8.0
 const SPLASH := 18.0
 const LIFE := 7.0
+const BOMB_SPLASH := 35.0
+const BOMB_DRAG := 0.0002
 
 var rockets := {} # id -> {p, v, t, owner, target, local, mesh, trail}
 var count := 0
 var trails := ImmediateMesh.new()
 var trail_mat := StandardMaterial3D.new()
 var rocket_mesh := BoxMesh.new()
+var bomb_mesh := CapsuleMesh.new()
 
 
 func _ready() -> void:
@@ -38,6 +41,11 @@ func _ready() -> void:
 	m.emission_enabled = true
 	m.emission = Color(1, 0.5, 0.1)
 	rocket_mesh.material = m
+	bomb_mesh.radius = 0.55
+	bomb_mesh.height = 2.6
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.2, 0.22, 0.2)
+	bomb_mesh.material = bm
 
 
 func launch(owner: Node, target: Node) -> void:
@@ -47,7 +55,40 @@ func launch(owner: Node, target: Node) -> void:
 	var v: Vector3 = owner.velocity - owner.basis.z * 20.0
 	var tname: String = target.name if target else ""
 	_add(id, p, v, owner, tname, true)
-	spawn_remote.rpc(id, p, v, owner.name, tname)
+	spawn_remote.rpc(id, p, v, owner.name, tname, false)
+
+
+# Bombs: inherit the plane's velocity and fall; same shooter-decides rule as rockets.
+func drop_bomb(owner: Node) -> void:
+	count += 1
+	var id := "%s_%d" % [owner.name, count]
+	var p: Vector3 = owner.position + Vector3.DOWN * 2.0
+	_add(id, p, owner.velocity, owner, "", true, true)
+	spawn_remote.rpc(id, p, owner.velocity, owner.name, "", true)
+
+
+static func bomb_step(p: Vector3, v: Vector3, dt: float) -> Array:
+	v += (Vector3.DOWN * GRAVITY - v * v.length() * BOMB_DRAG) * dt
+	return [p + v * dt, v]
+
+
+# Where a bomb dropped now would hit the ground (HUD marker, AI release timing).
+func bomb_impact(p: Vector3, v: Vector3) -> Vector3:
+	var m := main()
+	for i in 600:
+		var s := bomb_step(p, v, 0.05)
+		p = s[0]
+		v = s[1]
+		if m.hits_ground(p):
+			break
+	return p
+
+
+# Flares: rockets chasing `plane` lose it and fly on dumb.
+func decoy(plane: Node) -> void:
+	for r in rockets.values():
+		if r.target == plane:
+			r.target = null
 
 
 # Launch from an arbitrary point/velocity (SAM sites on the ground).
@@ -56,12 +97,12 @@ func fire_from(owner: Node, p: Vector3, v: Vector3, target: Node) -> void:
 	var id := "%s_%d" % [owner.name, count]
 	var tname: String = target.name if target else ""
 	_add(id, p, v, owner, tname, true)
-	spawn_remote.rpc(id, p, v, owner.name, tname)
+	spawn_remote.rpc(id, p, v, owner.name, tname, false)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target_name: String) -> void:
-	_add(id, p, v, main().find_unit(owner_name), target_name, false)
+func spawn_remote(id: String, p: Vector3, v: Vector3, owner_name: String, target_name: String, bomb: bool) -> void:
+	_add(id, p, v, main().find_unit(owner_name), target_name, false, bomb)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -70,15 +111,16 @@ func detonate_remote(id: String, p: Vector3) -> void:
 	main().boom(p)
 
 
-func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, local: bool) -> void:
+func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, local: bool, bomb := false) -> void:
 	if not owner:
 		return
-	Sfx.at(main(), p, Sfx.LAUNCH, -6.0)
+	if not bomb:
+		Sfx.at(main(), p, Sfx.LAUNCH, -6.0)
 	var m := MeshInstance3D.new()
-	m.mesh = rocket_mesh
+	m.mesh = bomb_mesh if bomb else rocket_mesh
 	add_child(m)
-	rockets[id] = {p = p, v = v, t = 0.0, owner = owner, team = owner.team, local = local, mesh = m, trail = [],
-		target = main().players.get_node_or_null(target_name) if target_name else null}
+	rockets[id] = {p = p, v = v, t = 0.0, owner = owner, team = owner.team, local = local, mesh = m, trail = [], bomb = bomb,
+		target = main().find_unit(target_name) if target_name else null} # planes, turrets or HQs
 
 
 func _remove(id: String) -> void:
@@ -126,6 +168,9 @@ func incoming(plane: Node) -> bool:
 func _process(dt: float) -> void:
 	for id in rockets.keys():
 		var r: Dictionary = rockets[id]
+		if r.bomb:
+			_bomb_tick(id, r, dt)
+			continue
 		if not is_instance_valid(r.target) or not r.target.is_inside_tree() or not r.target.alive or r.v.angle_to(r.target.position - r.p) > SEEKER_FOV:
 			r.target = null # lost lock
 		var a: Vector3 = r.p
@@ -148,6 +193,30 @@ func _process(dt: float) -> void:
 		elif hit or r.t > LIFE:
 			_remove(id) # remote copies wait for the shooter's verdict; this one is just visual
 	_draw_trails()
+
+
+func _bomb_tick(id: String, r: Dictionary, dt: float) -> void:
+	var a: Vector3 = r.p
+	var s := bomb_step(r.p, r.v, dt)
+	r.p = s[0]
+	r.v = s[1]
+	r.t += dt
+	r.mesh.global_transform = Transform3D(Basis.looking_at(r.v) * Basis(Vector3.RIGHT, PI / 2.0), r.p)
+	var hit: bool = main().hits_ground(r.p)
+	if not hit:
+		for t in get_tree().get_nodes_in_group("targets"):
+			if t.alive and t.team != r.team and _seg_dist(a, r.p, t.position) < 4.0 + t.hit_radius:
+				hit = true
+				break
+	if hit and r.local:
+		for t in get_tree().get_nodes_in_group("targets"):
+			if t.alive and t.team != r.team and t.position.distance_to(r.p) < BOMB_SPLASH + t.hit_radius and is_instance_valid(r.owner):
+				r.owner.report_hit(t, 2, -1)
+		main().boom(r.p, 2.2)
+		detonate_remote.rpc(id, r.p)
+		_remove(id)
+	elif hit or r.t > 30.0:
+		_remove(id)
 
 
 func _explode(id: String, r: Dictionary) -> void:

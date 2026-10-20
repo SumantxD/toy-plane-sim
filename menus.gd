@@ -72,7 +72,11 @@ static func howto_text() -> String:
 [b]FIGHTING[/b]
   Left click / Space: guns. Red circles show where to lead your shots.
   Hold right click / F to aim a rocket (lock box, or a dotted path), release to fire.
-  MISSILE! means one is chasing you: turn hard or boost.
+  Rockets need a lock: keep the target in the box until it closes (LOCKING -> LOCK).
+  LOCKED ON means someone is locking you. MISSILE! means one is chasing you: X pops flares
+  (they break the lock of rockets already fired), or turn hard and boost.
+  Hold B to see where a bomb will land, release to drop. Bombs wreck HQs and defenses.
+  C = camera near / normal / far.
 
 [b]DAMAGE[/b]
   A hit wing pulls you to that side, a hit engine sputters (dead = glide),

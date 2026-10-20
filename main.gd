@@ -15,7 +15,7 @@ const SIZES := [2, 4, 6]
 const SKILL_NAMES := ["rookie", "pilot", "ace"]
 const CALLSIGNS := ["Maverick", "Goose", "Iceman", "Viper", "Jester", "Hollywood", "Wolfman", "Sundown", "Cougar", "Merlin", "Slider", "Stinger"]
 const TEAM_NAMES := ["Blue", "Red"]
-const DAMAGE := [8, 45] # guns, rocket
+const DAMAGE := [8, 45, 150] # guns, rocket, bomb
 const BEACON_TIME := 15.0
 const BEACON_RADIUS := 25.0
 const RESPAWN_DELAY := 3.0
@@ -771,7 +771,7 @@ func report_hit(target_name: String, weapon: int, comp: int) -> void:
 	var a := _plane(multiplayer.get_remote_sender_id())
 	var t := find_unit(target_name) # planes, turrets, HQs
 	if a and t and a.position.distance_to(t.position) < 2500.0:
-		apply_hit(a, t, clampi(weapon, 0, 1), clampi(comp, -1, 3))
+		apply_hit(a, t, clampi(weapon, 0, 2), clampi(comp, -1, 3))
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -786,6 +786,8 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 		stat_hits += 1
 	if t.alive and a.team != t.team and gs.phase == "playing":
 		var dmg: int = DAMAGE[weapon]
+		if weapon == 2:
+			dmg = dmg * 3 if t.role in ["hq", "turret"] else dmg / 2 # bombs are for the ground
 		if a.role == "fighter":
 			dmg = ceili(dmg * (0.4 if t.role == "bomber" else 0.6)) # raiders hit softer (bombers must be escortable)
 		elif a.role == "turret":
@@ -1182,6 +1184,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			show_map = not show_map
 		KEY_N:
 			map_zoom = 2.5 if map_zoom == 1.0 else 1.0
+		KEY_C:
+			Settings.values.cam = (Settings.values.get("cam", 1) + 1) % 3
+			Settings.save()
 
 
 func _refresh_ui() -> void:

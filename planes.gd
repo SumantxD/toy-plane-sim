@@ -6,10 +6,10 @@ extends RefCounted
 # is within 3 m (plane.component_at), otherwise only hp.
 const ORDER := ["cub", "racer", "twin", "fighter"]
 const TYPES := {
-	"cub": {name = "Toy Cub", desc = "Slow and steady, tight turns, tough", hp = 130, min = 30.0, max = 95.0, boost = 130.0, turn = Vector3(1.9, 0.8, 3.4), fire = 0.09, rockets = 2, radius = 4.5},
-	"racer": {name = "Speedster", desc = "Fastest, rolls like crazy, fragile", hp = 75, min = 45.0, max = 135.0, boost = 175.0, turn = Vector3(1.6, 0.6, 4.4), fire = 0.08, rockets = 2, radius = 4.0},
-	"twin": {name = "Heavy Twin", desc = "Big and slow, two engines, 6 rockets", hp = 190, min = 35.0, max = 100.0, boost = 135.0, turn = Vector3(1.15, 0.45, 2.3), fire = 0.06, rockets = 6, radius = 6.0},
-	"fighter": {name = "Jet Fighter", desc = "Fast all-rounder, 4 homing rockets", hp = 100, min = 40.0, max = 125.0, boost = 165.0, turn = Vector3(1.7, 0.6, 3.6), fire = 0.07, rockets = 4, radius = 4.5},
+	"cub": {name = "Toy Cub", desc = "Slow and steady, tight turns, tough", hp = 130, min = 30.0, max = 95.0, boost = 130.0, turn = Vector3(1.9, 0.8, 3.4), fire = 0.09, rockets = 2, flares = 3, bombs = 2, radius = 4.5},
+	"racer": {name = "Speedster", desc = "Fastest, rolls like crazy, fragile", hp = 75, min = 45.0, max = 135.0, boost = 175.0, turn = Vector3(1.6, 0.6, 4.4), fire = 0.08, rockets = 2, flares = 3, bombs = 1, radius = 4.0},
+	"twin": {name = "Heavy Twin", desc = "Big and slow, 6 rockets, 4 bombs", hp = 190, min = 35.0, max = 100.0, boost = 135.0, turn = Vector3(1.15, 0.45, 2.3), fire = 0.06, rockets = 6, flares = 2, bombs = 4, radius = 6.0},
+	"fighter": {name = "Jet Fighter", desc = "Fast all-rounder, 4 homing rockets", hp = 100, min = 40.0, max = 125.0, boost = 165.0, turn = Vector3(1.7, 0.6, 3.6), fire = 0.07, rockets = 4, flares = 4, bombs = 2, radius = 4.5},
 }
 const COMPONENT_NAMES := ["left wing", "right wing", "engine", "tail"]
 

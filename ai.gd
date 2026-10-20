@@ -87,6 +87,20 @@ static func think(p: Node, dt: float, main: Node) -> void:
 	p.wants_fire = false
 	p.wants_rocket = false
 	p.wants_boost = false
+	p.wants_bomb = false
+	p.rocket_aiming = false
+	# A rocket on my tail: one read per rocket once it's close; skilled, careful pilots spot it in
+	# time to flare, rookies often don't.
+	p.wants_flare = false
+	var seen: Dictionary = s.get_or_add("flare_seen", {})
+	for id in main.rockets.rockets:
+		var r: Dictionary = main.rockets.rockets[id]
+		if r.target == p and not seen.has(id) and r.p.distance_to(p.position) < 450.0:
+			seen[id] = randf() < sk.evade * (0.5 + 0.5 * tr.caution)
+		if seen.get(id, false) and p.flares_left > 0 and p.flare_cd <= 0.0:
+			p.wants_flare = true
+	if seen.size() > 40:
+		seen.clear()
 	var aim: Vector3
 	if not s.move.is_empty():
 		aim = _run_move(p, s, dt)
@@ -296,10 +310,15 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 				p.wants_fire = true
 				if randf() < 0.015 * (0.5 + tr.patience):
 					s.hold = randf_range(0.3, 0.8)
-			p.lock = p.find_lock()
+			p.rocket_aiming = d < 1150.0 and p.rockets_left > 0 and s.rocket_t <= 0.0 # holds aim while the lock builds
 			if p.lock == t and d > 350.0 and d < 1100.0 and s.rocket_t <= 0.0 and p.rockets_left > 0 and randf() < 0.3 + tr.patience * 0.5:
 				p.wants_rocket = true
 				s.rocket_t = sk.rocket_cd * randf_range(0.7, 1.4)
+			# Ground targets: release a bomb when the predicted impact lands on them.
+			if t.role in ["hq", "turret"] and p.bombs_left > 0 and p.bomb_cd <= 0.0 and d < 900.0:
+				var hit_at: Vector3 = main.rockets.bomb_impact(p.position + Vector3.DOWN * 2.0, p.velocity)
+				if Vector2(hit_at.x - t.position.x, hit_at.z - t.position.z).length() < t.hit_radius + 12.0:
+					p.wants_bomb = true
 			return aim.normalized()
 	if s.has("supply"):
 		p.throttle = 1.0

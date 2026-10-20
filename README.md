@@ -21,6 +21,8 @@ Get the latest **Mac** or **Windows** zip from [Releases](https://github.com/Sum
 - **Capture the Flag:** steal the enemy flag and bring it home. First to 3 captures, 8-minute timer.
 - **Base Assault:** strafe the enemy HQ while bomber raids fly for both sides. Repair yours with supplies.
 
+Weapons: guns (left click), homing rockets (hold right click until the lock box closes, release to fire), bombs (hold B to see the impact point, release to drop) and flares (X) that shake off rockets already chasing you. C changes the camera distance, M shows the minimap and N zooms it.
+
 Supplies: fly through a crate and carry it home for +1 team supply. Supplies buy AA guns, SAM sites and radar (keys 3/4/5) and HQ repairs (6). AI teammates take jobs (attack, defend, escort, hunt) in every mode.
 
 Pick from 4 planes (Toy Cub, Speedster, Heavy Twin, Jet Fighter). Damage is per part: a hit wing pulls the plane to that side, a hit engine sputters, a hit tail makes turning sluggish.

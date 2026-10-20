@@ -19,6 +19,9 @@ const ROCKETS := 4
 const ROCKET_RELOAD := 6.0
 const LOCK_CONE := 0.35 # ~20 deg
 const LOCK_RANGE := 1300.0
+const LOCK_TIME := 0.6 # hold the target in the cone this long before a rocket will guide
+const FLARE_CD := 3.0
+const CAM_DIST := [0.7, 1.0, 1.5] # C cycles near / normal / far
 
 var team := 0
 var pilot := ""
@@ -59,7 +62,21 @@ var wants_rocket := false
 var rocket_aiming := false
 var rockets_left := ROCKETS
 var rocket_cd := 0.0
-var lock: Node
+var lock: Node # completed lock (rockets guide onto it)
+var lock_on: Node # being acquired
+var lock_t := 0.0
+var locking_name := "" # who this plane is locking, as every peer sees it
+var locked_warn_cd := 0.0
+var max_flares := 3
+var flares_left := 3
+var flare_cd := 0.0
+var wants_flare := false
+var max_bombs := 2
+var bombs_left := 2
+var bomb_cd := 0.0
+var bomb_aiming := false
+var wants_bomb := false
+var flare_key := false
 
 # AI state (server): PilotAI keeps its memory here
 var ai := {}
@@ -93,6 +110,10 @@ func _ready() -> void:
 	fire_interval = t.fire
 	max_rockets = t.rockets
 	rockets_left = max_rockets
+	max_flares = t.flares
+	flares_left = max_flares
+	max_bombs = t.bombs
+	bombs_left = max_bombs
 	if role == "striker":
 		max_hp = 900
 		hit_radius = t.radius * 2.0
@@ -199,7 +220,7 @@ func _process(dt: float) -> void:
 			st.rpc(sim_clock, position, quaternion)
 	if cam:
 		var aim := Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0))
-		cam.global_position = position + aim * Vector3(0, 5.5, 19)
+		cam.global_position = position + aim * Vector3(0, 5.5, 19) * CAM_DIST[Settings.values.get("cam", 1)]
 		cam.global_basis = aim
 		if shake > 0.0:
 			shake = maxf(shake - dt * 2.5, 0.0)
@@ -213,7 +234,7 @@ func _process(dt: float) -> void:
 		var deploy := "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""] if main.gs.mode != 2 else ""
 		if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
 			deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
-		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
+		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d   Bombs %d   Flares %d%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, bombs_left, flares_left, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
 
@@ -244,6 +265,10 @@ func _audio(dt: float) -> void:
 		if alive and warn_cd <= 0.0 and main.rockets.incoming(self):
 			warn_cd = 0.3
 			Sfx.ui(self, Sfx.WARN, -6.0)
+		locked_warn_cd -= dt
+		if alive and locked_warn_cd <= 0.0 and not main.rockets.incoming(self) and locked_by():
+			locked_warn_cd = 0.5
+			Sfx.ui(self, Sfx.LOCK, -14.0, 0.7) # someone is locking you: low beeps
 		var locked := lock != null and rocket_aiming
 		if locked and not had_lock:
 			Sfx.ui(self, Sfx.LOCK, -8.0)
@@ -268,7 +293,13 @@ func _read_input(dt: float) -> void:
 	var held := Input.is_key_pressed(KEY_F) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and captured)
 	wants_rocket = rocket_aiming and not held
 	rocket_aiming = held
-	lock = find_lock()
+	# Hold B to see where a bomb lands, release to drop. X pops flares.
+	var b_held := Input.is_key_pressed(KEY_B)
+	wants_bomb = bomb_aiming and not b_held
+	bomb_aiming = b_held
+	var x := Input.is_key_pressed(KEY_X)
+	wants_flare = x and not flare_key
+	flare_key = x
 	aim_dir = -Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0)).z
 
 
@@ -345,6 +376,17 @@ func _shoot(dt: float) -> void:
 			Sfx.ui(main, Sfx.GUN, -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
 		else:
 			Sfx.at(main, position, Sfx.GUN, 2.0, 1000.0)
+	_track_lock(dt)
+	flare_cd -= dt
+	if wants_flare and flare_cd <= 0.0 and flares_left > 0:
+		flares_left -= 1
+		flare_cd = FLARE_CD
+		flare.rpc()
+	bomb_cd -= dt
+	if wants_bomb and bomb_cd <= 0.0 and bombs_left > 0:
+		bombs_left -= 1
+		bomb_cd = 0.6
+		main.rockets.drop_bomb(self)
 	rocket_cd -= dt
 	if rocket_cd <= -ROCKET_RELOAD and rockets_left < max_rockets:
 		rockets_left += 1
@@ -353,6 +395,67 @@ func _shoot(dt: float) -> void:
 		rockets_left -= 1
 		rocket_cd = 1.0 if not is_ai else 8.0
 		main.rockets.launch(self, lock)
+
+
+# Lock builds while the same target stays in the cone; switching targets starts over.
+# Everyone hears who is being locked (locking rpc), so the target gets a LOCKED ON warning.
+func _track_lock(dt: float) -> void:
+	if lock_on and not is_instance_valid(lock_on):
+		lock_on = null
+	var cand: Node = find_lock() if rocket_aiming and rockets_left > 0 else null
+	if cand != lock_on:
+		lock_on = cand
+		lock_t = 0.0
+		locking.rpc(str(cand.name) if cand else "")
+	elif cand:
+		lock_t += dt
+	lock = lock_on if lock_on and lock_t >= LOCK_TIME else null
+
+
+@rpc("authority", "call_local", "reliable")
+func locking(target_name: String) -> void:
+	locking_name = target_name
+
+
+# Flares: every rocket already chasing this plane loses it (same on all peers: deterministic).
+@rpc("authority", "call_local", "reliable")
+func flare() -> void:
+	main.rockets.decoy(self)
+	Sfx.at(main, position, Sfx.LAUNCH, -2.0, 1500.0)
+	var f := CPUParticles3D.new()
+	f.one_shot = true
+	f.explosiveness = 0.7
+	f.amount = 8
+	f.lifetime = 2.2
+	f.local_coords = false
+	f.direction = Vector3.DOWN
+	f.spread = 70.0
+	f.initial_velocity_min = 15.0
+	f.initial_velocity_max = 35.0
+	f.gravity = Vector3(0, -12, 0)
+	var ball := SphereMesh.new()
+	ball.radius = 0.9
+	ball.height = 1.8
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(4.0, 3.2, 1.6)
+	ball.material = mat
+	f.mesh = ball
+	f.scale_amount_curve = Curve.new()
+	f.scale_amount_curve.add_point(Vector2(0, 1))
+	f.scale_amount_curve.add_point(Vector2(1, 0.2))
+	main.add_child(f)
+	f.global_position = position - basis.z * -4.0
+	f.emitting = true
+	main.get_tree().create_timer(2.5).timeout.connect(f.queue_free)
+
+
+# Who is locking me right now (an enemy plane announcing my name), or null.
+func locked_by() -> Node:
+	for p in main.players.get_children():
+		if p.locking_name == str(name) and p.alive and p.team != team:
+			return p
+	return null
 
 
 # Best enemy inside the seeker cone; nil = the rocket flies unguided.
@@ -485,6 +588,8 @@ func resupply() -> void:
 	if multiplayer.get_remote_sender_id() > 1:
 		return
 	rockets_left = max_rockets
+	flares_left = max_flares
+	bombs_left = max_bombs
 	boost = 1.0
 	if is_local():
 		Sfx.ui(main, Sfx.CONFIRM, 0.0)
@@ -510,6 +615,10 @@ func respawn(p: Vector3, yaw: float) -> void:
 	hp = max_hp
 	alive = true
 	rockets_left = max_rockets
+	flares_left = max_flares
+	bombs_left = max_bombs
+	lock_on = null
+	lock = null
 	comps = PackedFloat32Array([1, 1, 1, 1])
 	position = p
 	rotation = Vector3(0, yaw, 0)
@@ -574,13 +683,30 @@ func _draw_hud() -> void:
 		var p := cam.unproject_position(lock.position)
 		hud.draw_rect(Rect2(p - Vector2(18, 18), Vector2(36, 36)), Color.RED, false, 2)
 		hud.draw_string(ThemeDB.fallback_font, p + Vector2(-16, -24), "LOCK", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.RED)
+	elif lock_on and is_instance_valid(lock_on) and lock_on.alive and not cam.is_position_behind(lock_on.position):
+		# Acquiring: the box closes in as the lock builds.
+		var p := cam.unproject_position(lock_on.position)
+		var k := clampf(lock_t / LOCK_TIME, 0.0, 1.0)
+		var half := lerpf(46.0, 18.0, k)
+		hud.draw_rect(Rect2(p - Vector2(half, half), Vector2(half * 2.0, half * 2.0)), Color(1, 0.85, 0.2), false, 2)
+		hud.draw_string(ThemeDB.fallback_font, p + Vector2(-30, -half - 6), "LOCKING %d%%" % (k * 100), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.85, 0.2))
 	elif rocket_aiming and rockets_left > 0:
 		# Unguided: show where the rocket would actually go (same integrator as the real one).
 		for q in main.rockets.predict(position - basis.z * 6.0, velocity - basis.z * 20.0):
 			if not cam.is_position_behind(q):
 				hud.draw_circle(cam.unproject_position(q), 2.5, Color(1, 1, 1, 0.6))
+	if bomb_aiming and bombs_left > 0:
+		var at: Vector3 = main.rockets.bomb_impact(position + Vector3.DOWN * 2.0, velocity)
+		if not cam.is_position_behind(at):
+			var q := cam.unproject_position(at)
+			hud.draw_arc(q, 16, 0, TAU, 24, Color(1, 0.6, 0.2), 2.5)
+			hud.draw_line(q - Vector2(24, 0), q + Vector2(24, 0), Color(1, 0.6, 0.2), 1.5)
+			hud.draw_line(q - Vector2(0, 24), q + Vector2(0, 24), Color(1, 0.6, 0.2), 1.5)
+			hud.draw_string(ThemeDB.fallback_font, q + Vector2(20, -10), "BOMB  %dm" % position.distance_to(at), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.6, 0.2))
 	if main.rockets.incoming(self):
-		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 60, hud.size.y - 120), "MISSILE!", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.RED)
+		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 110, hud.size.y - 120), "MISSILE!  [X] FLARES", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.RED)
+	elif locked_by():
+		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 70, hud.size.y - 120), "LOCKED ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 0.6, 0.2))
 
 
 func _build_mesh() -> void:
