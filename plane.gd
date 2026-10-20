@@ -377,6 +377,11 @@ func _shoot(dt: float) -> void:
 		else:
 			Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 	_track_lock(dt)
+	if main.gs.get("countdown", 0.0) > 0.0: # weapons go live on GO (aiming and locks can be practised)
+		wants_fire = false
+		wants_rocket = false
+		wants_bomb = false
+		wants_flare = false
 	flare_cd -= dt
 	if wants_flare and flare_cd <= 0.0 and flares_left > 0:
 		flares_left -= 1

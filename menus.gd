@@ -76,7 +76,7 @@ static func howto_text() -> String:
   LOCKED ON means someone is locking you. MISSILE! means one is chasing you: X pops flares
   (they break the lock of rockets already fired), or turn hard and boost.
   Hold B to see where a bomb will land, release to drop. Bombs wreck HQs and defenses.
-  C = camera near / normal / far.
+  C = camera near / normal / far.  H = show / hide the controls card.
 
 [b]DAMAGE[/b]
   A hit wing pulls you to that side, a hit engine sputters (dead = glide),

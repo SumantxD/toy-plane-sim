@@ -19,6 +19,7 @@ const DAMAGE := [8, 45, 150] # guns, rocket, bomb
 const BEACON_TIME := 15.0
 const BEACON_RADIUS := 25.0
 const RESPAWN_DELAY := 3.0
+const COUNTDOWN := 3.0 # 3-2-1-GO at match start, decided by the server
 const ESCORT_LIVES := 6
 const WAVES := 8
 const WAVE_INTERVAL := 30.0
@@ -420,6 +421,7 @@ func sync(state: Dictionary) -> void:
 		Sfx.ui(self, Sfx.CONFIRM, -4.0)
 		if objectives:
 			objectives.on_match_start()
+		_show_intro()
 		if battlefield:
 			battlefield.reset_guns()
 			for id in battlefield.crates.keys():
@@ -519,6 +521,7 @@ func show_ping(pos: Vector3, text: String, team: int) -> void:
 func _start() -> void:
 	gs.match_id += 1
 	gs.phase = "playing"
+	gs.countdown = 0.0 if gs.mode == 2 else COUNTDOWN
 	gs.feed = []
 	gs.msg = ""
 	gs.arrived = 0
@@ -627,6 +630,7 @@ func _process(dt: float) -> void:
 		p[2] -= dt
 	pings = pings.filter(func(p): return p[2] > 0.0)
 	overlay.queue_redraw()
+	_tick_intro(dt)
 	if map_img:
 		_bake_map()
 	_refresh_hud()
@@ -635,6 +639,12 @@ func _process(dt: float) -> void:
 	if spectating and gs.phase in ["playing", "ended"]:
 		_spectate(dt)
 	if not multiplayer.is_server() or gs.phase != "playing":
+		return
+	if gs.get("countdown", 0.0) > 0.0: # clock, raids, hazards and guns wait for GO
+		var before := ceili(gs.countdown)
+		gs.countdown = maxf(gs.countdown - dt, 0.0)
+		if ceili(gs.countdown) != before:
+			_push()
 		return
 	_tick_beacons(dt)
 	if env:
@@ -784,7 +794,7 @@ func report_crash() -> void:
 func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 	if a.is_ai and weapon == 0:
 		stat_hits += 1
-	if t.alive and a.team != t.team and gs.phase == "playing":
+	if t.alive and a.team != t.team and gs.phase == "playing" and gs.get("countdown", 0.0) <= 0.0:
 		var dmg: int = DAMAGE[weapon]
 		if weapon == 2:
 			dmg = dmg * 3 if t.role in ["hq", "turret"] else dmg / 2 # bombs are for the ground
@@ -1190,6 +1200,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			show_map = not show_map
 		KEY_N:
 			map_zoom = 2.5 if map_zoom == 1.0 else 1.0
+		KEY_H:
+			keys_t = 0.0 if keys_root.visible else 1e9
 		KEY_C:
 			Settings.values.cam = (Settings.values.get("cam", 1) + 1) % 3
 			Settings.save()
@@ -1525,6 +1537,7 @@ func _build_ui() -> void:
 	feed.position += Vector2(-20, 50)
 	feed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ui.add_child(feed)
+	_build_intro(ui)
 
 	var box := VBoxContainer.new()
 	_title(box, "TOY PLANE SIM")
@@ -1678,6 +1691,123 @@ func _build_ui() -> void:
 
 	for r in [pause_root, results_root, settings_root, howto_root, credits_root, lobby_root]:
 		r.hide()
+
+
+# ---------- match start: who/what/where card, controls card, 3-2-1-GO ----------
+const OBJECTIVES := ["Escort the bombers to the factory - 2 of 3 must arrive.", "Run the enemy team out of lives.",
+	"No rules: pop balloons, explore, practise.", "Shoot down the red squadron before your lives run out.",
+	"Steal the enemy flag and fly it home while yours is safe. First to 3.", "Destroy the enemy HQ and defend yours. Bombs (B) hit hardest."]
+var intro_root: Control
+var intro_label := RichTextLabel.new()
+var keys_root: Control
+var keys_label := RichTextLabel.new()
+var count_label := Label.new()
+var intro_t := 0.0
+var keys_t := 0.0
+var count_local := 0.0
+var count_shown := -1
+
+
+func _build_intro(ui: Control) -> void:
+	for l: RichTextLabel in [intro_label, keys_label]:
+		l.bbcode_enabled = true
+		l.fit_content = true
+		l.scroll_active = false
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_label.custom_minimum_size.x = 640
+	keys_label.custom_minimum_size.x = 440
+	var ib := VBoxContainer.new()
+	ib.add_child(intro_label)
+	intro_root = _panel(ui, ib, Control.PRESET_CENTER_TOP, 120)
+	var kb := VBoxContainer.new()
+	kb.add_child(keys_label)
+	keys_root = _panel(ui, kb, Control.PRESET_CENTER_LEFT, 20)
+	for r in [intro_root, keys_root]:
+		r.hide()
+	count_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	count_label.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	count_label.add_theme_font_size_override("font_size", 180)
+	count_label.add_theme_constant_override("outline_size", 18)
+	count_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	count_label.hide()
+	ui.add_child(count_label)
+
+
+func _show_intro() -> void:
+	if not Sfx.enabled:
+		return
+	var me: Dictionary = gs.players.get(multiplayer.get_unique_id(), {})
+	var team: int = me.get("team", 0)
+	var t: Dictionary = Planes.TYPES.get(me.get("plane", "cub"), Planes.TYPES.cub)
+	var lines := ["[center][font_size=30][b]%s[/b][/font_size]" % Worlds.NAMES[Worlds.index].to_upper(),
+		"[font_size=22][color=#ffd34d]%s[/color][/font_size]" % MODES[gs.mode].to_upper(),
+		"[font_size=18]%s[/font_size]" % OBJECTIVES[gs.mode]]
+	if gs.mode in TEAM_MODES:
+		var size := [0, 0]
+		for id in gs.players:
+			size[gs.players[id].team] += 1
+		if gs.mode in AI_MODES:
+			size = [maxi(size[0], SIZES[gs.size]), maxi(size[1], SIZES[gs.size])]
+		var col := ["#5c9bff", "#ff6b5c"]
+		lines.append("[font_size=18][color=%s]%s SQUADRON (%d)%s[/color]   vs   [color=%s]%s SQUADRON (%d)%s[/color][/font_size]" % [
+			col[0], TEAM_NAMES[0].to_upper(), size[0], "  <- you" if team == 0 else "", col[1], TEAM_NAMES[1].to_upper(), size[1], "  <- you" if team == 1 else ""])
+	lines.append("[font_size=16]Your plane: [b]%s[/b]  -  guns, %d rockets, %d bombs, %d flares[/font_size][/center]" % [t.name, t.rockets, t.bombs, t.flares])
+	intro_label.text = "\n".join(lines)
+	var keys := ["[font_size=20][b]CONTROLS[/b][/font_size]  [font_size=13](H hides)[/font_size]",
+		"[color=#9fd3ff]FLY[/color]   Mouse aims  |  W / S throttle  |  Shift boost",
+		"         Q / E + arrows: manual stick",
+		"[color=#ff9f80]FIGHT[/color]  Left click / Space: guns",
+		"         Hold right click / F: rocket (wait for LOCK)",
+		"         Hold B: bomb sight, release to drop",
+		"         X: flares when you hear MISSILE"]
+	keys.append("[color=#a8f0a0]TEAM[/color]   1 Help!  |  2 On me")
+	if gs.mode != 2:
+		keys.append("         Supplies buy: 3 AA  4 SAM  5 Radar" + ("  6 Repair HQ" if gs.mode == 5 else ""))
+	keys.append("[color=#e0c8ff]VIEW[/color]   C camera  |  M map  N zoom  |  Esc menu")
+	keys_label.text = "\n".join(keys)
+	var runs: int = Settings.values.get("matches", 0)
+	Settings.values.matches = runs + 1
+	Settings.save()
+	intro_t = 5.0
+	keys_t = 14.0 if runs < 3 else 6.0 # first few matches: read it properly; later: a reminder
+	count_local = gs.get("countdown", 0.0)
+	count_shown = -1
+
+
+func _tick_intro(dt: float) -> void:
+	if not intro_root:
+		return
+	intro_t -= dt
+	keys_t -= dt
+	var playing: bool = gs.phase == "playing" and not menu_root.visible
+	intro_root.visible = playing and intro_t > 0.0
+	intro_root.modulate.a = clampf(intro_t / 0.6, 0.0, 1.0)
+	keys_root.visible = playing and keys_t > 0.0
+	keys_root.modulate.a = clampf(keys_t / 0.6, 0.0, 1.0)
+	# Countdown: follow the server's value, tick smoothly in between syncs.
+	var server_cd: float = gs.get("countdown", 0.0)
+	count_local = server_cd if absf(server_cd - count_local) > 0.4 else maxf(count_local - dt, 0.0)
+	var n := ceili(count_local) if count_local > 0.0 else 0
+	if playing and n != count_shown and count_shown != -1:
+		if n > 0:
+			Sfx.ui(self, Sfx.LOCK, -2.0, 0.6)
+		else:
+			Sfx.ui(self, Sfx.KILL, 0.0)
+			Sfx.ui(self, Sfx.LAUNCHES.pick_random(), -6.0)
+	if playing and count_shown == -1 and n > 0:
+		Sfx.ui(self, Sfx.LOCK, -2.0, 0.6)
+	if n != count_shown and n == 0 and count_shown > 0:
+		count_label.text = "GO!"
+		count_label.modulate = Color(0.5, 1.0, 0.55)
+		get_tree().create_timer(0.9).timeout.connect(count_label.hide)
+	elif n > 0:
+		count_label.text = str(n)
+		count_label.modulate = Color(1, 0.9, 0.4)
+		count_label.visible = playing
+	count_shown = n
 
 
 func _panel(ui: Control, box: VBoxContainer, at := Control.PRESET_CENTER, margin := 0) -> Control:
