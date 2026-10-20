@@ -64,6 +64,10 @@ var world_sel: Menus.Selector
 var size_sel: Menus.Selector
 var skill_sel: Menus.Selector
 var plane_sel: Menus.Selector
+var sticker_sel: Menus.Selector
+var banner_sel: Menus.Selector
+var prize: Node # the current prize balloon (server)
+var prize_t := 35.0
 var battle_row := VBoxContainer.new()
 var mp_root: Control # Multiplayer screen (host / join), part of the main menu
 var mp_open := false
@@ -201,7 +205,7 @@ func _ready() -> void:
 
 # ---------- connection ----------
 # LAN / IP: plain ENet on PORT. Online: rooms.gd (WebRTC P2P + room code over public MQTT).
-const VERSION := "0.6"
+const VERSION := "0.7"
 
 var room := "" # online room code we host or joined
 var rooms: Rooms
@@ -236,6 +240,8 @@ func _start_hosting() -> void:
 		gs.leader = 0 # first player to join leads
 	else:
 		_add_player(1, name_edit.text)
+		gs.players[1].sticker = Settings.values.get("sticker", 0)
+		gs.players[1].banner = Settings.values.get("banner", 0)
 	_push()
 	print("Hosting")
 	net_who = "host"
@@ -387,7 +393,8 @@ func _on_connected() -> void:
 	net_who = "c%d" % multiplayer.get_unique_id()
 	netlog("connected to %s v%s" % [last_target if last_target else "localhost:%d" % PORT, VERSION])
 	var fv := OS.get_cmdline_user_args().find("--fake-version") # test hook
-	register.rpc_id(1, {name = name_edit.text, token = _player_token(), version = OS.get_cmdline_user_args()[fv + 1] if fv >= 0 else VERSION, plane = Planes.ORDER.pick_random() if bot else plane_choice})
+	register.rpc_id(1, {name = name_edit.text, token = _player_token(), version = OS.get_cmdline_user_args()[fv + 1] if fv >= 0 else VERSION, plane = Planes.ORDER.pick_random() if bot else plane_choice,
+		sticker = randi() % Planes.STICKERS.size() if bot else Settings.values.get("sticker", 0), banner = randi() % Planes.BANNERS.size() if bot else Settings.values.get("banner", 0)})
 
 
 @rpc("authority", "reliable")
@@ -490,6 +497,8 @@ func register(info: Dictionary) -> void:
 	_add_player(id, pilot)
 	if Planes.TYPES.has(plane):
 		gs.players[id].plane = plane
+	gs.players[id].sticker = clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1)
+	gs.players[id].banner = clampi(int(info.get("banner", 0)), 0, Planes.BANNERS.size() - 1)
 	var back: Dictionary = {}
 	if token and not token in tokens.values():
 		tokens[id] = token
@@ -804,7 +813,7 @@ func _push(full := false) -> void:
 
 # Snapshots ride in one packed batch per host frame, not one RPC (= one UDP datagram) per plane per peer.
 # Entry: id s32 (peer id, or -n for "ai<n>"), t f32, pos 3 x f32, quat 4 x s16, shots u8.
-const SNAP := 29
+const SNAP := 30 # + 1 byte: rockets (low 4 bits) / bombs (high 4) so everyone sees the hardpoints
 var snap_out := PackedByteArray() # server: entries waiting for the end-of-frame flush
 
 
@@ -819,6 +828,7 @@ func send_snap(p: Node) -> void:
 	for i in 4:
 		b.encode_s16(20 + i * 2, roundi(p.quaternion[i] * 32767.0))
 	b[28] = mini(p.shots_out, 255)
+	b[29] = mini(p.rockets_left, 15) | mini(p.bombs_left, 15) << 4
 	p.shots_out = 0
 	if multiplayer.is_server():
 		_queue_snap(b)
@@ -862,6 +872,7 @@ func _apply_snaps(b: PackedByteArray) -> void:
 		p.st(b.decode_float(o + 4), Vector3(b.decode_float(o + 8), b.decode_float(o + 12), b.decode_float(o + 16)), q)
 		for i in mini(b[o + 28], 4):
 			p.fired()
+		p.show_ammo(b[o + 29] & 15, b[o + 29] >> 4)
 
 
 func _sender() -> int:
@@ -913,6 +924,17 @@ func request_mode(m: int) -> void:
 		for id in gs.players:
 			gs.players[id].team = 0 if gs.mode != 1 else i % 2 # vs-AI: everyone starts on Blue
 			i += 1
+		_push()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_look(sticker: int, banner: int) -> void:
+	if not multiplayer.is_server() or not _allow(_sender(), "look", 2.0, 4.0):
+		return
+	var id := _sender()
+	if gs.phase == "lobby" and gs.players.has(id):
+		gs.players[id].sticker = clampi(sticker, 0, Planes.STICKERS.size() - 1)
+		gs.players[id].banner = clampi(banner, 0, Planes.BANNERS.size() - 1)
 		_push()
 
 
@@ -1114,6 +1136,7 @@ func _process(dt: float) -> void:
 			_push()
 		return
 	_tick_beacons(dt)
+	_tick_prize(dt)
 	if env:
 		env.server_tick(dt)
 	if battlefield:
@@ -1271,7 +1294,7 @@ func _hit_check(a: Node, t: Node, weapon: int) -> String:
 		return "dead"
 	if a.position.distance_to(tp) > 1100.0:
 		return "range"
-	if not _allow(id, "gun", 1.25 / a.fire_interval, 8.0):
+	if not _allow(id, "gun", 1.25 / (a.fire_interval * (0.5 if a.buffs.has("twin") else 1.0)), 8.0):
 		return "rate"
 	return "" if _clear_line(a.position, tp) else "los"
 
@@ -1297,7 +1320,7 @@ func note_launch(p: Node, id: String, at: Vector3, v: Vector3, bomb: bool) -> bo
 		why = "dead"
 	elif at.distance_to(p.position) > 400.0 or v.length() > 400.0:
 		why = "where"
-	elif not (bomb and _allow(peer, "bomb", 1.0 / 20.0, p.max_bombs) or not bomb and _allow(peer, "rocket", 1.0 / Aircraft.ROCKET_RELOAD, p.max_rockets)):
+	elif not (bomb and _allow(peer, "bomb", 1.0 / 20.0, p.max_bombs) or not bomb and _allow(peer, "rocket", 1.0 / (1.0 if p.buffs.has("swarm") else Aircraft.ROCKET_RELOAD), p.max_rockets)):
 		why = "ammo"
 	tally("launch_" + (why if why else "ok"))
 	if why:
@@ -1380,6 +1403,8 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 			dmg = ceili(dmg * (0.15 if t.role == "bomber" else 0.6)) # defenses chip bombers, they don't erase them
 		elif a.role == "wing" and t.role == "pilot":
 			dmg = ceili(dmg * 0.75) # AI wingmen/enemies go a bit easy on humans
+		if t.get("buffs") and t.buffs.has("shield"):
+			dmg = ceili(dmg * 0.5)
 		var c: PackedFloat32Array = t.comps.duplicate()
 		if comp >= 0:
 			c[comp] = maxf(c[comp] - dmg / (t.max_hp * 0.45), 0.0) # a part dies after ~45% of hp worth of hits
@@ -1394,6 +1419,15 @@ func kill(victim: Node, killer: Node, quiet := false) -> void:
 		return
 	victim.die.rpc(true)
 	if gs.phase != "playing":
+		return
+	if victim.role == "prize":
+		_award_prize(killer)
+		var vid := victim.get_instance_id()
+		get_tree().create_timer(1.0).timeout.connect(func():
+			var v = instance_from_id(vid)
+			if is_instance_valid(v):
+				v.queue_free())
+		_push()
 		return
 	if not quiet:
 		_feed("%s shot down %s" % [killer.pilot, victim.pilot] if killer else "%s crashed" % victim.pilot)
@@ -1559,6 +1593,53 @@ func repair(p: Node, amount: int) -> void:
 	p.set_hp.rpc(mini(p.hp + amount, p.max_hp), c)
 
 
+# Prize balloons: every ~55 s one appears mid-way between the two bases (same distance for both teams),
+# drifts for 60 s, and whoever lands the popping hit gets a random reward. Server decides everything.
+const PRIZES := [{id = "repair", name = "FULL REPAIR"}, {id = "refill", name = "AMMO REFILL"},
+	{id = "twin", name = "TWIN GUNS (20 s)", secs = 20.0}, {id = "shield", name = "SHIELD (15 s)", secs = 15.0},
+	{id = "swarm", name = "ROCKET SWARM (20 s)", secs = 20.0}]
+
+
+func _tick_prize(dt: float) -> void:
+	if is_instance_valid(prize) and prize.alive:
+		return
+	prize_t -= dt
+	if prize_t > 0.0:
+		return
+	prize_t = 55.0
+	var a := home_for(0)
+	var b := home_for(1)
+	var side := (b - a).cross(Vector3.UP).normalized()
+	var at := (a + b) / 2.0 + side * randf_range(-450.0, 450.0)
+	at.y = Terrain.floor_below(Vector3(at.x, 3000.0, at.z)) + randf_range(160.0, 260.0)
+	prize = _spawn_ai("prize", 2, at, 0.0, at, "balloon", "PRIZE")
+	_feed("A PRIZE BALLOON appeared mid-map: pop it for a reward!")
+	sfx_event.rpc("prize_up", 2, at, "")
+	var pid := prize.get_instance_id()
+	var mid: int = gs.match_id
+	get_tree().create_timer(60.0).timeout.connect(func():
+		var p = instance_from_id(pid)
+		if is_instance_valid(p) and p.alive and gs.match_id == mid:
+			_feed("The prize balloon floated away.")
+			p.queue_free())
+
+
+func _award_prize(killer: Node) -> void:
+	if not killer or not killer.alive or not killer.role in ["pilot", "wing"]:
+		_feed("The prize balloon popped - nobody claimed it.")
+		return
+	var pr: Dictionary = PRIZES.pick_random()
+	match pr.id:
+		"repair":
+			repair(killer, killer.max_hp)
+		"refill":
+			killer.resupply.rpc()
+		_:
+			killer.buff.rpc(pr.id, pr.secs)
+	_feed("%s popped the prize balloon: %s!" % [killer.pilot, pr.name])
+	sfx_event.rpc("prize", killer.team, killer.position, str(killer.name))
+
+
 func _spawn_balloon() -> void:
 	var x := randf_range(-1500, 1500)
 	var z := randf_range(-1500, 1500)
@@ -1588,9 +1669,9 @@ func _base_for(team: int, i: int) -> Array:
 # ---------- AI (server) ----------
 
 func ai_think(p: Node, dt: float) -> void:
-	if p.role == "balloon":
+	if p.role in ["balloon", "prize"]:
 		p.position = p.offset + Vector3(0, sin(Time.get_ticks_msec() / 900.0 + p.offset.x) * 4.0, 0)
-		p.rotate_y(0.2 * dt)
+		p.rotation.y += 0.2 * dt # set the angle: repeated rotate_y drifts the basis off unit length
 		return
 	if p.role == "bomber":
 		_bomber_move(p, dt)
@@ -1880,7 +1961,9 @@ func _refresh_preview() -> void:
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.albedo_color = Color(3.0, 1.4, 0.4)
-	Planes.build(plane_choice, preview, toon(Aircraft.TEAM_COLORS[_my_team()]), toon(Color(0.95, 0.93, 0.85)), toon(Color(0.15, 0.2, 0.3)), toon(Color(0.2, 0.2, 0.22)), glow)
+	var parts := Planes.build(plane_choice, preview, toon(Aircraft.TEAM_COLORS[_my_team()]), toon(Color(0.95, 0.93, 0.85)), toon(Color(0.15, 0.2, 0.3)), toon(Color(0.2, 0.2, 0.22)), glow)
+	var pt: Dictionary = Planes.TYPES[plane_choice]
+	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, Settings.values.get("sticker", 0), Settings.values.get("banner", 0), toon(Color(0.2, 0.2, 0.22)), toon)
 	var t: Dictionary = Planes.TYPES[plane_choice]
 	stats_label.text = "%s\n%s" % [t.name, t.desc]
 	var vals := [inverse_lerp(85.0, 140.0, t.max), inverse_lerp(3.0, 6.5, t.turn.x + t.turn.z), inverse_lerp(50.0, 200.0, t.hp), inverse_lerp(0.0, 6.0, t.rockets)]
@@ -1944,6 +2027,8 @@ func _draw_overlay() -> void:
 	if gs.phase != "playing" or not cam or cam == lobby_cam:
 		return
 	var team := _my_team()
+	if is_instance_valid(prize) and prize.alive:
+		_marker(cam, prize.position + Vector3.UP * 22.0, Color(1.0, 0.8, 0.2), "PRIZE BALLOON")
 	for b in gs.beacons:
 		if b[1] == team:
 			_marker(cam, b[0], Color.ORANGE, "REVIVE %s  %ds" % [b[3], b[2]])
@@ -2078,9 +2163,9 @@ func _draw_minimap(team: int) -> void:
 	for p in players.get_children():
 		if not p.alive or p == me:
 			continue
-		if p.team != team and p.role != "balloon" and not spectator and not _spotted(p, team):
+		if p.team != team and not p.role in ["balloon", "prize"] and not spectator and not _spotted(p, team):
 			continue
-		var c: Color = Color(0.85, 0.85, 0.9) if p.role == "balloon" else Battlefield.Aircraft_TEAM[p.team]
+		var c: Color = Color(0.85, 0.85, 0.9) if p.role == "balloon" else (Color(1.0, 0.8, 0.2) if p.role == "prize" else Battlefield.Aircraft_TEAM[p.team])
 		dot.call(p.position, c, 9.0 if p.role in ["bomber", "striker"] else (4.0 if p.role == "balloon" else 6.0))
 		if _carrying_flag(str(p.name)):
 			overlay.draw_arc(at.call(p.position), 9.0, 0, TAU, 16, Battlefield.Aircraft_TEAM[1 - p.team], 2.0)
@@ -2230,7 +2315,6 @@ func _build_ui() -> void:
 		plane_choice = Planes.ORDER[i]
 		request_plane.rpc_id(1, plane_choice)
 		_refresh_preview())
-	box.add_child(plane_sel)
 	start_btn = Menus.menu_item(box, "LAUNCH", func(): request_start.rpc_id(1), self, 36)
 	start_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	start_btn.add_theme_stylebox_override("normal", Menus._box(Color(Menus.AMBER, 0.22), Menus.AMBER, 2, 8))
@@ -2251,11 +2335,30 @@ func _build_ui() -> void:
 	switch_btn = Menus.menu_item(rbox, "SWITCH TEAM", func(): request_switch_team.rpc_id(1), self, 18)
 	Menus.menu_item(rbox, "HOW TO PLAY", func(): howto_root.show(), self, 18)
 	leave_btn = Menus.menu_item(rbox, "LEAVE", _leave, self, 18)
-	var roster_root := _panel(ui, rbox, Control.PRESET_TOP_RIGHT, 30)
-	roster_root.reparent(lobby_root)
 	var sbox := VBoxContainer.new()
-	stats_label.add_theme_font_size_override("font_size", 22)
+	sbox.add_theme_constant_override("separation", 6)
+	var hangar := Label.new()
+	hangar.text = "HANGAR"
+	hangar.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	hangar.add_theme_font_size_override("font_size", 22)
+	sbox.add_child(hangar)
+	plane_sel.custom_minimum_size.x = 340
+	sbox.add_child(plane_sel)
+	sticker_sel = Menus.Selector.new("STICKER  (just for looks)", Array(Planes.STICKERS).map(func(n): return {title = n.to_upper()}))
+	banner_sel = Menus.Selector.new("TAIL BANNER  (just for looks)", Array(Planes.BANNERS).map(func(n): return {title = n.to_upper()}))
+	for sel: Menus.Selector in [sticker_sel, banner_sel]:
+		sel.changed.connect(func(_i):
+			Settings.values.sticker = sticker_sel.index
+			Settings.values.banner = banner_sel.index
+			Settings.save()
+			request_look.rpc_id(1, sticker_sel.index, banner_sel.index)
+			preview_key = ""
+			_refresh_preview())
+		sbox.add_child(sel)
+	sticker_sel.set_index(Settings.values.get("sticker", 0))
+	banner_sel.set_index(Settings.values.get("banner", 0))
 	sbox.add_child(stats_label)
+	stats_label.hide() # the plane row already names and describes it
 	for s in ["Speed", "Agility", "Armor", "Rockets"]:
 		var row := HBoxContainer.new()
 		var l := Label.new()
@@ -2269,8 +2372,14 @@ func _build_ui() -> void:
 		row.add_child(bar)
 		stat_bars.append(bar)
 		sbox.add_child(row)
-	var stats_root := _panel(ui, sbox, Control.PRESET_BOTTOM_RIGHT, 40)
-	stats_root.reparent(lobby_root)
+	# One right-hand column (squadrons above the hangar), mirroring the setup column: they can't overlap.
+	var right := VBoxContainer.new()
+	right.add_child(rbox)
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 18
+	right.add_child(spacer)
+	right.add_child(sbox)
+	Menus.side_panel(lobby_root, right, 420, true).get_theme_stylebox("panel").content_margin_top = 30
 
 	box = VBoxContainer.new()
 	Menus.big_title(box, "PAUSED", 48)
@@ -2654,6 +2763,11 @@ func sfx_event(kind: String, team: int, at: Vector3, who: String) -> void:
 		"kill":
 			if me:
 				Sfx.ui(self, Sfx.KILL, -4.0)
+		"prize_up":
+			Sfx.ui(self, Sfx.GRAB, -6.0, 1.3)
+		"prize":
+			if not me:
+				Sfx.ui(self, Sfx.BELL, -10.0)
 
 
 @rpc("authority", "call_local", "reliable")

@@ -118,7 +118,7 @@ class Selector extends PanelContainer:
 	var locked := false
 	var title := Label.new()
 	var sub := Label.new()
-	var pic := TextureRect.new()
+	var pic: TextureRect # only rows with pictures get one
 	var count := Label.new()
 	var prev := Button.new()
 	var next := Button.new()
@@ -161,6 +161,7 @@ class Selector extends PanelContainer:
 		row.add_child(mid)
 		row.add_child(next)
 		if pic_size != Vector2.ZERO:
+			pic = TextureRect.new()
 			pic.custom_minimum_size = pic_size
 			pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -221,7 +222,7 @@ class Selector extends PanelContainer:
 		title.text = it.title
 		sub.text = it.get("sub", "")
 		sub.visible = sub.text != ""
-		if pic.custom_minimum_size != Vector2.ZERO:
+		if pic:
 			pic.texture = it.get("pic")
 		count.text = "%d / %d" % [index + 1, items.size()] if items.size() > 2 else ""
 

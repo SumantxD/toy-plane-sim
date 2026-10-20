@@ -445,7 +445,7 @@ class Turret extends Node3D:
 		var best: Node = null
 		var bd := reach
 		for p in main.players.get_children():
-			if p.alive and p.team != team and p.role != "balloon" and p.is_in_group("targets"):
+			if p.alive and p.team != team and not p.role in ["balloon", "prize"] and p.is_in_group("targets"):
 				var d: float = global_position.distance_to(p.position)
 				if p.role == "bomber":
 					d += 600.0 # fighters first: bombers are the escort's job to protect

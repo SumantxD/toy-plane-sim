@@ -227,6 +227,8 @@ static func _pick_target(p: Node, s: Dictionary, tr: Dictionary, main: Node) -> 
 	for e in _enemies(p, main):
 		var d: float = p.position.distance_to(e.position)
 		var score: float = d + (-p.basis.z).angle_to(e.position - p.position) * 300.0
+		if e.role == "prize":
+			score += 350.0 # worth a detour when it's close, not a chase across the map
 		for f in friends:
 			if f.ai.get("target") == e:
 				score += 450.0

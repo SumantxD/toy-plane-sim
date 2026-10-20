@@ -89,6 +89,9 @@ var offset := Vector3.ZERO
 var snaps: Array = [] # [t, pos, quat], owner's game clock
 var sim_clock := 0.0 # owner's game time (same units as dt, so time-scale safe)
 var render_t := 0.0
+var buffs := {} # prize-balloon rewards still running: "twin" | "shield" | "swarm" -> seconds left
+var ammo_shown := -1
+var shield_fx: MeshInstance3D
 var hist: Array = [] # server: [msec, position], last ~0.6 s
 var jitter := 0.0 # smoothed irregularity of snapshot arrival (s): sizes the interpolation buffer
 var last_arrival := 0
@@ -134,6 +137,10 @@ func _ready() -> void:
 		max_hp = 1000
 		hit_radius = t.radius * 2.5
 		body.scale = Vector3.ONE * 2.5
+	elif role == "prize": # a big gold balloon worth a reward: ~8 gun hits or a rocket and a few
+		max_hp = 60
+		hit_radius = 10.0
+		body.scale = Vector3.ONE * 1.6
 	elif role == "balloon":
 		max_hp = 16
 		hit_radius = 7.0
@@ -147,7 +154,7 @@ func _ready() -> void:
 	_reset_aim()
 
 	tag.text = _tag_text()
-	tag.modulate = TEAM_COLORS[team]
+	tag.modulate = Color(1.0, 0.8, 0.2) if role == "prize" else TEAM_COLORS[team]
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	tag.no_depth_test = true
 	tag.fixed_size = true
@@ -218,6 +225,10 @@ func _process(dt: float) -> void:
 		prop.rotate_z(spin * dt)
 	_audio(dt)
 	sim_clock += dt
+	if parts.has("rockets"):
+		_update_hardpoints()
+	if not buffs.is_empty() or shield_fx:
+		_tick_buffs(dt)
 	if multiplayer.is_server(): # short position history: hit checks rewind to what a lagging shooter saw
 		hist.append([Time.get_ticks_msec(), position])
 		while hist.size() > 2 and hist[1][0] < hist[-1][0] - 600:
@@ -231,7 +242,7 @@ func _process(dt: float) -> void:
 			main.ai_think(self, dt)
 		else:
 			_read_input(dt)
-		if not role in ["bomber", "balloon", "striker"]:
+		if not role in ["bomber", "balloon", "striker", "prize"]:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
@@ -255,7 +266,10 @@ func _process(dt: float) -> void:
 		var deploy := "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""] if main.gs.mode != 2 else ""
 		if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
 			deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
-		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d   Bombs %d   Flares %d%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, bombs_left, flares_left, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
+		var bonus := ""
+		for id in buffs:
+			bonus += "   %s %ds" % [{twin = "TWIN GUNS", shield = "SHIELD", swarm = "ROCKET SWARM"}[id], ceili(buffs[id])]
+		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d   Bombs %d   Flares %d%s%s%s" % [Planes.TYPES[kind].name, hp, velocity.length(), position.y, throttle * 100, rockets_left, bombs_left, flares_left, bonus, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
 
@@ -385,7 +399,7 @@ func _fly(dt: float) -> void:
 func _shoot(dt: float) -> void:
 	fire_cd -= dt
 	if wants_fire and fire_cd <= 0.0:
-		fire_cd = fire_interval * (1.5 if is_ai else 1.0)
+		fire_cd = fire_interval * (1.5 if is_ai else 1.0) * (0.5 if buffs.has("twin") else 1.0)
 		var dir := -basis.z
 		if is_ai:
 			dir = (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02).normalized()
@@ -414,7 +428,7 @@ func _shoot(dt: float) -> void:
 		bomb_cd = 0.6
 		main.rockets.drop_bomb(self)
 	rocket_cd -= dt
-	if rocket_cd <= -ROCKET_RELOAD and rockets_left < max_rockets:
+	if rocket_cd <= -(1.0 if buffs.has("swarm") else ROCKET_RELOAD) and rockets_left < max_rockets:
 		rockets_left += 1
 		rocket_cd = 0.0
 	if wants_rocket and rocket_cd <= 0.0 and rockets_left > 0:
@@ -614,7 +628,7 @@ func _snap_ok(t: float, p: Vector3) -> bool:
 
 
 func fired() -> void:
-	if get_multiplayer_authority() != 1 and not main._allow(get_multiplayer_authority(), "fired", 1.3 / fire_interval, 10.0):
+	if get_multiplayer_authority() != 1 and not main._allow(get_multiplayer_authority(), "fired", 1.3 / (fire_interval * (0.5 if buffs.has("twin") else 1.0)), 10.0):
 		return
 	main.bullets.fire(position - basis.z * 5.0, vel_estimate() - basis.z * BULLET_SPEED, self, false)
 	Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
@@ -683,6 +697,72 @@ func _make_smoke(at: Vector3) -> CPUParticles3D:
 	return p
 
 
+# Sticker and banner: a pilot's own choice (from the lobby); AI pilots get a stable one from their name.
+func _look() -> Array:
+	if role == "pilot":
+		var info: Dictionary = main.gs.players.get(str(name).to_int(), {})
+		return [clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1), clampi(int(info.get("banner", 0)), 0, Planes.BANNERS.size() - 1)]
+	var h := absi(hash(pilot))
+	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size()]
+
+
+# Remote copies: the owner's ammo counts arrive with its snapshots, so everyone sees the same hardpoints.
+func show_ammo(rockets: int, bombs: int) -> void:
+	rockets_left = rockets
+	bombs_left = bombs
+
+
+# Rockets / bombs hanging under the plane vanish as they're fired and come back on refill.
+func _update_hardpoints() -> void:
+	var key := rockets_left * 16 + bombs_left
+	if key == ammo_shown:
+		return
+	ammo_shown = key
+	var rs: Array = parts.get("rockets", [])
+	for i in rs.size():
+		rs[i].visible = i < rockets_left
+	var bs: Array = parts.get("bombs", [])
+	for i in bs.size():
+		bs[i].visible = i < bombs_left
+
+
+# Prize-balloon reward on this plane (server decides; everyone runs the timer and the visuals).
+@rpc("any_peer", "call_local", "reliable")
+func buff(id: String, secs: float) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not id in ["twin", "shield", "swarm"]:
+		return
+	buffs[id] = clampf(secs, 0.0, 30.0)
+	if id == "swarm":
+		rockets_left = max_rockets
+		main.refill(self)
+	if is_local():
+		Sfx.ui(main, Sfx.FANFARE, -4.0)
+
+
+func _tick_buffs(dt: float) -> void:
+	for id in buffs.keys():
+		buffs[id] -= dt
+		if buffs[id] <= 0.0 or not alive:
+			buffs.erase(id)
+	var shielded := buffs.has("shield")
+	if shielded and not shield_fx:
+		shield_fx = MeshInstance3D.new()
+		shield_fx.mesh = SphereMesh.new()
+		shield_fx.mesh.radius = hit_radius * 1.6
+		shield_fx.mesh.height = hit_radius * 3.2
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(0.4, 0.85, 1.0, 0.18)
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		shield_fx.material_override = m
+		shield_fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(shield_fx)
+	elif not shielded and shield_fx:
+		shield_fx.queue_free()
+		shield_fx = null
+
+
 func _tag_text() -> String:
 	return "%s %d%%" % [pilot, 100 * hp / max_hp] if role == "bomber" else pilot
 
@@ -725,6 +805,7 @@ func respawn(p: Vector3, yaw: float) -> void:
 	bombs_left = max_bombs
 	lock_on = null
 	lock = null
+	buffs.clear()
 	main.refill(self)
 	comps = PackedFloat32Array([1, 1, 1, 1])
 	position = p
@@ -875,7 +956,7 @@ func _draw_hud() -> void:
 
 
 func _build_mesh() -> void:
-	var c: Color = TEAM_COLORS[team]
+	var c: Color = Color(1.0, 0.78, 0.2) if role == "prize" else TEAM_COLORS[team]
 	if role == "bomber":
 		c = Color(0.62, 0.6, 0.38)
 	elif role == "striker":
@@ -886,3 +967,12 @@ func _build_mesh() -> void:
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.albedo_color = Color(3.0, 1.4, 0.4)
 	parts = Planes.build(kind, body, main.toon(c), main.toon(Color(0.95, 0.93, 0.85)), main.toon(Color(0.15, 0.2, 0.3)), main.toon(Color(0.2, 0.2, 0.22)), glow)
+	if role in ["pilot", "wing", "fighter", "showcase"]:
+		var look := _look()
+		Planes.dress(kind, body, parts, max_rockets, max_bombs, look[0], look[1], main.toon(Color(0.2, 0.2, 0.22)), Callable(main, "toon"))
+	elif role == "prize":
+		var light := OmniLight3D.new()
+		light.light_color = Color(1.0, 0.8, 0.3)
+		light.light_energy = 3.0
+		light.omni_range = 40.0
+		body.add_child(light)
