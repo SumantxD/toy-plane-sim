@@ -224,7 +224,9 @@ func _process(dt: float) -> void:
 			_fly(dt)
 			_shoot(dt)
 		send_cd -= dt
-		if send_cd <= 0.0 and sim_clock > 1.0: # first second: let the reliable spawn reach everyone first
+		# First second: let the reliable spawn reach everyone first. After the match: quiet, so no late
+		# snapshot lands after the planes are cleared for the lobby.
+		if send_cd <= 0.0 and sim_clock > 1.0 and main.gs.phase == "playing":
 			send_cd = SEND_INTERVAL if not is_ai else 0.05 # AI at 20 Hz: a third less host upload, same smoothness
 			st.rpc(sim_clock, position, quaternion)
 	if cam:
@@ -367,7 +369,7 @@ func _fly(dt: float) -> void:
 			main.kill(self, null)
 		else:
 			alive = false
-			main.report_crash.rpc_id(1)
+			main.report_crash.rpc_id(1, main.gs.match_id)
 
 
 func _shoot(dt: float) -> void:
@@ -386,7 +388,7 @@ func _shoot(dt: float) -> void:
 		else:
 			Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 	_track_lock(dt)
-	if main.gs.get("countdown", 0.0) > 0.0: # weapons go live on GO (aiming and locks can be practised)
+	if main.count_local > 0.0: # weapons go live on GO (aiming and locks can be practised)
 		wants_fire = false
 		wants_rocket = false
 		wants_bomb = false
@@ -475,7 +477,7 @@ func report_hit(target: Node, weapon := 0, comp := -1) -> void:
 	if multiplayer.is_server():
 		main.apply_hit(self, target, weapon, comp)
 	else:
-		main.report_hit.rpc_id(1, target.name, weapon, comp)
+		main.report_hit.rpc_id(1, target.name, weapon, comp, main.gs.match_id)
 
 
 # Damaged component for a world-space hit point on this plane.
@@ -667,10 +669,12 @@ func respawn(p: Vector3, yaw: float) -> void:
 # A remote pilot whose snapshots stopped (connection stall) would hang in the air as a free kill:
 # hidden and untargetable (out of "targets") until they resume. The host enforces it in apply_hit.
 func _check_stall() -> void:
-	var stalled := alive and not is_ai and get_multiplayer_authority() != 1 and last_arrival > 0 and Time.get_ticks_msec() - last_arrival > STALL_MS
+	# Not after the match: owners go quiet on purpose then.
+	var stalled: bool = alive and not is_ai and main.gs.phase == "playing" and get_multiplayer_authority() != 1 and last_arrival > 0 and Time.get_ticks_msec() - last_arrival > STALL_MS
 	if stalled != visible:
 		return
 	visible = not stalled
+	main.netlog("%s %s" % [pilot, "stalled: hidden, no hits" if stalled else "snapshots resumed"])
 	if stalled:
 		remove_from_group("targets")
 	else:
