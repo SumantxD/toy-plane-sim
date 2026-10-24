@@ -99,6 +99,8 @@ func _ready() -> void:
 	Settings.load_saved()
 	if TouchControls.on():
 		get_tree().root.content_scale_size = Vector2i(1100, 620) # phone: everything bigger, readable at arm's length
+		if not OS.has_feature("mobile"):
+			Input.emulate_touch_from_mouse = true # --touch on a desktop: the mouse is a finger
 	_build_world()
 	_build_ui()
 	Settings.apply(get_tree())
