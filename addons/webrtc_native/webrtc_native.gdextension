@@ -9,5 +9,7 @@ exclude_tags = ["web", "no-webrtc"]
 
 macos.debug = "lib/libwebrtc_native.macos.template_debug.universal.framework"
 windows.debug.x86_64 = "lib/libwebrtc_native.windows.template_debug.x86_64.dll"
+ios.debug.arm64 = "lib/libwebrtc_native.ios.template_debug.arm64.dylib"
 macos.release = "lib/libwebrtc_native.macos.template_release.universal.framework"
 windows.release.x86_64 = "lib/libwebrtc_native.windows.template_release.x86_64.dll"
+ios.release.arm64 = "lib/libwebrtc_native.ios.template_release.arm64.dylib"

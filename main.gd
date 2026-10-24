@@ -97,6 +97,8 @@ var preview_key := ""
 
 func _ready() -> void:
 	Settings.load_saved()
+	if TouchControls.on():
+		get_tree().root.content_scale_size = Vector2i(1100, 620) # phone: everything bigger, readable at arm's length
 	_build_world()
 	_build_ui()
 	Settings.apply(get_tree())
@@ -2194,6 +2196,9 @@ func _spotted(e: Node, team: int) -> bool:
 func _draw_minimap(team: int) -> void:
 	var size := clampf(overlay.size.y * 0.27, 170.0, 300.0)
 	var r := Rect2(overlay.size - Vector2(size + 16, size + 36), Vector2(size, size))
+	if TouchControls.on(): # the thumb buttons own the bottom-right
+		size = overlay.size.y * 0.22
+		r = Rect2(Vector2(overlay.size.x - size - 16, 150), Vector2(size, size))
 	var me := _plane(multiplayer.get_unique_id())
 	var span := MAP_WORLD / map_zoom
 	var centre := Vector2.ZERO
@@ -2290,6 +2295,11 @@ func _build_ui() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.draw.connect(_draw_overlay)
 	ui.add_child(overlay)
+	if TouchControls.on():
+		var touch_layer := CanvasLayer.new()
+		touch_layer.layer = 2
+		add_child(touch_layer)
+		touch_layer.add_child(TouchControls.new(self))
 	top.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	top.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	top.position.y = 12
