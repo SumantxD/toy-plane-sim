@@ -10,13 +10,10 @@
 set -e
 cd "$(dirname "$0")/.."
 TEAM=ZK8UX8XUW9
-echo "Teams Xcode can sign with (per signed-in Apple ID):"
-defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null | grep -E "teamID|teamName|isFree" | sed 's/^ */   /'
-if ! defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null | grep -q "teamID = $TEAM;"; then
-	echo "STOP: no Apple ID in Xcode has team $TEAM. Xcode > Settings > Accounts > + > sign in with your PERSONAL Apple ID."
-	exit 1
-fi
-echo "OK: team $TEAM is available."
+# Xcode's prefs file lags behind its account list, so this is informational; the hard check is the
+# signature on the built archive below.
+echo "Signing identities in the keychain for team $TEAM:"
+security find-identity -v -p codesigning | grep "($TEAM)" || echo "   (none yet: Xcode creates one on the first build)"
 grep -q "app_store_team_id=\"$TEAM\"" export_presets.cfg || { echo "STOP: export_presets.cfg iOS team is not $TEAM"; exit 1; }
 [ "$1" = "--check" ] && exit 0
 OUT=/tmp/out/ios_release
