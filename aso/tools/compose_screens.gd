@@ -60,10 +60,10 @@ const SET := [
 	{out = "ppo_in_aeroplane", kind = "overlay", raw = "sel_dogfight_lan", zoom = [1240, 640, 1.7], accent = CYAN,
 		head = "AEROPLANE DOGFIGHTS WITH FRIENDS", sub = "Online or LAN. Join by room code."},
 ]
-# 02 / first_alt_2: the ROOM CODE line cropped from sel_lobby_room, then its roster (as shown in that capture) set in
-# team colours; text instead of crops drops the menu's row boxes and ping column.
+# 02 / first_alt_2: the ROOM CODE line cropped from sel_lobby_room, then a roster set in team colours; text instead of
+# crops drops the menu's row boxes and ping column. Kabir is on Red: sel_dogfight_lan_b shows a red jet tagged "Kabir".
 const CODE := Rect2i(96, 156, 420, 56)
-const TEAMS := [["Blue team", "Arjun   Kabir", Color(0.45, 0.7, 1.0)], ["Red team", "Riya   Dev", Color(1.0, 0.45, 0.4)]]
+const TEAMS := [["Blue team", "Arjun   Riya", Color(0.45, 0.7, 1.0)], ["Red team", "Kabir   Dev", Color(1.0, 0.45, 0.4)]]
 
 var out_dir := OUT
 var vp := SubViewport.new()

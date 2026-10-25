@@ -278,6 +278,10 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	privacy.text = "Privacy policy"
 	privacy.pressed.connect(func(): OS.shell_open(PRIVACY_URL))
 	box.add_child(privacy)
+	var report := Label.new()
+	report.text = "Report a player: st72365@gmail.com"
+	report.modulate = Color(1, 1, 1, 0.6)
+	box.add_child(report)
 	var done := Button.new()
 	done.text = "Done"
 	done.pressed.connect(func():
@@ -288,6 +292,47 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 
 
 static func howto_text() -> String:
+	if TouchControls.on(): # one line per point: the phone panel wraps them
+		return """[b]FLYING[/b]
+Drag on the left half of the screen to steer; the plane follows.
+Slide the throttle bar up / down for fast / slow. Hold BOOST for a burst of speed. Too slow = stall, nose drops.
+
+[b]FIGHTING[/b]
+Hold FIRE: guns. Red circles show where to lead your shots.
+Hold ROCKET to aim (lock box, or a dotted path), let go to fire. Rockets need a lock: keep the target in the box until it closes (LOCKING -> LOCK).
+LOCKED ON means someone is locking you. MISSILE! means one is chasing you: tap FLARE (flares break the lock of rockets already fired), or turn hard and BOOST.
+Hold BOMB to see where a bomb will land, let go to drop. Bombs wreck HQs and defenses.
+II = pause menu.  CAM = camera near / normal / far.  Hold TAUNT and slide to pick a message.
+
+[b]DAMAGE[/b]
+A hit wing pulls you to that side, a hit engine sputters (dead = glide), a hit tail makes turns sluggish. Crashing into ground or buildings kills you.
+
+[b]TEAMWORK[/b]
+Shot down? Teammates fly through your orange beacon within 15 s to revive you. Lives are shared by the team.
+TEAM: call "Help!" or "On me".  MAP: minimap on / zoomed / off.
+
+[b]MODES[/b]
+Co-op Escort: get 2 of 3 bombers to the factory through 8 raider waves.
+Team Dogfight (multiplayer): run the other team out of lives.
+Free Flight: practice, pop balloons, no rules.
+Team Battle vs AI: your team plus AI wingmen against an AI squadron.
+Capture the Flag: fly through the enemy flag's beam, bring it home while yours is safe. First to 3 wins (8 min). Shoot down a carrier to drop it; touch your dropped flag to return it.
+Base Assault: wear down the enemy HQ with strafing runs; bomber raids launch for both sides. Destroy it to win (10 min, else the healthier HQ wins). BUY > FIX HQ repairs yours (2 supplies).
+
+[b]SUPPLIES[/b]
+Fly through a crate: repair + rockets, and you carry the cargo. Get it home for +1 team supply (shot down = it drops for anyone). BUY spends them on defenses: AA GUN, SAM (2), RADAR.
+
+[b]WORLDS[/b] (leader picks in the lobby)
+Green Valley: open skies.  Volcanic Islands: thermals lift you, lava bombs rain down.  Frozen Frontier: gusting wind and blinding snowstorms.  Desert Wasteland: canyon runs, crosswind, sandstorms.  Neon Metropolis: skyscraper corridors, lightning.  Sky Kingdom: floating islands you can fly under, air currents - and don't touch the cloud sea.
+Everywhere: supply crates, AA guns at airfields and the factory (CTF / Assault: only bought ones).
+
+[b]PLAYING WITH FRIENDS[/b]
+The host taps HOST ONLINE and sends the 5-letter room code; friends type it under JOIN A FRIEND.
+On one Wi-Fi, HOST ON LAN works too: join with the address shown in the host's lobby.
+If iOS asks for Local Network access, tap Allow (or turn it on in Settings > Privacy & Security > Local Network). If a code won't connect, put both devices on the same Wi-Fi.
+
+[b]TOUCH CONTROLS[/b]
+Settings > Touch controls: tilt to steer, auto-fire, vibration, left-handed, fixed stick, button opacity, and Customize layout to move and resize every button."""
 	return """[b]FLYING[/b]
   Mouse aims, the plane follows.  W / S throttle,  Shift boost.
   Arrows + Q / E fly manually.  Too slow = stall, nose drops.
@@ -353,10 +398,10 @@ Made with Claude Code and the Godot Engine.
 [b]3D models, sounds, font[/b]  Kenney (kenney.nl), CC0: Nature Kit, Holiday Kit, City Kit Industrial,
   City Kit Suburban, Sci-Fi Sounds, Impact Sounds, Interface Sounds, UI Pack.
 [b]Nature ambience[/b]  "Park Ambiences" (OpenGameArt), CC0.
-[b]Toon shading[/b]  based on Flexible Toon Shader by atzuk4451 (MIT).
+[b]Toon shading[/b]  based on Flexible Toon Shader by John Wigg (CaptainProton42), Godot 4 port by atzuk4451 (MIT).
 [b]Engine, wind, gun and beep sounds[/b]  synthesized for this game.
 
-Full license texts: THIRD_PARTY_LICENSES.txt next to the game.""" % Engine.get_main_loop().current_scene.VERSION
+Full license texts: press Licenses below.""" % Engine.get_main_loop().current_scene.VERSION
 
 
 static func _slider(box: VBoxContainer, label: String, lo: float, hi: float, value: float, cb: Callable) -> void:

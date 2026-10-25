@@ -6,14 +6,15 @@ extends Node
 # (a currency layer hides what things cost), no timers, no loot boxes.
 # Backends: "storekit" on iPhone (tools/storekit plugin, ClassDB "GodotIap"); "desktop" for the free
 # desktop builds (no store: everything unlocked); "fake" with --fake-store (a test double that starts
-# empty and buys after a beat; --fake-store-cancel makes every purchase a cancel).
+# empty and buys after a beat; --fake-store-cancel makes every purchase a cancel; --fake-store-noprices
+# makes every price fetch fail).
 signal changed # ownership, prices or a busy purchase moved
 signal notice(text: String) # one line for the player
 
 const PREFIX := "com.toyplanesim.game."
 # Items: "livery:N" (Planes.LIVERIES), "trail:N" (index into Planes.trail_names(); 6+ are premium),
-# "killfx:N" (Planes.KILL_FX). inr = the price we set in App Store Connect, used only to work out a
-# bundle's honest saving and as the test double's price; the shop shows Apple's displayPrice.
+# "killfx:N" (Planes.KILL_FX). inr = the price we set in App Store Connect, used only as the test
+# double's price; the shop shows Apple's displayPrice.
 const PRODUCTS := {
 	"bundle.all": {title = "Collector's Hangar", cat = 0, inr = 499, items = ["livery:1", "livery:2", "livery:3", "livery:4", "trail:6", "trail:7", "trail:8", "trail:9", "killfx:1", "killfx:2", "killfx:3"],
 		blurb = "Everything in the shop, now and every look in it today."},
@@ -34,11 +35,18 @@ const PRODUCTS := {
 }
 const CATEGORIES := ["SETS", "PAINT JOBS", "SMOKE TRAILS", "KILL EFFECTS"]
 const FREE_TRAILS := 6 # Planes.BANNERS: None + 5 colours
+const NO_STORE := "Can't reach the App Store. Check your connection and try again."
 
 var backend := "desktop"
 var owned := {} # product -> true
 var prices := {} # product -> Apple's localized price string
+var amounts := {} # product -> numeric price in the storefront's currency
 var busy := "" # product being bought
+var fetching := false
+var fetch_at := -100000 # msec of the last price fetch
+var store_down := false # last price fetch failed
+var restoring := 0 # 1 waiting for AppStore.sync, 2 for the owned list after it
+var fake_fail := false
 var trying: Array = [] # items worn on a free solo test flight
 var offered := false # one win offer per session
 var native: Object
@@ -48,18 +56,40 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--fake-store" in args:
 		backend = "fake"
+		fake_fail = "--fake-store-noprices" in args
 		var cfg := ConfigFile.new()
 		if cfg.load("user://fake_store.cfg") == OK:
 			owned = cfg.get_value("store", "owned", {})
 	elif ClassDB.class_exists("GodotIap") and ClassDB.can_instantiate("GodotIap"):
 		backend = "storekit"
-		native = ClassDB.instantiate("GodotIap")
+		if not Engine.has_meta("iap"): # one per process: a scene reload mid-purchase must not drop its result
+			Engine.set_meta("iap", ClassDB.instantiate("GodotIap"))
+		native = Engine.get_meta("iap")
 		native.purchase_updated.connect(_on_purchase)
 		native.purchase_error.connect(_on_error)
 		native.products_fetched.connect(_on_async)
 		native.call("initConnection")
-		native.call("fetchProducts", JSON.stringify({skus = PRODUCTS.keys().map(func(p): return PREFIX + p)}))
 		native.call("getAvailablePurchases", "{}")
+	fetch()
+
+
+# Prices, again whenever some are missing (slow or offline sandbox): at most every 10 s unless the
+# player asks, and a fetch with no answer in 15 s counts as failed.
+func fetch(force := false) -> void:
+	if backend == "desktop" or fetching or prices.size() == PRODUCTS.size() or (not force and Time.get_ticks_msec() - fetch_at < 10000):
+		return
+	fetching = true
+	fetch_at = Time.get_ticks_msec()
+	changed.emit()
+	if backend == "fake":
+		var list := [] if fake_fail else PRODUCTS.keys().map(func(p): return {id = PREFIX + p, displayPrice = "₹%d" % PRODUCTS[p].inr, price = PRODUCTS[p].inr})
+		_on_async({method = "fetchProducts", success = not fake_fail, productsJson = JSON.stringify(list)})
+		return
+	native.call("fetchProducts", JSON.stringify({skus = PRODUCTS.keys().map(func(p): return PREFIX + p)}))
+	var at := fetch_at
+	get_tree().create_timer(15.0).timeout.connect(func():
+		if fetching and fetch_at == at:
+			_on_async({method = "fetchProducts"}))
 
 
 func sells() -> bool:
@@ -85,22 +115,21 @@ static func _free(item: String) -> bool:
 
 
 func price(p: String) -> String:
-	match backend:
-		"storekit":
-			return prices.get(p, "")
-		"fake":
-			return "₹%d" % PRODUCTS[p].inr
-	return ""
+	return prices.get(p, "")
 
 
-# Honest bundle saving against buying the same pieces one by one (store-set prices are proportional).
+# Honest bundle saving against buying the same pieces one by one, from this storefront's own prices
+# (0, so no claim, until they are all known).
 func saving(p: String) -> int:
-	var parts := 0
+	var parts := 0.0
 	for item in PRODUCTS[p].items:
 		for q in PRODUCTS:
 			if PRODUCTS[q].items == [item]:
-				parts += PRODUCTS[q].inr
-	return roundi(100.0 * (1.0 - float(PRODUCTS[p].inr) / parts)) if parts > PRODUCTS[p].inr else 0
+				if not amounts.has(q):
+					return 0
+				parts += amounts[q]
+	var whole: float = amounts.get(p, 0.0)
+	return roundi(100.0 * (1.0 - whole / parts)) if whole > 0.0 and parts > whole else 0
 
 
 # Cheapest single product that unlocks an item (what a locked hangar row opens on).
@@ -128,16 +157,30 @@ func buy(p: String) -> void:
 
 
 func restore() -> void:
+	if restoring:
+		return
 	match backend:
 		"storekit":
+			restoring = 1
+			notice.emit("Checking the App Store...")
 			native.call("restorePurchases")
 		"fake":
-			notice.emit("Restored %d purchase(s)." % owned.size())
+			_restored()
+
+
+func _restored() -> void:
+	restoring = 0
+	var n := owned.size()
+	notice.emit("Restored %d purchase%s." % [n, "" if n == 1 else "s"] if n > 0 else "No previous purchases found for this Apple ID.")
 
 
 func _on_purchase(purchase: Dictionary) -> void:
 	var p := str(purchase.get("productId", "")).trim_prefix(PREFIX)
 	if not PRODUCTS.has(p):
+		return
+	if purchase.get("purchaseState", "") == "revoked": # refunded or Family Sharing ended; the bridge finished it
+		owned.erase(p)
+		changed.emit()
 		return
 	var fresh := not owned.has(p)
 	owned[p] = true
@@ -161,6 +204,8 @@ func _on_error(error: Dictionary) -> void:
 			notice.emit("Waiting for approval (Ask to Buy). It unlocks once approved.")
 		"network":
 			notice.emit("No connection to the App Store. Try again in a moment.")
+		"unverified":
+			notice.emit("The App Store couldn't verify this purchase. Tap Restore Purchases to try again.")
 		_:
 			notice.emit("The purchase didn't go through. Nothing was charged.")
 	changed.emit()
@@ -169,9 +214,19 @@ func _on_error(error: Dictionary) -> void:
 func _on_async(result: Dictionary) -> void:
 	match str(result.get("method", "")):
 		"fetchProducts":
+			fetching = false
 			var list = JSON.parse_string(str(result.get("productsJson", "[]")))
 			for prod in (list if list is Array else []):
-				prices[str(prod.get("id", "")).trim_prefix(PREFIX)] = str(prod.get("displayPrice", ""))
+				var p := str(prod.get("id", "")).trim_prefix(PREFIX)
+				prices[p] = str(prod.get("displayPrice", ""))
+				if prod.has("price"):
+					amounts[p] = float(prod.price)
+			var was_down := store_down
+			store_down = prices.is_empty() or not result.get("success", false) and prices.size() < PRODUCTS.size()
+			if store_down:
+				notice.emit(NO_STORE)
+			elif was_down:
+				notice.emit("")
 		"getAvailablePurchases":
 			var list = JSON.parse_string(str(result.get("purchasesJson", "[]")))
 			if result.get("success", false) and list is Array: # StoreKit's verified entitlements are the truth (refunds drop out)
@@ -180,12 +235,15 @@ func _on_async(result: Dictionary) -> void:
 					var p := str(pur.get("productId", "")).trim_prefix(PREFIX)
 					if PRODUCTS.has(p):
 						owned[p] = true
+			if restoring == 2:
+				_restored()
 		"restorePurchases":
 			if result.get("success", false):
+				restoring = 2
 				native.call("getAvailablePurchases", "{}")
-				notice.emit("Purchases restored.")
 			else:
-				notice.emit("Couldn't restore right now. Try again in a moment.")
+				restoring = 0
+				notice.emit("Restore cancelled." if result.get("code", "") == "user-cancelled" else NO_STORE)
 	changed.emit()
 
 

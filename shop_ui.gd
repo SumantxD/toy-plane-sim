@@ -39,7 +39,7 @@ func _init(m: Node, s: Shop) -> void:
 	detail.fit_content = true
 	detail.custom_minimum_size = Vector2(440, 64)
 	box.add_child(detail)
-	buy_btn = Menus.menu_item(box, "BUY", func(): shop.buy(_product()), main, 26)
+	buy_btn = Menus.menu_item(box, "BUY", _buy, main, 26)
 	equip_btn = Menus.menu_item(box, "EQUIP", _equip, main, 22)
 	try_btn = Menus.menu_item(box, "TRY IT FREE IN FREE FLIGHT", _try, main, 18)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -61,7 +61,8 @@ func open(product := "", note := "") -> void:
 	_fill()
 	if product != "":
 		item_sel.set_index(_products().find(product))
-	status.text = note
+	status.text = Shop.NO_STORE if note == "" and shop.store_down else note
+	shop.fetch()
 	show()
 	main._refresh_ui()
 	_pick()
@@ -123,11 +124,20 @@ func _refresh() -> void:
 	var p := _product()
 	var own := shop.owns_product(p)
 	buy_btn.visible = shop.sells() and not own
-	buy_btn.disabled = shop.busy != "" or shop.price(p) == ""
-	buy_btn.text = "BUYING..." if shop.busy == p else ("BUY   %s" % shop.price(p) if shop.price(p) != "" else "LOADING PRICE...")
+	var cost := shop.price(p)
+	buy_btn.disabled = shop.busy != "" or (cost == "" and shop.fetching)
+	buy_btn.text = "BUYING..." if shop.busy == p else ("BUY   %s" % cost if cost != "" else ("LOADING PRICE..." if shop.fetching else "TRY AGAIN"))
 	equip_btn.visible = own and Shop.PRODUCTS[p].items.size() <= 3
 	equip_btn.text = "EQUIPPED" if _equipped(p) else "EQUIP"
 	try_btn.visible = shop.sells() and not own and main.gs.phase == "menu"
+
+
+# No price yet means the App Store didn't answer: the button asks again instead.
+func _buy() -> void:
+	if shop.price(_product()) == "":
+		shop.fetch(true)
+	else:
+		shop.buy(_product())
 
 
 func _equip() -> void:

@@ -1,6 +1,6 @@
 extends SceneTree
 # The shop end to end against the test store (no Apple): browse, buy, cancel, equip, try-before-buy,
-# lobby locks, the post-win offer, a kill effect.
+# lobby locks, the post-win offer, a kill effect, restore counts, a failed price fetch and its retry.
 #   godot --path . --resolution 1311x603 -s tools/test_shop.gd -- --phone --fake-store [--shots]
 var main: Node
 
@@ -57,12 +57,26 @@ func _initialize() -> void:
 	ui.cat_sel.changed.emit(3)
 	await _wait(1.0)
 	await _shot("killfx")
+	await _press("RESTORE PURCHASES")
+	print("RESTORE with nothing bought -> ", ui.status.text)
+	# the App Store doesn't answer: a retry, not a dead "LOADING PRICE..."
+	shop.prices.clear()
+	shop.fake_fail = true
+	shop.fetch(true)
+	ui.open("bundle.golden")
+	print("price fetch failed -> button: %s (disabled %s)  notice: %s" % [ui.buy_btn.text, ui.buy_btn.disabled, ui.status.text])
+	await _shot("noprices")
+	shop.fake_fail = false
+	await _press("TRY AGAIN")
+	print("TRY AGAIN -> button: %s  notice: '%s'  set saving: %d%%" % [ui.buy_btn.text, ui.status.text, shop.saving("bundle.golden")])
 	# buy a set
 	ui.open("bundle.golden")
 	await _press("BUY")
 	print("tap BUY -> button: ", ui.buy_btn.text, "  busy: ", shop.busy)
 	await _wait(1.0)
 	print("after the store answers -> owns set: ", shop.owns_product("bundle.golden"), "  owns its paint/trail/kill: ", shop.owns("livery:1"), shop.owns("trail:7"), shop.owns("killfx:1"), "   notice: ", ui.status.text)
+	await _press("RESTORE PURCHASES")
+	print("RESTORE after buying the set -> ", ui.status.text)
 	await _press("EQUIP")
 	print("EQUIP -> livery %d trail %d killfx %d   saved: %s" % [Settings.values.livery, Settings.values.banner, Settings.values.killfx, ConfigFile.new().load(Settings.PATH) == OK])
 	await _shot("owned")

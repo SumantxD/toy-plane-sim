@@ -16,7 +16,10 @@ const SKILL_NAMES := ["rookie", "pilot", "ace"]
 # ponytail: substring blocklist on pilot names (the only typed text others see); a real moderation service if public matchmaking ever exists.
 const BLOCKED_NAMES := ["fuck", "fuk", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut", "nigg", "fag", "rape",
 	"porn", "penis", "vagina", "bastard", "asshole", "nazi", "hitler", "chut", "madarchod", "behenchod", "bhenchod", "bsdk", "bhosd",
-	"gaand", "gandu", "lund", "randi", "harami", "kutt", "kamina"]
+	"gaand", "gandu", "lund", "randi", "harami", "kutt", "kamina", "retard", "kike", "chink", "spic", "tranny", "kkk", "pedo", "phuck",
+	"fvck", "fck", "molest", "boob", "tits", "sex", "cum"]
+const ALLOWED_NAMES := ["cockpit", "peacock", "hancock", "hitchcock", "dickens", "scunthorpe", "grape", "therapist", "shitake",
+	"torpedo", "spice", "essex", "sussex", "cumulus", "cucumber"] # cut out before the blocklist check
 const CALLSIGNS := ["Biscuit", "Comet", "Pebble", "Rusty", "Noodle", "Zippy", "Sprocket", "Maple", "Doodle", "Ziggy", "Pipkin", "Bolt"] # original names (no film characters)
 const TEAM_NAMES := ["Blue", "Red"]
 const DAMAGE := [8, 45, 150] # guns, rocket, bomb
@@ -81,6 +84,7 @@ var copy_btn: Button
 var room_label := Label.new()
 var net_label := Label.new()
 var leave_btn: Button
+var kick_box := VBoxContainer.new() # host: a KICK per joined pilot
 var switch_btn: Button
 var overlay := Control.new()
 var top := Label.new()
@@ -219,11 +223,12 @@ func _ready() -> void:
 
 # ---------- connection ----------
 # LAN / IP: plain ENet on PORT. Online: rooms.gd (WebRTC P2P + room code over public MQTT).
-const VERSION := "0.9"
+const VERSION := "1.0"
 
 var room := "" # online room code we host or joined
 var rooms: Rooms
 var joining := false
+var quitting := false # _leave under way
 var spectating := "--spectate" in OS.get_cmdline_user_args() # watch AI-only battles
 var spec_target: Node
 var spec_t := 0.0
@@ -233,6 +238,7 @@ var upnp_task := -1
 func host(port := -1) -> bool:
 	if port < 0:
 		port = PORT
+	_drop_join()
 	var peer := ENetMultiplayerPeer.new()
 	if peer.create_server(port) != OK:
 		status.text = "Could not host on port %d (already running?)" % port
@@ -240,7 +246,7 @@ func host(port := -1) -> bool:
 	multiplayer.multiplayer_peer = peer
 	room = ""
 	_start_hosting()
-	if DisplayServer.get_name() != "headless":
+	if DisplayServer.get_name() != "headless" and not OS.has_feature("mobile"): # phones sit behind carrier NAT / Wi-Fi: no router to ask
 		upnp_task = WorkerThreadPool.add_task(_open_router_port.bind(port))
 	return true
 
@@ -268,7 +274,7 @@ func _start_hosting() -> void:
 # Solo battle vs AI: offline lobby where you pick size and difficulty, then fight.
 func solo_battle() -> void:
 	room = ""
-	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	_drop_join()
 	_start_hosting()
 	request_mode(3)
 
@@ -276,7 +282,7 @@ func solo_battle() -> void:
 # Solo practice runs offline: no port, no firewall prompt, same game code (offline peer = server).
 func free_flight() -> void:
 	room = ""
-	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	_drop_join()
 	_start_hosting()
 	gs.mode = 2
 	_start()
@@ -303,6 +309,7 @@ func _exit_tree() -> void:
 
 
 func host_online() -> void:
+	_drop_join()
 	_new_rooms()
 	multiplayer.multiplayer_peer = rooms.host()
 	room = rooms.code
@@ -318,6 +325,7 @@ func _new_rooms() -> void:
 		rooms.queue_free()
 	rooms = Rooms.new()
 	rooms.status.connect(func(t):
+		t = _net_tip(t)
 		status.text = t
 		net_label.text = t if gs.phase == "lobby" else ""
 		print("rooms: ", t))
@@ -350,7 +358,8 @@ func join() -> void:
 	var attempt := rooms.get_instance_id() # a rejoin into the same room must not be cut short by this timer
 	get_tree().create_timer(40.0).timeout.connect(func():
 		if gs.phase == "menu" and rooms and rooms.get_instance_id() == attempt:
-			_room_failed("Could not connect to room %s. Check the code, make sure everyone clicked Allow on the firewall prompt, or see How to play > Internet tips." % room))
+			_room_failed(("Could not connect to room %s. Check the code. " + PHONE_NET_TIP if TouchControls.on() else
+				"Could not connect to room %s. Check the code, make sure everyone clicked Allow on the firewall prompt, or see How to play > Internet tips.") % room))
 
 
 func _room_failed(msg: String) -> void:
@@ -361,8 +370,34 @@ func _room_failed(msg: String) -> void:
 	if Engine.has_meta("rejoin"):
 		get_tree().create_timer(3.0).timeout.connect(_try_rejoin)
 		return
-	status.text = msg
-	print("MENU: ", msg)
+	status.text = _net_tip(msg)
+	print("MENU: ", status.text)
+
+
+const PHONE_NET_TIP := "Make sure both devices are online. For LAN, allow Local Network in Settings > Privacy & Security > Local Network."
+
+# Phones have no firewall prompt, TURN settings or How to play > Internet tips: give phone advice instead.
+func _net_tip(text: String) -> String:
+	return text.replace(Rooms.NAT_TIP, "Try another network, or the same Wi-Fi. " + PHONE_NET_TIP) if TouchControls.on() else text
+
+
+# Stop a join / reconnect in flight (BACK, or a solo game or host started meanwhile).
+func _drop_join() -> void:
+	Engine.remove_meta("rejoin")
+	joining = false
+	if rooms:
+		rooms.queue_free()
+		rooms = null
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+
+
+# Multiplayer screen BACK also calls off a join still trying, so JOIN works again right away.
+func _close_mp() -> void:
+	if joining or Engine.has_meta("rejoin"):
+		_drop_join()
+		status.text = "Join cancelled."
+	mp_open = false
+	_refresh_ui()
 
 
 func _connect_client(addr: String, port: int, local_port: int) -> void:
@@ -390,7 +425,7 @@ func _on_connect_failed() -> void:
 	if Engine.has_meta("rejoin"):
 		get_tree().create_timer(3.0).timeout.connect(_try_rejoin)
 		return
-	status.text = "Could not connect. Is the host's game open in the lobby, and did they allow it through the firewall?"
+	status.text = "Could not connect. Is the host's game open in the lobby? " + PHONE_NET_TIP if TouchControls.on() else "Could not connect. Is the host's game open in the lobby, and did they allow it through the firewall?"
 
 
 # ENet's throttle throws away unreliable packets whenever ping wobbles (half our snapshots at 40 ms).
@@ -421,8 +456,20 @@ func kicked(reason: String) -> void:
 	_leave(reason)
 
 
+# Host's lobby KICK: same path as a rejected join.
+func _kick(id: int) -> void:
+	if not multiplayer.is_server() or not id in multiplayer.get_peers():
+		return
+	netlog("host kicked %d %s" % [id, gs.players.get(id, {}).get("name", "?")])
+	kicked.rpc_id(id, "The host removed you from the room.")
+	get_tree().create_timer(5.0).timeout.connect(func():
+		if id in multiplayer.get_peers():
+			multiplayer.multiplayer_peer.disconnect_peer(id))
+
+
 # Back to the main menu; `msg` survives the scene reload and shows on the menu.
 func _leave(msg := "") -> void:
+	quitting = true
 	if msg:
 		Engine.set_meta("leave_msg", msg)
 	await _goodbye()
@@ -584,6 +631,8 @@ static func clean_name(pilot: String) -> bool:
 	for c in s:
 		if c >= "a" and c <= "z":
 			letters += c
+	for w in ALLOWED_NAMES:
+		letters = letters.replace(w, "")
 	return not BLOCKED_NAMES.any(func(w): return w in letters)
 
 
@@ -713,6 +762,8 @@ func _player_token() -> String:
 # Lost the host without a goodbye (Wi-Fi blip, network switch): reconnect to the same room / address
 # for up to 60 s. The host keeps our team, score and plane for that long.
 func _lost_host() -> void:
+	if quitting:
+		return # already on the way out (the host ended the game, kicked us, or we left): no reconnect
 	netlog("lost the host")
 	multiplayer.multiplayer_peer.close() # no "leaving" goodbye: the host must keep our slot
 	Engine.set_meta("rejoin", {target = last_target, until = Time.get_ticks_msec() + 60000, name = name_edit.text})
@@ -720,8 +771,8 @@ func _lost_host() -> void:
 
 
 func _try_rejoin() -> void:
-	if not Engine.has_meta("rejoin"):
-		return
+	if not Engine.has_meta("rejoin") or gs.phase != "menu":
+		return # a solo game or a hosted room started meanwhile: never pull the player out of it
 	var r: Dictionary = Engine.get_meta("rejoin")
 	if Time.get_ticks_msec() > r.until:
 		Engine.remove_meta("rejoin")
@@ -756,7 +807,8 @@ func _goodbye() -> bool:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_PAUSED and gs.phase == "playing" and not menu_open(): # phone sent to the background (a call, the home swipe): come back to the pause menu
+	# Phone sent to the background (a call, the home swipe) or covered (Control Center): come back to the pause menu.
+	if (what == NOTIFICATION_APPLICATION_PAUSED or (what == NOTIFICATION_APPLICATION_FOCUS_OUT and TouchControls.phone())) and gs.phase == "playing" and not menu_open():
 		pause_root.show()
 		end_btn.visible = gs.leader == multiplayer.get_unique_id()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -1978,8 +2030,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		shop_ui.close()
 		return
 	if event.keycode == KEY_ESCAPE and mp_open and gs.phase == "menu":
-		mp_open = false
-		_refresh_ui()
+		_close_mp()
 		return
 	if gs.phase != "playing":
 		return
@@ -2031,7 +2082,10 @@ func _refresh_ui() -> void:
 	var leader: bool = gs.leader == multiplayer.get_unique_id()
 	for sel: Menus.Selector in [mode_sel, world_sel, size_sel, skill_sel]:
 		sel.set_locked(not leader)
-	mode_sel.set_index(gs.mode)
+	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	if (mode_sel.items.size() < MODES.size()) != solo: # Team Dogfight needs a human on each team: not offered solo
+		mode_sel.set_items(range(MODES.size()).filter(func(m): return m != 1 or not solo).map(func(m): return {title = MODES[m].to_upper(), sub = OBJECTIVES[m], mode = m}))
+	mode_sel.set_index(mode_sel.items.map(func(it): return it.mode).find(gs.mode))
 	world_sel.set_index(gs.get("world", 0))
 	size_sel.set_index(gs.size)
 	skill_sel.set_index(gs.skill)
@@ -2062,6 +2116,13 @@ func _refresh_ui() -> void:
 	if not leader:
 		lines.append("\nWaiting for the leader to start...")
 	lobby_list.text = "\n".join(lines)
+	var kick: Array = gs.players.keys().filter(func(id): return id != multiplayer.get_unique_id()) if multiplayer.is_server() else []
+	if str(kick) != kick_box.get_meta("ids", "[]"):
+		kick_box.set_meta("ids", str(kick))
+		for c in kick_box.get_children():
+			c.queue_free()
+		for id in kick:
+			Menus.menu_item(kick_box, "KICK %s" % gs.players[id].name, _kick.bind(id), self, 16)
 	_refresh_preview()
 	$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu" # not hanging over the home-screen flyby
 	if gs.phase == "ended":
@@ -2224,6 +2285,8 @@ func _refresh_hud() -> void:
 				c[team] = " (CLUTCH %ds)" % gs.clutch[team]
 		top.text = "Blue %d lives%s   |   %s   |   Red %d lives%s%s" % [gs.lives[0], c[0], t, gs.lives[1], c[1], rtt]
 	feed.text = "\n".join(gs.feed.slice(-3 if get_viewport().get_visible_rect().size.aspect() > 1.8 else -2) if TouchControls.phone() else gs.feed) # phone: clear of the minimap
+	if touch: # and of the notch / Dynamic Island
+		feed.position.x = overlay.size.x - feed.size.x - maxf(touch._pad(), 20.0)
 
 
 func _scoreboard() -> String:
@@ -2322,7 +2385,7 @@ func _draw_minimap(team: int) -> void:
 	var r := Rect2(overlay.size - Vector2(size + 16, size + 36), Vector2(size, size))
 	if TouchControls.on(): # the thumb buttons own the bottom-right
 		size = overlay.size.y * 0.22
-		r = Rect2(Vector2(overlay.size.x - size - 16, 150), Vector2(size, size))
+		r = Rect2(Vector2(overlay.size.x - size - maxf(touch._pad(), 16.0), 150), Vector2(size, size)) # clear of the notch / Dynamic Island
 	var me := _plane(multiplayer.get_unique_id())
 	var span := MAP_WORLD / map_zoom
 	var centre := Vector2.ZERO
@@ -2478,6 +2541,7 @@ func _build_ui() -> void:
 	name_edit.add_theme_font_size_override("font_size", 22)
 	name_edit.text_changed.connect(func(t):
 		Settings.values.name = t.strip_edges()
+		status.text = "" if clean_name(t) else "That callsign isn't allowed: others will see you as Pilot plus a number."
 		Settings.save())
 	box.add_child(name_edit)
 	Menus.menu_item(box, "HOST ONLINE", host_online, self)
@@ -2494,9 +2558,7 @@ func _build_ui() -> void:
 	join_row.add_child(address)
 	Menus.menu_item(join_row, "JOIN", join, self, 26)
 	box.add_child(join_row)
-	Menus.menu_item(box, "BACK", func():
-		mp_open = false
-		_refresh_ui(), self)
+	Menus.menu_item(box, "BACK", _close_mp, self)
 	mp_root = Menus.side_panel(ui, box)
 	mp_root.hide()
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2521,9 +2583,9 @@ func _build_ui() -> void:
 	box.add_child(world_sel)
 	var modes: Array = []
 	for i in MODES.size():
-		modes.append({title = MODES[i].to_upper(), sub = OBJECTIVES[i]})
+		modes.append({title = MODES[i].to_upper(), sub = OBJECTIVES[i], mode = i})
 	mode_sel = Menus.Selector.new("MODE", modes)
-	mode_sel.changed.connect(func(i): request_mode.rpc_id(1, i))
+	mode_sel.changed.connect(func(i): request_mode.rpc_id(1, mode_sel.items[i].mode))
 	box.add_child(mode_sel)
 	var sizes: Array = SIZES.map(func(sz): return {title = "%d  VS  %d" % [sz, sz]})
 	size_sel = Menus.Selector.new("SQUADRON SIZE", sizes)
@@ -2557,6 +2619,7 @@ func _build_ui() -> void:
 	sq.add_theme_font_size_override("font_size", 22)
 	rbox.add_child(sq)
 	rbox.add_child(lobby_list)
+	rbox.add_child(kick_box)
 	copy_btn = Menus.menu_item(rbox, "COPY ROOM CODE", func(): DisplayServer.clipboard_set(gs.room), self, 18)
 	switch_btn = Menus.menu_item(rbox, "SWITCH TEAM", func(): request_switch_team.rpc_id(1), self, 18)
 	Menus.menu_item(rbox, "HOW TO PLAY", func(): howto_root.show(), self, 18)
@@ -2674,8 +2737,7 @@ func _build_ui() -> void:
 	_title(box, "HOW TO PLAY")
 	var how := RichTextLabel.new()
 	how.bbcode_enabled = true
-	how.fit_content = true
-	how.custom_minimum_size.x = 760
+	how.custom_minimum_size = Vector2(760, 420 if TouchControls.on() else 620) # scrolls, so "Got it" stays on screen
 	how.text = Menus.howto_text()
 	box.add_child(how)
 	_button(box, "Got it", func(): howto_root.hide())
@@ -2688,6 +2750,13 @@ func _build_ui() -> void:
 	cr.custom_minimum_size = Vector2(760, 420)
 	cr.text = Menus.credits_text()
 	box.add_child(cr)
+	var lic := Button.new()
+	lic.text = "Licenses"
+	lic.pressed.connect(func(): # the credits box doubles as the license viewer
+		cr.bbcode_enabled = not cr.bbcode_enabled
+		cr.text = Menus.credits_text() if cr.bbcode_enabled else FileAccess.get_file_as_string("res://THIRD_PARTY_LICENSES.txt")
+		lic.text = "Licenses" if cr.bbcode_enabled else "Back to credits")
+	box.add_child(lic)
 	_button(box, "Close", func(): credits_root.hide())
 	credits_root = _panel(ui, box)
 
@@ -2695,12 +2764,14 @@ func _build_ui() -> void:
 	ui.add_child(shop_ui)
 	for r in [pause_root, results_root, settings_root, touch_root, howto_root, credits_root, lobby_root]:
 		r.hide()
+	for r in [settings_root, touch_root, howto_root, credits_root]:
+		r.mouse_filter = Control.MOUSE_FILTER_STOP # the menu underneath can't be tapped through these
 
 
 # ---------- match start: who/what/where card, controls card, 3-2-1-GO ----------
-const OBJECTIVES := ["Escort the bombers to the factory - 2 of 3 must arrive.", "Run the enemy team out of lives.",
+var OBJECTIVES := ["Escort the bombers to the factory - 2 of 3 must arrive.", "Run the enemy team out of lives.",
 	"No rules: pop balloons, explore, practise.", "Shoot down the red squadron before your lives run out.",
-	"Steal the enemy flag and fly it home while yours is safe. First to 3.", "Destroy the enemy HQ and defend yours. Bombs (B) hit hardest."]
+	"Steal the enemy flag and fly it home while yours is safe. First to 3.", "Destroy the enemy HQ and defend yours. Bombs (%s) hit hardest." % ("BOMB" if TouchControls.on() else "B")]
 var intro_root: Control
 var intro_label := RichTextLabel.new()
 var keys_root: Control

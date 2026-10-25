@@ -25,7 +25,10 @@ import StoreKit
     func onPurchaseError(_ json: String)
 }
 
+// Main actor: the dictionaries below are touched from the purchase, updates and fetch Tasks, and
+// Godot is only called back on its own (main) thread.
 @available(iOS 15.0, *)
+@MainActor
 @objc public final class GodotStoreKitBridge: NSObject {
 
     @objc public weak var delegate: GodotStoreKitDelegate?
@@ -57,7 +60,7 @@ import StoreKit
     @objc public override init() {
         super.init()
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.online = (path.status == .satisfied)
+            Task { @MainActor in self?.online = (path.status == .satisfied) }
         }
         monitor.start(queue: DispatchQueue(label: "godot.storekit.net"))
     }
@@ -109,6 +112,7 @@ import StoreKit
                         "displayPrice": p.displayPrice,
                         "display_price": p.displayPrice,   // Godot 쪽이 이 이름으로 읽는다
                         "currency": p.priceFormatStyle.currencyCode,
+                        "price": NSDecimalNumber(decimal: p.price).doubleValue,
                         "platform": "ios",
                     ]
                 }
@@ -155,6 +159,11 @@ import StoreKit
                 Self.note("presenting payment sheet \(sku)")
                 let result = try await product.purchase()
                 switch result {
+                case .success(.unverified(_, let error)):
+                    // Not delivered and not finished: StoreKit offers it again via updates.
+                    Self.note("purchase unverified \(sku) — \(error)")
+                    fail(sku, "unverified", "\(error)")
+                    reply(requestId, "requestPurchase", ["success": false])
                 case .success(let verification):
                     Self.note("purchase succeeded \(sku)")
                     await handle(verification, notify: true)
@@ -228,7 +237,7 @@ import StoreKit
                 allCount += 1
                 guard case .verified(let tx) = result else { unverified += 1; continue }
                 if tx.revocationDate != nil { revoked += 1; continue }
-                if !list.isEmpty { continue }
+                if entitled > 0 { continue }
                 if list.contains(where: { ($0["productId"] as? String) == tx.productID }) { continue }
                 if let dict = await self.dictionary(for: result, finishable: false) {
                     list.append(dict)
@@ -258,8 +267,11 @@ import StoreKit
                 reply(requestId, "restorePurchases", ["success": true])
             } catch {
                 // 취소해도 여기로 온다. 실패로 두되 사유를 남긴다.
+                var code = "sync-error"
+                if case StoreKitError.userCancelled = error { code = online ? "user-cancelled" : "network" }
+                if case StoreKitError.networkError = error { code = "network" }
                 reply(requestId, "restorePurchases",
-                      ["success": false, "code": "sync-error", "error": "\(error)"])
+                      ["success": false, "code": code, "error": "\(error)"])
             }
         }
     }
@@ -289,6 +301,16 @@ import StoreKit
     /// **검증 실패한 것은 올려보내지 않는다.** StoreKit 이 서명을 못 믿겠다고 한 것이라,
     /// 그걸 통과시키면 서버 검증을 붙인 뜻이 없어진다.
     private func handle(_ result: VerificationResult<Transaction>, notify: Bool) async {
+        // Refund / Family Sharing revoked: finish it and tell Godot to take the item back.
+        if case .verified(let tx) = result, tx.revocationDate != nil {
+            pending.removeValue(forKey: String(tx.id))
+            await tx.finish()
+            if var dict = await dictionary(for: result, finishable: false) {
+                dict["purchaseState"] = "revoked"
+                if notify { delegate?.onPurchaseUpdated(Self.json(dict)) }
+            }
+            return
+        }
         guard let dict = await dictionary(for: result, finishable: true) else { return }
         guard let id = dict["id"] as? String else { return }
         // **같은 트랜잭션은 한 번만 올려보낸다.**

@@ -2,7 +2,7 @@ class_name Taunts
 extends Control
 
 # Quick taunts: hold T for a wheel of preset messages, the mouse picks one, releasing T sends it; the
-# scroll wheel flips pages. Only the message number crosses the network (the host checks it and the
+# scroll wheel (on touch, a second finger) flips pages. Only the message number crosses the network (the host checks it and the
 # 2 s limit), so there is no free text to moderate. The message is skywritten: puffy smoke letters
 # that pop in one after another, wobble, then drift off and dissolve.
 const LIST := [
@@ -72,10 +72,14 @@ func handle(event: InputEvent) -> bool:
 		queue_redraw()
 		return true
 	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-		page = posmod(page + (1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1), LIST.size() / PER_PAGE)
-		queue_redraw()
+		flip(1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1)
 		return true
 	return false
+
+
+func flip(by := 1) -> void:
+	page = posmod(page + by, LIST.size() / PER_PAGE)
+	queue_redraw()
 
 
 # Skywrite `text` for `plane`: above other planes, facing this screen's camera so it reads; yours goes
@@ -105,7 +109,7 @@ func _draw() -> void:
 	var pages := LIST.size() / PER_PAGE
 	for k in pages: # page dots in a little cloud
 		draw_circle(c + Vector2((k - (pages - 1) / 2.0) * 14.0, 0), 5.0, Color(1, 1, 1, 0.95 if k == page else 0.35))
-	draw_string(FONT, c + Vector2(-40, 26), "scroll", HORIZONTAL_ALIGNMENT_CENTER, 80, 11, Color(1, 1, 1, 0.7))
+	draw_string(FONT, c + Vector2(-60, 26), "tap 2nd finger: more" if TouchControls.on() else "scroll", HORIZONTAL_ALIGNMENT_CENTER, 120, 11, Color(1, 1, 1, 0.7))
 	for i in PER_PAGE:
 		var text: String = LIST[page * PER_PAGE + i]
 		var lit := i == pick

@@ -163,6 +163,11 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			if not _live():
 				return
+			if main.taunts and main.taunts.open: # a second finger flips the taunt wheel's page
+				main.taunts.flip()
+				held[event.index] = "flip"
+				get_viewport().set_input_as_handled()
+				return
 			_press(event.index, event.position)
 			if held.has(event.index):
 				get_viewport().set_input_as_handled()

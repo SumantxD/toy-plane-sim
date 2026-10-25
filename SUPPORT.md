@@ -2,11 +2,15 @@
 
 **Report a problem or ask a question:** email st72365@gmail.com (we reply within a few days), or open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
 
+**Report a player:** email st72365@gmail.com with the pilot name, the room code if you have it, and what happened.
+
 ## Common questions
 
 **How do I play with friends?** Main menu, then Multiplayer, then Host online. Send your friends the 5-letter room code; they type it under "Join a friend" and tap Join.
 
 **A room code won't connect.** Some mobile networks block direct connections. Try Wi-Fi, or see "If a room code won't connect" in How to Play.
+
+**LAN or online play won't connect on iPhone.** Make sure Local Network access is on for Toy Plane Arcade: Settings > Privacy & Security > Local Network.
 
 **I bought something and don't see it.** Open the Hangar Shop and tap Restore Purchases, signed in with the same Apple ID you bought with.
 
