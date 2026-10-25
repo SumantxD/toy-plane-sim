@@ -50,7 +50,8 @@ func _initialize() -> void:
 	for i in 30:
 		await process_frame
 	var tc: Control = main.find_children("*", "TouchControls", true, false)[0]
-	print("touch layer: ", tc != null, "   quit button shown: ", _button(main, "QUIT") != null)
+	var sun: DirectionalLight3D = main.get_tree().get_nodes_in_group("sun")[0]
+	print("touch layer: ", tc != null, "   quit button shown: ", _button(main, "QUIT") != null, "   MSAA: ", root.msaa_3d, "   shadow splits: ", 2 if sun.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS else 4)
 	var b := _button(main, "BATTLE VS AI")
 	await _tap(b.get_global_rect().get_center())
 	for i in 30:

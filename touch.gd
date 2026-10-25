@@ -38,12 +38,17 @@ var grab := {} # editor: finger -> element being dragged
 
 
 static func on() -> bool:
-	return OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args()
+	return phone() or "--touch" in OS.get_cmdline_user_args()
+
+
+# Running as the phone build (--phone tests the phone-only paths on a desktop).
+static func phone() -> bool:
+	return OS.has_feature("mobile") or "--phone" in OS.get_cmdline_user_args()
 
 
 # A short buzz (hits, getting hit, missile warning) when the player wants it.
 static func buzz(ms: int) -> void:
-	if OS.has_feature("mobile") and Settings.values.get("vibrate", true):
+	if phone() and Settings.values.get("vibrate", true):
 		Input.vibrate_handheld(ms)
 
 
@@ -380,7 +385,7 @@ func _draw() -> void:
 			var tr := _throttle_rect()
 			var p: Node = main._plane(multiplayer.get_unique_id())
 			var k: float = p.throttle if p else 0.5
-			draw_rect(tr, Color(1, 1, 1, 0.12 * alpha))
+			draw_rect(tr, Color(0.04, 0.06, 0.12, 0.32 * alpha))
 			draw_rect(Rect2(tr.position + Vector2(0, tr.size.y * (1.0 - k)), Vector2(tr.size.x, tr.size.y * k)), Color(1, 1, 1, 0.22 * alpha))
 			draw_rect(tr, ring, false, 2.0)
 			draw_string(FONT, Vector2(tr.position.x - 20, tr.position.y - 8), "%d%%" % roundi(k * 100), HORIZONTAL_ALIGNMENT_CENTER, tr.size.x + 40, 12, Color(1, 1, 1, 0.85 * alpha))
@@ -393,10 +398,11 @@ func _draw() -> void:
 				draw_arc(c, r, 0, TAU, 48, Color(ring, ring.a * (1.0 if editing else 0.35)), 2.0, true)
 				draw_string(FONT, c + Vector2(-r, 5), e.label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(1, 1, 1, 0.4 * alpha))
 		else:
-			draw_circle(c, r, Color(1, 1, 1, (0.32 if lit else 0.14) * alpha))
+			draw_circle(c, r, Color(1, 1, 1, 0.35 * alpha) if lit else Color(0.04, 0.06, 0.12, 0.32 * alpha)) # dark glass: readable on cloud and sky
 			draw_arc(c, r, 0, TAU, 40, ring, 2.0, true)
 			var fs := 15 if r > 35.0 else 11
-			draw_string(FONT, c + Vector2(-r, fs * 0.35), e.label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fs, Color(1, 1, 1, 0.85 * alpha))
+			draw_string_outline(FONT, c + Vector2(-r, fs * 0.35), e.label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fs, 4, Color(0, 0, 0, 0.5 * alpha))
+			draw_string(FONT, c + Vector2(-r, fs * 0.35), e.label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fs, Color(1, 1, 1, 0.9 * alpha))
 	if fan != "":
 		var items := _fan_items(fan)
 		var spots := _fan_spots(fan)

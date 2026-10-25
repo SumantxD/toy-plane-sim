@@ -249,7 +249,7 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	var touch := TouchControls.on()
 	_slider(box, "Steering sensitivity" if touch else "Mouse sensitivity", 0.2, 3.0, v.sensitivity, func(x): v.sensitivity = x)
 	_check(box, "Invert steering up/down" if touch else "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
-	if not OS.has_feature("mobile"):
+	if not TouchControls.phone():
 		_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
 	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
 	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)

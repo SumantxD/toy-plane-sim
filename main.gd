@@ -2333,7 +2333,7 @@ func _build_ui() -> void:
 	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
 	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
 	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
-	if not OS.has_feature("mobile"): # iOS apps never quit themselves
+	if not TouchControls.phone(): # iOS apps never quit themselves
 		Menus.menu_item(box, "QUIT", _quit, self)
 	menu_root = Menus.side_panel(ui, box)
 
