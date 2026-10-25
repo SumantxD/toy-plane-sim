@@ -35,7 +35,8 @@ func _initialize() -> void:
 	print("main menu focus: ", _focus())
 	await _key(KEY_S)
 	await _key(KEY_S)
-	print("after S S: ", _focus())
+	await _key(KEY_S) # past QUICK BATTLE
+	print("after S S S: ", _focus())
 	await _key(KEY_ENTER)
 	print("multiplayer screen: ", main.mp_root.visible, "  focus: ", _focus())
 	await _key(KEY_ESCAPE)
@@ -43,7 +44,8 @@ func _initialize() -> void:
 	print("after Esc -> main menu: ", main.menu_root.visible)
 	for i in 3:
 		await _key(KEY_W)
-	print("after W W W: ", _focus())
+	await _key(KEY_S) # QUICK BATTLE -> BATTLE VS AI
+	print("after W W W S: ", _focus())
 	await _key(KEY_ENTER)
 	for i in 20:
 		await process_frame

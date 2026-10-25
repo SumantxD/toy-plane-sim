@@ -128,6 +128,39 @@ static func menu_item(box: Container, text: String, cb: Callable, host: Node, si
 	return b
 
 
+# Phone screens: a boxed, thumb-sized button (FOCUS_NONE: a held focus swallows taps).
+static func tile(box: Control, text: String, cb: Callable, host: Node, size := 18, min_size := Vector2(68, 68)) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = min_size
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	b.add_theme_font_size_override("font_size", size)
+	b.pressed.connect(func(): Sfx.ui(host, Sfx.CONFIRM, -8.0))
+	b.pressed.connect(cb)
+	box.add_child(b)
+	return b
+
+
+# The picked tile of a row (and PLAY / LAUNCH) is solid amber; the rest dark glass.
+static func lit(b: Button, on: bool) -> void:
+	for st in ["normal", "hover"]:
+		b.add_theme_stylebox_override(st, _box(AMBER if on else Color(0.05, 0.08, 0.16, 0.72), AMBER.lightened(0.3) if on else Color(1, 1, 1, 0.18), 2, 8))
+	for st in ["font_color", "font_hover_color"]:
+		b.add_theme_color_override(st, NAVY if on else Color(0.92, 0.94, 1.0))
+
+
+# Notch, rounded corners and home bar in UI units (x left, y top, z right, w bottom). Tests fake it with meta "test_insets".
+static func insets(ui: Control) -> Vector4:
+	if Engine.has_meta("test_insets"):
+		return Engine.get_meta("test_insets")
+	var safe := DisplayServer.get_display_safe_area()
+	var scr := DisplayServer.screen_get_size()
+	if safe.size.x <= 0 or scr.x <= 0:
+		return Vector4.ZERO
+	return Vector4(safe.position.x, safe.position.y, scr.x - safe.end.x, scr.y - safe.end.y) * ui.get_viewport_rect().size.x / scr.x
+
+
 # Game-menu row: small header, < value >, optional picture. W/S (or up/down) moves between rows,
 # A/D (or left/right) and the arrows change the value. Locked rows only show it (non-leaders).
 class Selector extends PanelContainer:

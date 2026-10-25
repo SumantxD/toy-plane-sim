@@ -13,6 +13,8 @@ const AI_MODES := [3, 4, 5]
 const JOBS := ["attack", "defend", "escort", "hunt"]
 const SIZES := [2, 4, 6]
 const SKILL_NAMES := ["cadet", "rookie", "pilot", "ace"]
+const SKILLS := [{title = "VERY EASY", sub = "Relaxed: they barely fight back"}, {title = "ROOKIE", sub = "Easy kills: slow, clumsy, fragile"},
+	{title = "PILOT", sub = "A fair fight"}, {title = "ACE", sub = "Sharp, fast and merciless"}]
 # ponytail: substring blocklist on pilot names (the only typed text others see); a real moderation service if public matchmaking ever exists.
 const BLOCKED_NAMES := ["fuck", "fuk", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut", "nigg", "fag", "rape",
 	"porn", "penis", "vagina", "bastard", "asshole", "nazi", "hitler", "chut", "madarchod", "behenchod", "bhenchod", "bsdk", "bhosd",
@@ -78,6 +80,18 @@ var prize_t := 35.0
 var battle_row := VBoxContainer.new()
 var mp_root: Control # Multiplayer screen (host / join), part of the main menu
 var mp_open := false
+var mission_root: Control # phone: solo mission setup over the home screen
+var mission_open := false
+var play_sub := Label.new()
+var home_pic := TextureRect.new()
+var home_world := Label.new()
+var home_mode := Label.new()
+var objective := Label.new()
+var world_cards: Array = []
+var mode_chips := {} # mode -> Button
+var size_segs: Array = []
+var skill_segs: Array = []
+var battle_segs: Control # size + skill: vs-AI modes only
 var plane_choice := "cub"
 var start_btn: Button
 var copy_btn: Button
@@ -105,6 +119,7 @@ var preview_key := ""
 
 func _ready() -> void:
 	Settings.load_saved()
+	plane_choice = Settings.values.last_plane if Settings.values.last_plane in Planes.ORDER else "cub"
 	shop.name = "Shop"
 	add_child(shop)
 	if TouchControls.on():
@@ -265,6 +280,7 @@ func _start_hosting() -> void:
 		gs.players[1].banner = look[1]
 		gs.players[1].livery = look[2]
 		gs.players[1].killfx = look[3]
+		gs.players[1].plane = plane_choice
 	_push()
 	print("Hosting")
 	net_who = "host"
@@ -402,6 +418,37 @@ func _close_mp() -> void:
 		status.text = "Join cancelled."
 	mp_open = false
 	_refresh_ui()
+
+
+func _open_mp() -> void:
+	mp_open = true
+	_refresh_ui()
+
+
+# PLAY / QUICK BATTLE / LAUNCH: straight into the last mission set up (solo_battle applies it).
+func quick_battle() -> void:
+	mission_open = false
+	solo_battle()
+	_start()
+
+
+func _open_mission() -> void:
+	mission_open = true
+	_refresh_ui()
+
+
+func _close_mission() -> void:
+	mission_open = false
+	_refresh_ui()
+
+
+# Mission Select picks are remembered at once; the world builds at launch (Worlds.shown only restyles).
+func _pick_mission(key: String, i: int) -> void:
+	gs[key] = i
+	Settings.values["last_" + key] = i
+	Settings.save()
+	Worlds.shown = clampi(Settings.values.last_world, 0, Worlds.LIST.size() - 1)
+	_refresh_mission()
 
 
 func _connect_client(addr: String, port: int, local_port: int) -> void:
@@ -2103,6 +2150,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.keycode == KEY_ESCAPE and mp_open and gs.phase == "menu":
 		_close_mp()
 		return
+	if event.keycode == KEY_ESCAPE and mission_open and gs.phase == "menu":
+		_close_mission()
+		return
 	if gs.phase != "playing":
 		return
 	if menu_open() and event.keycode != KEY_ESCAPE:
@@ -2146,7 +2196,9 @@ func menu_open() -> bool:
 
 func _refresh_ui() -> void:
 	var shopping := shop_ui != null and shop_ui.visible # the shop takes the left side on its own
-	menu_root.visible = gs.phase == "menu" and not mp_open and not shopping
+	menu_root.visible = gs.phase == "menu" and not mp_open and not shopping and not mission_open
+	if mission_root:
+		mission_root.visible = gs.phase == "menu" and mission_open and not shopping
 	mp_root.visible = gs.phase == "menu" and mp_open and not shopping
 	status.visible = gs.phase == "menu"
 	lobby_root.visible = gs.phase == "lobby" and not shopping
@@ -2577,29 +2629,24 @@ func _build_ui() -> void:
 	ui.add_child(taunts)
 
 	var box := VBoxContainer.new()
-	var ph := TouchControls.phone() # a phone's short screen: everything fits without scrolling
-	Menus.big_title(box, "TOY PLANE", 44 if ph else 60)
-	Menus.big_title(box, "ARCADE", 44 if ph else 60).add_theme_color_override("font_color", Menus.AMBER)
-	var gap := Control.new()
-	gap.custom_minimum_size.y = 6 if ph else 16
-	box.add_child(gap)
-	var fs := 24 if ph else 30
-	Menus.menu_item(box, "BATTLE VS AI", solo_battle, self, fs)
-	Menus.menu_item(box, "FREE FLIGHT", free_flight, self, fs)
-	Menus.menu_item(box, "MULTIPLAYER", func():
-		mp_open = true
-		_refresh_ui(), self, fs)
-	Menus.menu_item(box, "HANGAR SHOP", func(): shop_ui.open(), self, fs)
-	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self, fs)
-	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self, fs)
-	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self, fs)
-	if ph: # thumb-sized rows (about 40 pt) in the space the smaller text freed
-		for b in box.get_children():
-			if b is Button:
-				b.custom_minimum_size.y = 60
-	if not TouchControls.phone(): # iOS apps never quit themselves
-		Menus.menu_item(box, "QUIT", _quit, self)
-	menu_root = Menus.side_panel(ui, box)
+	if TouchControls.phone():
+		_build_home(ui)
+	else:
+		Menus.big_title(box, "TOY PLANE", 60)
+		Menus.big_title(box, "ARCADE", 60).add_theme_color_override("font_color", Menus.AMBER)
+		var gap := Control.new()
+		gap.custom_minimum_size.y = 16
+		box.add_child(gap)
+		Menus.menu_item(box, "QUICK BATTLE", quick_battle, self)
+		Menus.menu_item(box, "BATTLE VS AI", solo_battle, self)
+		Menus.menu_item(box, "FREE FLIGHT", free_flight, self)
+		Menus.menu_item(box, "MULTIPLAYER", _open_mp, self)
+		Menus.menu_item(box, "HANGAR SHOP", func(): shop_ui.open(), self)
+		Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
+		Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
+		Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
+		Menus.menu_item(box, "QUIT", _quit, self) # not on phones: iOS apps never quit themselves
+		menu_root = Menus.side_panel(ui, box)
 
 	box = VBoxContainer.new()
 	Menus.big_title(box, "MULTIPLAYER", 44)
@@ -2643,6 +2690,12 @@ func _build_ui() -> void:
 	status.custom_minimum_size.x = 470
 	status.position = Vector2(48, -110)
 	status.add_theme_color_override("font_color", Menus.AMBER)
+	if TouchControls.phone(): # grows upward from just above HANGAR SHOP
+		var hs: Control = menu_root.get_node("HangarShop")
+		status.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		status.offset_left = hs.offset_left
+		status.offset_bottom = hs.offset_top - 10.0
+		status.offset_top = status.offset_bottom - 26.0
 	ui.add_child(status)
 
 	box = VBoxContainer.new()
@@ -2668,8 +2721,7 @@ func _build_ui() -> void:
 	size_sel = Menus.Selector.new("SQUADRON SIZE", sizes)
 	size_sel.changed.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
 	battle_row.add_child(size_sel)
-	skill_sel = Menus.Selector.new("ENEMY PILOTS", [{title = "VERY EASY", sub = "Relaxed: they barely fight back"}, {title = "ROOKIE", sub = "Easy kills: slow, clumsy, fragile"},
-		{title = "PILOT", sub = "A fair fight"}, {title = "ACE", sub = "Sharp, fast and merciless"}])
+	skill_sel = Menus.Selector.new("ENEMY PILOTS", SKILLS)
 	skill_sel.changed.connect(func(i): request_battle.rpc_id(1, gs.size, i))
 	battle_row.add_child(skill_sel)
 	battle_row.add_theme_constant_override("separation", 10)
@@ -2677,6 +2729,8 @@ func _build_ui() -> void:
 	plane_sel = Menus.Selector.new("YOUR PLANE", Planes.ORDER.map(func(k): return {title = Planes.variant(k).name.to_upper(), sub = Planes.variant(k).desc}))
 	plane_sel.changed.connect(func(i):
 		plane_choice = Planes.ORDER[i]
+		Settings.values.last_plane = plane_choice # remembered for next time
+		Settings.save()
 		request_plane.rpc_id(1, plane_choice)
 		_refresh_preview())
 	start_btn = Menus.menu_item(box, "LAUNCH", func(): request_start.rpc_id(1), self, 36)
@@ -2843,6 +2897,257 @@ func _build_ui() -> void:
 		r.hide()
 	for r in [settings_root, touch_root, howto_root, credits_root]:
 		r.mouse_filter = Control.MOUSE_FILTER_STOP # the menu underneath can't be tapped through these
+
+
+# Phone home: title and small buttons up top, the big PLAY under the right thumb with the mission it
+# plays just above it (tap to change), hangar bottom-left. Nothing scrolls; the live world shows through.
+func _build_home(ui: Control) -> void:
+	var inset := Menus.insets(ui)
+	var l := maxf(inset.x, 20.0)
+	var r := maxf(inset.z, 20.0)
+	var b := maxf(inset.w + 8.0, 16.0)
+	menu_root = Control.new()
+	menu_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(menu_root)
+	var bar := HBoxContainer.new()
+	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bar.offset_left = l
+	bar.offset_right = -r
+	bar.offset_top = maxf(inset.y, 12.0)
+	bar.add_theme_constant_override("separation", 10)
+	menu_root.add_child(bar)
+	var title := VBoxContainer.new()
+	title.add_theme_constant_override("separation", -4)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	Menus.big_title(title, "TOY PLANE", 34).add_theme_constant_override("outline_size", 10)
+	var arcade := Menus.big_title(title, "ARCADE", 34)
+	arcade.add_theme_color_override("font_color", Menus.AMBER)
+	arcade.add_theme_constant_override("outline_size", 10)
+	bar.add_child(title)
+	for it in [["SETTINGS", "settings_root"], ["HOW TO PLAY", "howto_root"], ["CREDITS", "credits_root"]]: # built after this
+		var small := Menus.tile(bar, it[0], func(): get(it[1]).show(), self, 16, Vector2(96, 68))
+		small.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	_corner(col, Vector2(-r - 340, -b - 100), Vector2(340, 100), true)
+	col.grow_vertical = Control.GROW_DIRECTION_BEGIN # PLAY sits on the corner, the rest stacks up from it
+	menu_root.add_child(col)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	col.add_child(row)
+	for it in [["MULTIPLAYER", _open_mp], ["FREE FLIGHT", free_flight]]:
+		var half := Menus.tile(row, it[0], it[1], self, 17, Vector2(0, 72))
+		half.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var card := Menus.tile(col, "", _open_mission, self, 18, Vector2(340, 86))
+	card.name = "MissionCard"
+	card.add_theme_stylebox_override("normal", Menus._box(Color(0.03, 0.05, 0.1, 0.72), Color(1, 1, 1, 0.25), 2, 8))
+	card.add_theme_stylebox_override("hover", card.get_theme_stylebox("normal"))
+	var h := HBoxContainer.new()
+	h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
+	h.add_theme_constant_override("separation", 10)
+	card.add_child(h)
+	home_pic.custom_minimum_size = Vector2(112, 0)
+	home_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	home_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	h.add_child(home_pic)
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(v)
+	for lab: Label in [home_world, home_mode]:
+		lab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lab.custom_minimum_size.x = 110
+		v.add_child(lab)
+	home_world.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	home_world.add_theme_font_size_override("font_size", 17)
+	home_mode.add_theme_font_size_override("font_size", 14)
+	home_mode.add_theme_color_override("font_color", Menus.AMBER)
+	var change := Label.new()
+	change.text = "CHANGE"
+	change.add_theme_font_size_override("font_size", 14)
+	change.modulate = Color(1, 1, 1, 0.75)
+	h.add_child(change)
+	var play := _big_button(col, "PLAY", quick_battle)
+	play.name = "Play"
+	var pv := VBoxContainer.new()
+	pv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
+	pv.alignment = BoxContainer.ALIGNMENT_CENTER
+	play.add_child(pv)
+	var word := Label.new()
+	word.text = play.text
+	play.text = ""
+	word.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	word.add_theme_font_size_override("font_size", 34)
+	play_sub.add_theme_font_size_override("font_size", 13)
+	play_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	for lab: Label in [word, play_sub]:
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.add_theme_color_override("font_color", Menus.NAVY)
+		lab.add_theme_constant_override("outline_size", 0)
+		pv.add_child(lab)
+	var shop_btn := Menus.tile(menu_root, "HANGAR SHOP", func(): shop_ui.open(), self, 17, Vector2(200, 72))
+	shop_btn.name = "HangarShop"
+	_corner(shop_btn, Vector2(l, -b - 72), Vector2(200, 72), false)
+	for c in [menu_root] + menu_root.find_children("*", "Control", true, false): # taps land on the buttons, not their insides
+		if not c is BaseButton:
+			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_build_mission(ui, inset, l, r, b)
+
+
+# Phone Mission Select: worlds scroll sideways (one card cut off at the edge says so), mode chips,
+# size and skill segments; LAUNCH is where PLAY was. No vertical scroll on a 620-unit screen.
+func _build_mission(ui: Control, inset: Vector4, l: float, r: float, b: float) -> void:
+	mission_root = Control.new()
+	mission_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mission_root.hide()
+	ui.add_child(mission_root)
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.05, 0.1, 0.62)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mission_root.add_child(dim)
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = l
+	v.offset_right = -r
+	v.offset_top = maxf(inset.y, 12.0)
+	v.offset_bottom = -b
+	v.add_theme_constant_override("separation", 10)
+	mission_root.add_child(v)
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 16)
+	v.add_child(bar)
+	Menus.tile(bar, "<  BACK", _close_mission, self, 18, Vector2(120, 68))
+	var tv := VBoxContainer.new()
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	Menus.big_title(tv, "MISSION", 34).add_theme_constant_override("outline_size", 10)
+	bar.add_child(tv)
+	Menus.tile(bar, "PLANE + LOOKS", func():
+		mission_open = false
+		solo_battle(), self, 16, Vector2(0, 68)) # the full lobby: plane picker with stats, stickers, paint
+	var scroll := ScrollContainer.new()
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	scroll.scroll_deadzone = 8 # a tap that wobbles a little is still a tap
+	scroll.custom_minimum_size.y = 170
+	v.add_child(scroll)
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 12)
+	scroll.add_child(cards)
+	for i in Worlds.LIST.size():
+		var c := Menus.tile(cards, "", _pick_mission.bind("world", i), self, 18, Vector2(230, 170))
+		c.mouse_filter = Control.MOUSE_FILTER_PASS # a drag across the cards still scrolls them
+		var cv := VBoxContainer.new()
+		cv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 6)
+		cv.add_theme_constant_override("separation", 2)
+		c.add_child(cv)
+		var pic := TextureRect.new()
+		pic.texture = load("res://assets/ui/worlds/%s.png" % Worlds.LIST[i])
+		pic.custom_minimum_size.y = 100
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		cv.add_child(pic)
+		var n := Label.new()
+		n.text = Worlds.NAMES[i].to_upper()
+		n.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+		n.add_theme_font_size_override("font_size", 16)
+		cv.add_child(n)
+		var tag := Label.new()
+		tag.text = Worlds.TAGLINES[i]
+		tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tag.add_theme_font_size_override("font_size", 12)
+		tag.modulate = Color(1, 1, 1, 0.75)
+		cv.add_child(tag)
+		world_cards.append(c)
+	var chips := HFlowContainer.new()
+	chips.add_theme_constant_override("h_separation", 10)
+	chips.add_theme_constant_override("v_separation", 10)
+	v.add_child(chips)
+	for m in [3, 0, 4, 5]: # Team Dogfight needs humans; Free Flight has its own button
+		mode_chips[m] = Menus.tile(chips, MODES[m].to_upper(), _pick_mission.bind("mode", m), self, 16, Vector2(96, 68))
+	objective.add_theme_font_size_override("font_size", 15)
+	objective.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(objective)
+	var low := HBoxContainer.new() # keeps the segments clear of LAUNCH's corner
+	v.add_child(low)
+	battle_segs = HFlowContainer.new()
+	battle_segs.add_theme_constant_override("h_separation", 24)
+	battle_segs.add_theme_constant_override("v_separation", 8)
+	battle_segs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	low.add_child(battle_segs)
+	var room := Control.new()
+	room.custom_minimum_size.x = 352
+	low.add_child(room)
+	for g in [["SQUADRON SIZE", SIZES.map(func(sz): return "%dV%d" % [sz, sz]), "size", size_segs], ["ENEMY PILOTS", SKILLS.map(func(s): return s.title), "skill", skill_segs]]:
+		var gv := VBoxContainer.new()
+		gv.add_theme_constant_override("separation", 2)
+		battle_segs.add_child(gv)
+		var head := Label.new()
+		head.text = g[0]
+		head.add_theme_font_size_override("font_size", 13)
+		head.modulate = Color(1, 1, 1, 0.6)
+		gv.add_child(head)
+		var seg := HBoxContainer.new()
+		seg.add_theme_constant_override("separation", 4)
+		gv.add_child(seg)
+		for i in g[1].size():
+			g[3].append(Menus.tile(seg, g[1][i], _pick_mission.bind(g[2], i), self, 15, Vector2(76, 68)))
+	var launch := _big_button(mission_root, "LAUNCH", quick_battle)
+	launch.name = "Launch"
+	_corner(launch, Vector2(-r - 340, -b - 100), Vector2(340, 100), true)
+	for c in [mission_root] + mission_root.find_children("*", "Control", true, false):
+		if not c is BaseButton and not c is ScrollContainer:
+			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP # nothing behind it takes a stray tap
+	_refresh_mission()
+
+
+func _big_button(parent: Control, text: String, cb: Callable) -> Button:
+	var btn := Menus.tile(parent, text, cb, self, 34, Vector2(340, 100))
+	Menus.lit(btn, true)
+	return btn
+
+
+# Pin a control to the bottom-right (right = true) or bottom-left corner: at = offset from that corner's anchor.
+func _corner(c: Control, at: Vector2, sz: Vector2, right: bool) -> void:
+	c.anchor_left = 1.0 if right else 0.0
+	c.anchor_right = c.anchor_left
+	c.anchor_top = 1.0
+	c.anchor_bottom = 1.0
+	c.offset_left = at.x
+	c.offset_top = at.y
+	c.offset_right = at.x + sz.x
+	c.offset_bottom = at.y + sz.y
+
+
+func _refresh_mission() -> void:
+	if not mission_root:
+		return
+	var v := Settings.values
+	var w := clampi(v.last_world, 0, Worlds.LIST.size() - 1)
+	var m: int = v.last_mode if v.last_mode in [0, 3, 4, 5] else 3
+	var sz := clampi(v.last_size, 0, SIZES.size() - 1)
+	var sk := clampi(v.last_skill, 0, SKILLS.size() - 1)
+	for i in world_cards.size():
+		var on: bool = i == w
+		world_cards[i].add_theme_stylebox_override("normal", Menus._box(Color(0.05, 0.08, 0.16, 0.8), Menus.AMBER if on else Color(1, 1, 1, 0.15), 4 if on else 1, 6))
+		world_cards[i].add_theme_stylebox_override("hover", world_cards[i].get_theme_stylebox("normal"))
+	for k in mode_chips:
+		Menus.lit(mode_chips[k], k == m)
+	for i in size_segs.size():
+		Menus.lit(size_segs[i], i == sz)
+	for i in skill_segs.size():
+		Menus.lit(skill_segs[i], i == sk)
+	objective.text = OBJECTIVES[m]
+	battle_segs.visible = m in AI_MODES
+	home_pic.texture = load("res://assets/ui/worlds/%s.png" % Worlds.LIST[w])
+	home_world.text = Worlds.NAMES[w].to_upper()
+	home_mode.text = MODES[m].trim_suffix(" vs AI").to_upper()
+	var parts := [Worlds.NAMES[w], MODES[m].trim_suffix(" vs AI")]
+	if m in AI_MODES:
+		parts += ["%dv%d" % [SIZES[sz], SIZES[sz]], SKILLS[sk].title]
+	play_sub.text = "  ·  ".join(parts).to_upper()
 
 
 # ---------- match start: who/what/where card, controls card, 3-2-1-GO ----------
