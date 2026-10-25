@@ -13,6 +13,10 @@ const AI_MODES := [3, 4, 5]
 const JOBS := ["attack", "defend", "escort", "hunt"]
 const SIZES := [2, 4, 6]
 const SKILL_NAMES := ["rookie", "pilot", "ace"]
+# ponytail: substring blocklist on pilot names (the only typed text others see); a real moderation service if public matchmaking ever exists.
+const BLOCKED_NAMES := ["fuck", "fuk", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut", "nigg", "fag", "rape",
+	"porn", "penis", "vagina", "bastard", "asshole", "nazi", "hitler", "chut", "madarchod", "behenchod", "bhenchod", "bsdk", "bhosd",
+	"gaand", "gandu", "lund", "randi", "harami", "kutt", "kamina"]
 const CALLSIGNS := ["Biscuit", "Comet", "Pebble", "Rusty", "Noodle", "Zippy", "Sprocket", "Maple", "Doodle", "Ziggy", "Pipkin", "Bolt"] # original names (no film characters)
 const TEAM_NAMES := ["Blue", "Red"]
 const DAMAGE := [8, 45, 150] # guns, rocket, bomb
@@ -572,8 +576,21 @@ func _down_again(id: int, back: Dictionary) -> void:
 		_push())
 
 
+static func clean_name(pilot: String) -> bool:
+	var s := pilot.to_lower()
+	for pair in [["0", "o"], ["1", "i"], ["3", "e"], ["4", "a"], ["5", "s"], ["@", "a"], ["$", "s"], ["!", "i"]]:
+		s = s.replace(pair[0], pair[1])
+	var letters := ""
+	for c in s:
+		if c >= "a" and c <= "z":
+			letters += c
+	return not BLOCKED_NAMES.any(func(w): return w in letters)
+
+
 func _add_player(id: int, pilot: String) -> void:
 	pilot = pilot.strip_edges().left(16)
+	if not clean_name(pilot):
+		pilot = ""
 	var counts := _team_counts()
 	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in TEAM_MODES or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
 
