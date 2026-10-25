@@ -2223,7 +2223,7 @@ func _refresh_hud() -> void:
 			if gs.clutch[team] >= 0.0:
 				c[team] = " (CLUTCH %ds)" % gs.clutch[team]
 		top.text = "Blue %d lives%s   |   %s   |   Red %d lives%s%s" % [gs.lives[0], c[0], t, gs.lives[1], c[1], rtt]
-	feed.text = "\n".join(gs.feed)
+	feed.text = "\n".join(gs.feed.slice(-3 if get_viewport().get_visible_rect().size.aspect() > 1.8 else -2) if TouchControls.phone() else gs.feed) # phone: clear of the minimap
 
 
 func _scoreboard() -> String:
@@ -2435,6 +2435,8 @@ func _build_ui() -> void:
 	feed.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	feed.position += Vector2(-20, 50)
 	feed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	feed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # long lines wrap instead of running into the stats line on narrow screens
+	feed.custom_minimum_size.x = 330
 	ui.add_child(feed)
 	_build_intro(ui)
 	taunts = Taunts.new(self)

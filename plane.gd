@@ -273,7 +273,8 @@ func _process(dt: float) -> void:
 		var bonus := ""
 		for id in buffs:
 			bonus += "   %s %ds" % [{twin = "TWIN GUNS", shield = "SHIELD", swarm = "ROCKET SWARM"}[id], ceili(buffs[id])]
-		hud_text.text = "%s   HP %d   Speed %d   Alt %d   Throttle %d%%   Rockets %d   Bombs %d   Flares %d%s%s%s" % [Planes.variant(kind).name, hp, velocity.length(), position.y, throttle * 100, rockets_left, bombs_left, flares_left, bonus, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
+		var thr := "" if TouchControls.on() else "   Throttle %d%%" % (throttle * 100) # touch: the throttle slider shows it
+		hud_text.text = "%s   HP %d   Speed %d   Alt %d%s   Rockets %d   Bombs %d   Flares %d%s%s%s" % [Planes.variant(kind).name, hp, velocity.length(), position.y, thr, rockets_left, bombs_left, flares_left, bonus, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
 
