@@ -55,7 +55,7 @@ static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right :=
 	sb.content_margin_top = 20 if TouchControls.phone() else 32
 	var safe := DisplayServer.get_display_safe_area() # keep text clear of the notch / Dynamic Island
 	var scr := DisplayServer.screen_get_size()
-	var inset := maxf(safe.position.x, scr.x - safe.end.x) * ui.get_viewport_rect().size.x / maxf(scr.x, 1.0)
+	var inset := maxf(safe.position.x, scr.x - safe.end.x) * (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size.x / maxf(scr.x, 1.0)
 	if right:
 		sb.content_margin_right += inset
 	else:
@@ -301,12 +301,12 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 static func howto_text() -> String:
 	if TouchControls.on(): # one line per point: the phone panel wraps them
 		return """[b]FLYING[/b]
-Drag on the left half of the screen to steer; the plane follows.
+Drag anywhere away from the buttons to steer; the plane follows.
 Slide the throttle bar up / down for fast / slow. Hold BOOST for a burst of speed. Too slow = stall, nose drops.
 
 [b]FIGHTING[/b]
 Hold FIRE: guns. Red circles show where to lead your shots.
-Hold ROCKET to aim (lock box, or a dotted path), let go to fire. Rockets need a lock: keep the target in the box until it closes (LOCKING -> LOCK).
+Hold ROCKET with an enemy ahead: your plane follows it on its own and locks on (LOCKING -> LOCK); let go to fire and the rocket chases it. Steer any time to take over; a sharp dodge shakes the follow off. A quick tap fires at whatever is ahead.
 LOCKED ON means someone is locking you. MISSILE! means one is chasing you: tap FLARE (flares break the lock of rockets already fired), or turn hard and BOOST.
 Hold BOMB to see where a bomb will land, let go to drop. Bombs wreck HQs and defenses.
 II = pause menu.  CAM = camera near / normal / far.  Hold TAUNT and slide to pick a message; tap a second finger for more messages.

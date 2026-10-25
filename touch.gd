@@ -1,7 +1,7 @@
 class_name TouchControls
 extends Control
 
-# Phone controls: a stick on the left steers (it moves your aim like the mouse does), thumb buttons press
+# Phone controls: dragging anywhere off the buttons steers (it moves your aim like the mouse does), thumb buttons press
 # the same keys a keyboard would, so the game code doesn't know the difference. Settings > Touch controls
 # has tilt steering, auto-fire, vibration, left-handed, a fixed stick, opacity and a layout editor
 # (drag to move, BIGGER/SMALLER) saved as screen fractions so it fits any phone.
@@ -224,7 +224,7 @@ func _press(finger: int, at: Vector2) -> void:
 		else:
 			_key(e.key, true)
 		return
-	if at.x > size.x * 0.55 if Settings.values.touch_lefty else at.x < size.x * 0.45:
+	if not held.values().has("stick"): # anywhere off the buttons steers (one steering finger at a time)
 		held[finger] = "stick"
 		stick_at = _center("stick") if Settings.values.touch_fixed else at
 		stick = ((at - stick_at) / _radius("stick")).limit_length(1.0)
@@ -259,7 +259,7 @@ func _process(dt: float) -> void:
 		fan = ""
 		tilt_base = Vector3.ZERO # recalibrate tilt next time you fly
 	var p: Node = main._plane(multiplayer.get_unique_id()) if visible and not editing else null
-	var want_fire: bool = fire_held or (p != null and Settings.values.autofire and p._assist(-p.basis.z) != -p.basis.z)
+	var want_fire: bool = fire_held or (p != null and Settings.values.autofire and p._assist(p.gun_dir()) != p.gun_dir())
 	if want_fire != space_down:
 		space_down = want_fire
 		_key(KEY_SPACE, want_fire)
@@ -271,6 +271,7 @@ func _process(dt: float) -> void:
 	if steer == Vector2.ZERO:
 		return
 	# The stick moves the aim point; it never runs more than ~55 degrees ahead of the nose.
+	p.steer_t = 0.0
 	var curve := steer * steer.length() # fine control near the middle
 	var inv: float = -1.0 if Settings.values.invert_y else 1.0
 	var s: float = Settings.values.sensitivity

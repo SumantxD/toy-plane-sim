@@ -3,7 +3,7 @@ extends MultiMeshInstance3D
 # Every peer draws every tracer; only the shooter's own copy tests for hits
 # against what that shooter sees (favor-the-shooter, no server rewind).
 # ponytail: trusts the shooter's hit claims; fine among friends, add server validation for public servers.
-const LIFE := 1.6
+const LIFE := 1.2 # ~780 m at 650 m/s
 const MAX := 1024
 
 var shots: Array = [] # {p, v, t, owner, local}
@@ -50,7 +50,7 @@ func _process(dt: float) -> void:
 			s.t = 0.0
 		elif s.local and is_instance_valid(s.owner):
 			for t in targets:
-				if t != s.owner and t.alive and t.team != s.owner.team and _seg_hits(a, s.p, t.position, t.hit_radius):
+				if t != s.owner and t.alive and t.team != s.owner.team and _seg_hits(a, s.p, t.position, t.hit_radius + (0.0 if s.owner.get("is_ai") else 4.0)): # players' rounds forgive a near miss
 					s.owner.report_hit(t, 0, t.component_at(_closest(a, s.p, t.position)))
 					s.t = 0.0
 					break

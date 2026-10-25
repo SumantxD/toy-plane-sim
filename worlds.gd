@@ -42,8 +42,12 @@ static var cur: Dictionary = {}
 static var mod: Script
 
 
+static var shown := 0 # world picked in the lobby (plane lineup and styling); `index` is the one built
+
+
 static func select(i: int) -> void:
 	index = clampi(i, 0, LIST.size() - 1)
+	shown = index
 	mod = load("res://worlds/%s.gd" % LIST[index])
 	cur = DEFAULT.duplicate(true)
 	var d: Dictionary = mod.def() if mod.has_method("def") else {}

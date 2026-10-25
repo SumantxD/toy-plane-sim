@@ -9,7 +9,8 @@ const STALL := 32.0
 const GRAVITY := 18.0
 const TURN := Vector3(1.6, 0.6, 3.2) # pitch, yaw, roll rad/s
 const FIRE_INTERVAL := 0.08
-const BULLET_SPEED := 450.0
+const BULLET_SPEED := 650.0
+const GUN_SWIVEL := 0.2 # players' guns turn up to ~11 deg toward the crosshair: rounds go where you aim, not where the nose lags
 const HIT_RADIUS := 4.5
 const MAX_HP := 100
 const SEND_INTERVAL := 1.0 / 30.0
@@ -109,6 +110,12 @@ var cam: Camera3D
 var hud: Control
 var hud_text: Label # local plane only: a never-parented Label leaked once per freed plane
 var aim_yaw := 0.0
+var tail_flash := 0.0 # AMBUSH! / TAIL SHOT text after an off-guard hit (the host decides)
+var tail_tag := ""
+var born_ms := Time.get_ticks_msec() # no off-guard bonus against a fresh spawn
+var steer_t := 9.0 # seconds since the player last steered (auto-follow waits for hands off)
+var chase_dir := Vector3.ZERO # target heading last frame: a hard jink breaks auto-follow
+var chase_off := 0.0
 var aim_pitch := 0.0
 
 
@@ -216,6 +223,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_local() and event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var s: float = 0.003 * Settings.values.sensitivity
 		aim_yaw -= event.relative.x * s
+		steer_t = 0.0
 		aim_pitch = clampf(aim_pitch - event.relative.y * s * (-1.0 if Settings.values.invert_y else 1.0), -1.45, 1.45)
 
 
@@ -341,7 +349,34 @@ func _read_input(dt: float) -> void:
 	var x := Input.is_key_pressed(KEY_X)
 	wants_flare = x and not flare_key
 	flare_key = x
+	_pursue(dt)
 	aim_dir = -Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0)).z
+
+
+# Lining up a rocket (ROCKET held, target in the cone): the plane follows the target on its own until
+# the player steers or the target jinks hard (then it waits a second before following again).
+func _pursue(dt: float) -> void:
+	steer_t += dt
+	chase_off -= dt
+	var t: Node = lock_on if rocket_aiming else null
+	if not t or not is_instance_valid(t):
+		chase_dir = Vector3.ZERO
+		return
+	var heading: Vector3 = t.vel_estimate().normalized()
+	if chase_dir != Vector3.ZERO and chase_dir.angle_to(heading) / maxf(dt, 0.001) > 1.2:
+		chase_off = 1.0 # snap turn: shaken off
+	chase_dir = heading
+	if steer_t < 0.5 or chase_off > 0.0:
+		return
+	var d: float = position.distance_to(t.position)
+	var to: Vector3 = (t.position + (t.vel_estimate() - velocity) * (d / BULLET_SPEED) - position).normalized()
+	var cur := -Basis.from_euler(Vector3(aim_pitch, aim_yaw, 0)).z
+	var gap := cur.angle_to(to)
+	if gap < 0.001:
+		return
+	cur = cur.slerp(to, minf(1.0, 1.6 * dt / gap)) # turns at most ~90 deg/s: smooth, not a snap
+	aim_yaw = atan2(-cur.x, -cur.z)
+	aim_pitch = clampf(asin(clampf(cur.y, -1, 1)), -1.45, 1.45)
 
 
 func _fly(dt: float) -> void:
@@ -412,7 +447,7 @@ func _shoot(dt: float) -> void:
 		if is_ai:
 			dir = (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02).normalized()
 		else:
-			dir = _assist(dir)
+			dir = _assist(gun_dir())
 		main.bullets.fire(position - basis.z * 5.0, velocity + dir * BULLET_SPEED, self, true)
 		if is_ai:
 			main.stat_shots += 1
@@ -444,7 +479,7 @@ func _shoot(dt: float) -> void:
 	if wants_rocket and rocket_cd <= 0.0 and rockets_left > 0:
 		rockets_left -= 1
 		rocket_cd = 1.0 if not is_ai else 8.0
-		main.rockets.launch(self, lock)
+		main.rockets.launch(self, lock if lock or is_ai else (lock_on if lock_on else find_lock(0.6))) # players: a quick tap still homes on what's ahead
 
 
 # Lock builds while the same target stays in the cone; switching targets starts over.
@@ -500,9 +535,9 @@ func position_at(ago: float) -> Vector3:
 	return hist[0][1] if not hist.is_empty() else position
 
 
-func find_lock() -> Node:
+func find_lock(cone := LOCK_CONE) -> Node:
 	var best: Node = null
-	var best_angle := LOCK_CONE
+	var best_angle := cone
 	for t in get_tree().get_nodes_in_group("targets"):
 		if t.team != team and t.alive and position.distance_to(t.position) < LOCK_RANGE:
 			var a := (-basis.z).angle_to(t.position - position)
@@ -510,6 +545,25 @@ func find_lock() -> Node:
 				best_angle = a
 				best = t
 	return best
+
+
+# Caught off guard: the attacker is behind this plane, outside its forward view (it can't see them coming).
+func off_guard(attacker: Node) -> bool:
+	return (-basis.z).angle_to(attacker.position - position) > deg_to_rad(130.0)
+
+
+# In view: inside the forward ~55 deg cone, close enough to notice.
+func sees(other: Node) -> bool:
+	return position.distance_to(other.position) < 1200.0 and (-basis.z).angle_to(other.position - position) < deg_to_rad(55.0)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func hit_tag(tag: String) -> void:
+	if multiplayer.get_remote_sender_id() in [0, 1]:
+		tail_tag = tag
+		tail_flash = 0.9
+		if tag == "AMBUSH!":
+			Sfx.ui(main, Sfx.HEAVY_HITS.pick_random(), -2.0, 1.3)
 
 
 func report_hit(target: Node, weapon := 0, comp := -1) -> void:
@@ -536,9 +590,16 @@ func component_at(world: Vector3) -> int:
 
 
 # Gun assist for humans: within ~2 degrees of an enemy's lead point, the rounds go to it.
+# Where a player's guns point: the nose, swivelled toward the crosshair.
+func gun_dir() -> Vector3:
+	var nose := -basis.z
+	var off := nose.angle_to(aim_dir)
+	return nose if off < 0.001 or is_ai else nose.slerp(aim_dir, minf(1.0, GUN_SWIVEL / off))
+
+
 func _assist(dir: Vector3) -> Vector3:
 	var best := dir
-	var best_a := deg_to_rad(2.2)
+	var best_a := deg_to_rad(6.0) # generous: fights are won by positioning, not pixel aim
 	for t in get_tree().get_nodes_in_group("targets"):
 		if t.team == team or not t.alive or t == self:
 			continue
@@ -1024,11 +1085,14 @@ func _axis(neg: Key, pos: Key) -> float:
 func _draw_hud() -> void:
 	var c := hud.size / 2
 	hud.draw_arc(c, 14, 0, TAU, 32, Color(1, 1, 1, 0.8), 2) # where you're aiming
-	var nose := position - basis.z * 400.0
+	var nose := position + gun_dir() * 400.0
 	if alive and not cam.is_position_behind(nose):
 		var p := cam.unproject_position(nose) # where your guns point
 		hud.draw_line(p - Vector2(10, 0), p + Vector2(10, 0), Color.YELLOW, 2)
 		hud.draw_line(p - Vector2(0, 10), p + Vector2(0, 10), Color.YELLOW, 2)
+	if tail_flash > 0.0:
+		tail_flash -= get_process_delta_time()
+		hud.draw_string(ThemeDB.fallback_font, c + Vector2(-90, -40), tail_tag, HORIZONTAL_ALIGNMENT_CENTER, 180, 24 if tail_tag == "AMBUSH!" else 18, (Color(1.0, 0.75, 0.2) if tail_tag == "AMBUSH!" else Color.WHITE) * Color(1, 1, 1, minf(tail_flash / 0.3, 1.0)))
 	var x := maxf(20.0, main.touch._pad()) if main.touch else 20.0 # clear of the notch / Dynamic Island
 	hud_text.position.x = x
 	hud.draw_rect(Rect2(x, 40, 200, 10), Color(0, 0, 0, 0.5))

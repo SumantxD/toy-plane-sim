@@ -13,6 +13,7 @@ const NAV := 3.5
 const MAX_LATERAL := 160.0 # m/s^2 at REF_SPEED
 const REF_SPEED := 300.0
 const SEEKER_FOV := 1.05 # ~60 deg
+const PLAYER_GRIP := 1.6 # players' rockets (not AI ones) turn harder, see wider and fuse further: easy to land
 const FUSE := 8.0
 const SPLASH := 18.0
 const LIFE := 7.0
@@ -161,7 +162,8 @@ func _add(id: String, p: Vector3, v: Vector3, owner: Node, target_name: String, 
 		m.mesh = bomb_mesh
 	add_child(m)
 	rockets[id] = {p = p, v = v, t = 0.0, owner = owner, team = owner.team, local = local, mesh = m, trail = [], bomb = bomb,
-		target = main().find_unit(target_name) if target_name else null} # planes, turrets or HQs
+		target = main().find_unit(target_name) if target_name else null, # planes, turrets or HQs
+		grip = PLAYER_GRIP if not bomb and owner.get("is_ai") == false else 1.0}
 
 
 func _remove(id: String) -> void:
@@ -216,7 +218,7 @@ func _missile() -> Node3D:
 
 
 # One physics step. Shared by real rockets and the preview, so the preview never lies.
-static func step(p: Vector3, v: Vector3, t: float, target: Node, dt: float) -> Array:
+static func step(p: Vector3, v: Vector3, t: float, target: Node, dt: float, grip := 1.0) -> Array:
 	var speed := maxf(v.length(), 1.0)
 	var a := Vector3.DOWN * GRAVITY - v * speed * DRAG
 	if t < BURN:
@@ -227,7 +229,7 @@ static func step(p: Vector3, v: Vector3, t: float, target: Node, dt: float) -> A
 		var los_rate := r.cross(rv) / maxf(r.length_squared(), 1.0)
 		var lateral := NAV * los_rate.cross(v) + Vector3.UP * GRAVITY
 		lateral -= v / speed * lateral.dot(v / speed) # steering only, no free thrust
-		a += lateral.limit_length(MAX_LATERAL * pow(speed / REF_SPEED, 2.0))
+		a += lateral.limit_length(MAX_LATERAL * grip * pow(speed / REF_SPEED, 2.0))
 	v += a * dt
 	return [p + v * dt, v]
 
@@ -257,10 +259,10 @@ func _process(dt: float) -> void:
 		if r.bomb:
 			_bomb_tick(id, r, dt)
 			continue
-		if not is_instance_valid(r.target) or not r.target.is_inside_tree() or not r.target.alive or r.v.angle_to(r.target.position - r.p) > SEEKER_FOV:
+		if not is_instance_valid(r.target) or not r.target.is_inside_tree() or not r.target.alive or r.v.angle_to(r.target.position - r.p) > SEEKER_FOV * r.grip:
 			r.target = null # lost lock
 		var a: Vector3 = r.p
-		var s := step(r.p, r.v, r.t, r.target, dt)
+		var s := step(r.p, r.v, r.t, r.target, dt, r.grip)
 		r.p = s[0]
 		r.v = s[1]
 		r.t += dt
@@ -271,7 +273,7 @@ func _process(dt: float) -> void:
 		var hit: bool = main().hits_ground(r.p)
 		if not hit:
 			for t in get_tree().get_nodes_in_group("targets"):
-				if t.alive and t.team != r.team and _seg_dist(a, r.p, t.position) < FUSE + t.hit_radius:
+				if t.alive and t.team != r.team and _seg_dist(a, r.p, t.position) < FUSE * r.grip + t.hit_radius:
 					hit = true
 					break
 		if hit and r.local:

@@ -3,7 +3,7 @@ extends RefCounted
 
 # Player preferences, saved to user://settings.cfg. Bad or missing values fall back to defaults.
 const PATH := "user://settings.cfg"
-const DEFAULTS := {volume = 0.8, sensitivity = 1.0, invert_y = false, fullscreen = false, quality = 1, name = "", cam = 1, matches = 0, player_id = "", turn_urls = "", turn_username = "", turn_credential = "", sticker = 0, banner = 0, taunts = true, trails = true,
+const DEFAULTS := {volume = 0.8, sensitivity = 1.0, invert_y = false, fullscreen = false, quality = 1, name = "", cam = 1, matches = 0, player_id = "", turn_urls = "", turn_username = "", turn_credential = "", sticker = 0, banner = 0, taunts = true, trails = true, last_world = 0, last_mode = 3, last_size = 1, last_skill = 0,
 	touch_layout = {}, touch_opacity = 0.8, touch_lefty = false, touch_fixed = false, tilt = false, autofire = false, vibrate = true,
 	livery = 0, killfx = 0, offer_dismiss = {}, review_at = 0}
 
@@ -48,3 +48,5 @@ static func apply(tree: SceneTree) -> void:
 		light.shadow_enabled = values.quality == 1
 		if TouchControls.phone():
 			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			light.shadow_blur = 2.5 # soft edges: hard ones shimmer on bright snow
+			light.directional_shadow_max_distance = 600.0 # 2 splits over less ground: sharper detail, fewer jaggies

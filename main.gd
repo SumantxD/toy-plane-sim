@@ -12,7 +12,7 @@ const TEAM_MODES := [1, 3, 4, 5]
 const AI_MODES := [3, 4, 5]
 const JOBS := ["attack", "defend", "escort", "hunt"]
 const SIZES := [2, 4, 6]
-const SKILL_NAMES := ["rookie", "pilot", "ace"]
+const SKILL_NAMES := ["cadet", "rookie", "pilot", "ace"]
 # ponytail: substring blocklist on pilot names (the only typed text others see); a real moderation service if public matchmaking ever exists.
 const BLOCKED_NAMES := ["fuck", "fuk", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut", "nigg", "fag", "rape",
 	"porn", "penis", "vagina", "bastard", "asshole", "nazi", "hitler", "chut", "madarchod", "behenchod", "bhenchod", "bsdk", "bhosd",
@@ -48,7 +48,7 @@ var lobby_cam := Camera3D.new()
 var gs := {
 	phase = "menu", mode = 0, leader = 1, players = {}, lives = [0, 0], clutch = [-1.0, -1.0],
 	time = 0.0, wave = 0, next_wave = 0.0, arrived = 0, lost = 0, sudden = false,
-	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0, size = 1, skill = 1, team_kills = [0, 0], ai_board = {}, world = 0, storm = 0.0,
+	beacons = [], feed = [], msg = "", match_id = 0, room = "", public_ip = "", popped = 0, size = 1, skill = 0, team_kills = [0, 0], ai_board = {}, world = 0, storm = 0.0,
 }
 var beacons := {} # server only: victim id -> {pos, t, team}
 var respawning := {} # server only: victim id -> team, waiting out RESPAWN_DELAY
@@ -256,7 +256,7 @@ func _start_hosting() -> void:
 		multiplayer.peer_disconnected.connect(_on_peer_left)
 	gs.phase = "lobby"
 	gs.room = room
-	if DisplayServer.get_name() == "headless" or spectating:
+	if DisplayServer.get_name() == "headless" and not "--local-player" in OS.get_cmdline_user_args() or spectating: # tests can keep a pilot headless
 		gs.leader = 0 # first player to join leads
 	else:
 		_add_player(1, name_edit.text)
@@ -276,7 +276,11 @@ func solo_battle() -> void:
 	room = ""
 	_drop_join()
 	_start_hosting()
-	request_mode(3)
+	var v := Settings.values # the last mission this player set up
+	gs.world = clampi(v.last_world, 0, Worlds.LIST.size() - 1)
+	gs.size = clampi(v.last_size, 0, SIZES.size() - 1)
+	gs.skill = clampi(v.last_skill, 0, SKILL_NAMES.size() - 1)
+	request_mode(v.last_mode if v.last_mode in [0, 3, 4, 5] else 3)
 
 
 # Solo practice runs offline: no port, no firewall prompt, same game code (offline peer = server).
@@ -863,7 +867,9 @@ func sync(state: Dictionary, full: bool) -> void:
 	# a long local hitch, like building a world, inflates the measured ping for a few seconds).
 	var lag: float = 0.0 if gs.get("loading", false) else minf(gs.players.get(multiplayer.get_unique_id(), {}).get("ping", 0) / 2000.0, 0.25)
 	count_local = maxf(gs.get("countdown", 0.0) - lag, 0.0)
-	if gs.get("world", 0) != Worlds.index:
+	if gs.phase == "lobby": # lobby picks show a picture; the world builds at LAUNCH
+		Worlds.shown = gs.get("world", 0)
+	elif gs.get("world", 0) != Worlds.index:
 		_build_world_content(gs.world)
 	if gs.phase != was and gs.phase == "playing":
 		Sfx.ui(self, Sfx.CONFIRM, -4.0)
@@ -983,6 +989,13 @@ func request_start() -> void:
 		_start()
 
 
+# Lobby choices made on this device are kept for next time (hosts only; a guest's taps go to the host).
+func _remember(d: Dictionary) -> void:
+	if _sender() == multiplayer.get_unique_id():
+		Settings.values.merge(d, true)
+		Settings.save()
+
+
 @rpc("any_peer", "call_local", "reliable")
 func request_battle(size_i: int, skill_i: int) -> void:
 	if not multiplayer.is_server():
@@ -990,6 +1003,7 @@ func request_battle(size_i: int, skill_i: int) -> void:
 	if _sender() == gs.leader and gs.phase == "lobby":
 		gs.size = clampi(size_i, 0, SIZES.size() - 1)
 		gs.skill = clampi(skill_i, 0, SKILL_NAMES.size() - 1)
+		_remember({last_size = gs.size, last_skill = gs.skill})
 		_push()
 
 
@@ -1012,6 +1026,8 @@ func request_mode(m: int) -> void:
 		for id in gs.players:
 			gs.players[id].team = 0 if gs.mode != 1 else i % 2 # vs-AI: everyone starts on Blue
 			i += 1
+		if gs.mode in [0, 3, 4, 5]:
+			_remember({last_mode = gs.mode})
 		_push()
 
 
@@ -1087,6 +1103,10 @@ func show_ping(pos: Vector3, text: String, team: int) -> void:
 # ---------- match flow (server) ----------
 
 func _start() -> void:
+	seen.clear()
+	ambushes.clear()
+	if gs.world != Worlds.index:
+		_build_world_content(gs.world)
 	gs.match_id += 1
 	gs.phase = "playing"
 	gs.countdown = 0.0 if gs.mode == 2 else COUNTDOWN
@@ -1240,6 +1260,7 @@ func _process(dt: float) -> void:
 		p[2] -= dt
 	pings = pings.filter(func(p): return p[2] > 0.0)
 	overlay.queue_redraw()
+	_track_seen(dt)
 	_tick_intro(dt)
 	if netstats:
 		var pt := Performance.get_monitor(Performance.TIME_PROCESS)
@@ -1545,6 +1566,8 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 			dmg = ceili(dmg * PilotAI.SKILLS[a.ai.get("skill", "pilot")].hurt)
 		elif a.role == "pilot" and t.role == "wing":
 			dmg = ceili(dmg * PilotAI.SKILLS[t.ai.get("skill", "pilot")].frail)
+		if weapon < 2 and t.has_method("off_guard") and a.has_method("off_guard"):
+			dmg = _off_guard(a, t, dmg)
 		if t.get("buffs") and t.buffs.has("shield"):
 			dmg = ceili(dmg * 0.5)
 		var c: PackedFloat32Array = t.comps.duplicate()
@@ -1716,6 +1739,54 @@ func _spawn_ai(role: String, team: int, pos: Vector3, yaw: float, offset: Vector
 # AI radio chatter in the feed, rate-limited so it reads like comms, not spam.
 var stat_shots := 0 # test stats: AI gun accuracy
 var stat_hits := 0
+var seen := {} # "victim>attacker" -> msec the victim last had that enemy in view (host)
+var ambushes := {} # "attacker>victim" -> msec an ambush started (its 0.6 s window, then a 10 s cooldown)
+var seen_t := 0.0
+
+
+# Host, 10 Hz: who has whom in view. Being out of sight is what makes an ambush.
+func _track_seen(dt: float) -> void:
+	seen_t -= dt
+	if seen_t > 0.0 or not multiplayer.is_server() or gs.phase != "playing":
+		return
+	seen_t = 0.1
+	var now := Time.get_ticks_msec()
+	var planes := get_tree().get_nodes_in_group("targets").filter(func(p): return p.alive and p.has_method("off_guard"))
+	for v in planes:
+		for a in planes:
+			if a.team != v.team and v.sees(a):
+				seen["%d>%d" % [v.get_instance_id(), a.get_instance_id()]] = now
+
+
+# Catching someone off guard (research: reward getting there unseen; tail position alone already wins).
+# AMBUSH: the victim hasn't had you in view for 2.5 s -> x1.75 for 0.6 s, once per 10 s per pair.
+# TAIL: you're in its rear cone -> x1.25. AI attackers only get x1.1 from behind, so the game stays easy.
+# No bonus in the first 3 s after a respawn; an ambush can't take a healthy player plane straight to 0.
+func _off_guard(a: Node, t: Node, dmg: int) -> int:
+	var now := Time.get_ticks_msec()
+	if now - t.born_ms < 3000:
+		return dmg
+	if a.is_ai:
+		return ceili(dmg * 1.1) if t.off_guard(a) else dmg
+	var k := "%d>%d" % [a.get_instance_id(), t.get_instance_id()]
+	var start: int = ambushes.get(k, -100000)
+	var tag := ""
+	if now - start < 600:
+		tag = "AMBUSH!"
+	elif now - start > 10000 and now - seen.get("%d>%d" % [t.get_instance_id(), a.get_instance_id()], -100000) > 2500:
+		ambushes[k] = now
+		tag = "AMBUSH!"
+	elif t.off_guard(a):
+		tag = "TAIL SHOT"
+	seen["%d>%d" % [t.get_instance_id(), a.get_instance_id()]] = now # it knows you're there now
+	if tag == "":
+		return dmg
+	var out := ceili(dmg * (1.75 if tag == "AMBUSH!" else 1.25))
+	if tag == "AMBUSH!" and t.role == "pilot" and t.hp > t.max_hp / 2 and out >= t.hp:
+		out = t.hp - 1
+	if a.role == "pilot" and gs.players.has(int(str(a.name))):
+		a.hit_tag.rpc_id(int(str(a.name)), tag)
+	return out
 var radio_cd := 0.0
 var radio_last := {}
 
@@ -2226,7 +2297,7 @@ func _refresh_preview() -> void:
 	var in_shop := shop_ui != null and shop_ui.visible
 	preview.visible = gs.phase == "lobby" or in_shop
 	var look: Array = shop_ui.preview_look() if in_shop else [my_look()[0], 0, my_look()[2]] # lobby turntable: no trail
-	var key := "%s/%d/%d/%s" % [plane_choice, _my_team(), Worlds.index, look]
+	var key := "%s/%d/%d/%s" % [plane_choice, _my_team(), Worlds.shown, look]
 	if not preview.visible or key == preview_key:
 		return
 	preview_key = key
@@ -2597,7 +2668,7 @@ func _build_ui() -> void:
 	size_sel = Menus.Selector.new("SQUADRON SIZE", sizes)
 	size_sel.changed.connect(func(i): request_battle.rpc_id(1, i, gs.skill))
 	battle_row.add_child(size_sel)
-	skill_sel = Menus.Selector.new("ENEMY PILOTS", [{title = "ROOKIE", sub = "Easy kills: slow, clumsy, fragile"},
+	skill_sel = Menus.Selector.new("ENEMY PILOTS", [{title = "VERY EASY", sub = "Relaxed: they barely fight back"}, {title = "ROOKIE", sub = "Easy kills: slow, clumsy, fragile"},
 		{title = "PILOT", sub = "A fair fight"}, {title = "ACE", sub = "Sharp, fast and merciless"}])
 	skill_sel.changed.connect(func(i): request_battle.rpc_id(1, gs.size, i))
 	battle_row.add_child(skill_sel)
@@ -2851,8 +2922,8 @@ func _show_intro() -> void:
 	var keys: Array
 	if TouchControls.on():
 		keys = ["[font_size=20][b]CONTROLS[/b][/font_size]",
-			"[color=#9fd3ff]FLY[/color]   Drag on the left: steer  |  FAST / SLOW throttle  |  BOOST",
-			"[color=#ff9f80]FIGHT[/color]  Hold FIRE: guns  |  hold ROCKET for LOCK, let go to fire",
+			"[color=#9fd3ff]FLY[/color]   Drag anywhere: steer  |  FAST / SLOW throttle  |  BOOST",
+			"[color=#ff9f80]FIGHT[/color]  Hold FIRE: guns  |  hold ROCKET: follow + LOCK, let go to fire",
 			"         Hold BOMB for the sight, let go to drop  |  FLARE when you hear MISSILE",
 			"[color=#e0c8ff]VIEW[/color]   II menu  |  CAM camera",
 			"[color=#ffd34d]FUN[/color]    Hold TAUNT and slide to pick (2nd finger: more)"]
@@ -2874,7 +2945,7 @@ func _show_intro() -> void:
 	Settings.values.matches = runs + 1
 	Settings.save()
 	intro_t = 5.0
-	keys_t = 14.0 if runs < 3 else 6.0 # first few matches: read it properly; later: a reminder
+	keys_t = 14.0 if runs < 3 else 0.0 # first 3 matches only; HOW TO PLAY has it any time
 	count_shown = -1
 
 
@@ -3066,6 +3137,7 @@ func request_world(i: int) -> void:
 		return
 	if _sender() == gs.leader and gs.phase == "lobby":
 		gs.world = clampi(i, 0, Worlds.LIST.size() - 1)
+		_remember({last_world = gs.world})
 		_push()
 
 

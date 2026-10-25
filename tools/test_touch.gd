@@ -47,6 +47,7 @@ func _initialize() -> void:
 	main = load("res://main.tscn").instantiate()
 	root.add_child(main)
 	current_scene = main
+	Settings.values.last_mode = 3 # BATTLE VS AI opens the last mission: test Team Battle
 	for i in 30:
 		await process_frame
 	var tc: Control = main.find_children("*", "TouchControls", true, false)[0]

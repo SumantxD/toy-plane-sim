@@ -72,7 +72,7 @@ static var _mats := {}
 
 
 static func variant(kind: String) -> Dictionary:
-	var v: Array = LINEUP[Worlds.index].get(kind, [])
+	var v: Array = LINEUP[Worlds.shown].get(kind, [])
 	var t: Dictionary = TYPES.get(kind, TYPES.cub)
 	return {name = v[0], desc = v[1]} if v else {name = t.name, desc = t.desc}
 
@@ -96,7 +96,7 @@ static func build(kind: String, root: Node3D, paint: Material, trim: Material, g
 		parts.anchors = [Vector3(0, 4, 0), Vector3(0, 4, 0), Vector3(0, 4, 0), Vector3(0, -3, 0)]
 		return parts
 	var first := root.get_child_count() # the lobby preview may still hold the old model (queue_free)
-	var wi := Worlds.index
+	var wi := Worlds.shown
 	var st: Dictionary = STYLE[wi]
 	var m := {paint = paint, wing = paint, trim = trim if wi == 0 else _toon(st.trim), accent = _toon(st.accent), strut = _toon(st.strut), glass = glass, dark = dark,
 		glow = glow, world = wi, span = 1.35 if wi == 5 else 1.0, chord = 0.82 if wi == 5 else 1.0}

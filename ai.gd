@@ -8,12 +8,13 @@ extends RefCounted
 # variation) + moods that change during the fight (confidence, fear, grudges) + signature moves.
 # Decisions refresh every `react` seconds; steering, moves and safety run every frame.
 enum { PATROL, PURSUE, ATTACK, EVADE, RETREAT }
-const BULLET_SPEED := 450.0 # plane.gd BULLET_SPEED
+const BULLET_SPEED := 650.0 # plane.gd BULLET_SPEED
 
 # Difficulty: reflexes and hands, plus how hard they hit humans (hurt) and how fast human bullets break
 # them (frail). Never tougher than a human; turn scales the plane's turn rate. Only enemies use it:
-# your wingmen are always "pilot", so rookie = you always win, ace = a real fight.
+# your wingmen are always "pilot", so cadet = a relaxed win, rookie = you always win, ace = a real fight.
 const SKILLS := {
+	cadet = {react = 1.6, aim_err = 0.1, lead = 0.4, slop = 6.0, evade = 0.05, mistakes = 0.6, rocket_cd = 60.0, turn = 0.45, hurt = 0.15, frail = 4.0},
 	rookie = {react = 1.1, aim_err = 0.06, lead = 0.6, slop = 6.0, evade = 0.12, mistakes = 0.4, rocket_cd = 30.0, turn = 0.55, hurt = 0.3, frail = 3.0},
 	pilot = {react = 0.45, aim_err = 0.02, lead = 0.88, slop = 8.0, evade = 0.5, mistakes = 0.12, rocket_cd = 12.0, turn = 0.9, hurt = 0.85, frail = 1.15},
 	ace = {react = 0.2, aim_err = 0.006, lead = 1.0, slop = 4.0, evade = 0.9, mistakes = 0.03, rocket_cd = 6.0, turn = 1.0, hurt = 1.3, frail = 1.0},
