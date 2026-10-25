@@ -38,6 +38,29 @@ const COMPONENT_NAMES := ["left wing", "right wing", "engine", "tail"]
 # Cosmetics only (no stat changes): a sticker on the wings / tail and coloured wingtip smoke trails.
 const STICKERS := ["None", "Star", "Lightning", "Flame", "Roundel", "Checkers", "Shark Mouth"]
 const BANNERS := ["None", "Gold", "Lime", "Violet", "White", "Black"]
+# Paid looks (shop.gd sells them). A livery repaints wings, tail, trim and stripes; the fuselage keeps
+# the team colour (and name tags stay team-coloured) so friend and foe still read at a glance.
+# Premium trails follow the free colours in one list.
+const LIVERIES := [
+	{name = "Team Colours"},
+	{name = "Golden Ace", wing = Color(1.0, 0.8, 0.26), trim = Color(1.0, 0.93, 0.7), accent = Color(1.0, 0.95, 0.85), metal = true},
+	{name = "Black Phantom", wing = Color(0.08, 0.08, 0.1), trim = Color(0.12, 0.12, 0.14), accent = Color(0.9, 0.1, 0.12)},
+	{name = "Neon Night", wing = Color(0.07, 0.06, 0.16), trim = Color(0.1, 0.9, 1.0), accent = Color(1.0, 0.2, 0.85), glow = true},
+	{name = "Inferno", wing = Color(0.62, 0.1, 0.04), trim = Color(1.0, 0.32, 0.06), accent = Color(1.0, 0.82, 0.12), glow = true},
+]
+const PREMIUM_TRAILS := [
+	{name = "Rainbow", colors = [Color(1, 0.3, 0.3), Color(1, 0.65, 0.2), Color(1, 0.95, 0.3), Color(0.4, 1, 0.45), Color(0.35, 0.65, 1), Color(0.75, 0.45, 1)]},
+	{name = "Gold Sparkle", colors = [Color(1.6, 1.5, 1.1), Color(1.5, 1.15, 0.35), Color(1.2, 0.85, 0.25)]},
+	{name = "Neon", colors = [Color(0.3, 1.7, 1.7), Color(1.6, 0.35, 1.5)]},
+	{name = "Fire", colors = [Color(1.7, 1.5, 0.7), Color(1.6, 0.7, 0.15), Color(1.0, 0.2, 0.06), Color(0.3, 0.27, 0.27)]},
+]
+const KILL_FX := ["None", "Fireworks", "Lightning", "Blaze"]
+
+
+static func trail_names() -> Array:
+	return Array(BANNERS) + PREMIUM_TRAILS.map(func(t): return t.name)
+
+
 const BANNER_COLORS := [Color(0, 0, 0, 0), Color(1.0, 0.78, 0.2), Color(0.55, 0.95, 0.3), Color(0.7, 0.45, 1.0), Color(0.95, 0.95, 0.95), Color(0.12, 0.12, 0.14)]
 # Per model: fuselage [half width, half height, nose z], tail fin [x, y, z, height] (x 0 = one centre fin).
 const HULL := {cub = [0.58, 0.62, -3.6, 0.0, 0.95, 3.25, 1.4], racer = [0.5, 0.52, -4.6, 0.0, 1.0, 3.4, 1.9],
@@ -55,7 +78,7 @@ static func variant(kind: String) -> Dictionary:
 
 
 # Builds the current world's model under `root`. Returns {props: [Node3D], ltip, rtip: Node3D, anchors: [Vector3 x4], wing}.
-static func build(kind: String, root: Node3D, paint: Material, trim: Material, glass: Material, dark: Material, glow: Material) -> Dictionary:
+static func build(kind: String, root: Node3D, paint: Material, trim: Material, glass: Material, dark: Material, glow: Material, livery := 0) -> Dictionary:
 	var parts := {props = [], ltip = null, rtip = null, anchors = [Vector3(-4, 0, 0), Vector3(4, 0, 0), Vector3(0, 0, -3), Vector3(0, 0.5, 3)], panels = [], gear = []}
 	if kind == "balloon": # practice target: striped envelope, basket
 		var env := MeshInstance3D.new()
@@ -75,10 +98,17 @@ static func build(kind: String, root: Node3D, paint: Material, trim: Material, g
 	var first := root.get_child_count() # the lobby preview may still hold the old model (queue_free)
 	var wi := Worlds.index
 	var st: Dictionary = STYLE[wi]
-	var m := {paint = paint, trim = trim if wi == 0 else _toon(st.trim), accent = _toon(st.accent), strut = _toon(st.strut), glass = glass, dark = dark,
+	var m := {paint = paint, wing = paint, trim = trim if wi == 0 else _toon(st.trim), accent = _toon(st.accent), strut = _toon(st.strut), glass = glass, dark = dark,
 		glow = glow, world = wi, span = 1.35 if wi == 5 else 1.0, chord = 0.82 if wi == 5 else 1.0}
 	m.neon = _neon((paint as ShaderMaterial).get_shader_parameter("albedo") if paint is ShaderMaterial else Color.WHITE) if wi == 4 else null
 	m.cap = [m.trim, m.accent, m.trim, m.trim, m.neon, m.trim][wi]
+	if livery > 0 and livery < LIVERIES.size():
+		var lv: Dictionary = LIVERIES[livery]
+		var mat := func(c: Color) -> Material: return _metal(c) if lv.get("metal", false) else (_neon(c) if lv.get("glow", false) else _toon(c))
+		m.wing = _metal(lv.wing) if lv.get("metal", false) else _toon(lv.wing) # glow is for trim; dark wings make it pop
+		m.trim = mat.call(lv.trim)
+		m.accent = mat.call(lv.accent)
+		m.cap = m.trim
 	m.blade = m.accent if wi == 5 else dark
 	match kind:
 		"racer": _racer(root, parts, m)
@@ -113,7 +143,7 @@ static func _cub(root: Node3D, parts: Dictionary, m: Dictionary) -> void:
 	for s: float in [-1.0, 1.0]:
 		for z in [-1.0, -0.25]:
 			_rod(root, Vector3(0.5 * s, -0.2, z), Vector3(2.7 * s, 0.84, z), 0.05, m.strut)
-	_stab(root, 1.8, 2.85, 0.9, 0.55, 0.2, 0.12, m.paint)
+	_stab(root, 1.8, 2.85, 0.9, 0.55, 0.2, 0.12, m.wing)
 	_fin(root, [Vector2(2.45, 0.1), Vector2(3.75, 0.1), Vector2(3.85, 1.5), Vector2(3.6, 1.85), Vector2(3.05, 1.85), Vector2(2.9, 1.6)], 0.0, 1.62, m)
 	_engine(root, parts, m, Vector3(0, 0, -3.6), 2, 3.0, 0.6)
 	parts.gear = [[Vector3(1.05, -1.35, -1.4), Vector3(0.45, -0.45, -1.4), 1.0, 4.4], [Vector3(0, -0.36, 3.5), Vector3(0, -0.08, 3.35), 0.4, 0.0]]
@@ -129,7 +159,7 @@ static func _racer(root: Node3D, parts: Dictionary, m: Dictionary) -> void:
 	_ball(root, 1.0, Vector3(0, 0.42, 0.3), m.glass, Vector3(0.34, 0.36, 0.85))
 	_tube(root, 0.9, 3.3, 0.3, 0.1, m.paint, Vector3(0, 0.3, 0))
 	_wings(root, parts, 3.8 * m.span, 1.7 * m.chord, -0.3, -0.3, 6.0, 0.5, m)
-	_stab(root, 1.6, 3.35, 0.85, 0.45, 0.3, 0.05, m.paint)
+	_stab(root, 1.6, 3.35, 0.85, 0.45, 0.3, 0.05, m.wing)
 	_fin(root, [Vector2(2.4, 0.1), Vector2(4.15, 0.1), Vector2(4.15, 1.7), Vector2(3.85, 2.05), Vector2(3.3, 2.05), Vector2(3.0, 1.9)], 0.0, 1.85, m)
 	_engine(root, parts, m, Vector3(0, 0, -4.85), 3, 2.4, 0.3)
 	parts.gear = [[Vector3(1.45, -1.25, -0.75), Vector3(1.3, -0.42, -0.6), 0.85, 4.0], [Vector3(0, -0.36, 3.9), Vector3(0, -0.08, 3.75), 0.35, 0.0]]
@@ -149,7 +179,7 @@ static func _twin(root: Node3D, parts: Dictionary, m: Dictionary) -> void:
 		_tube(root, -2.3, 1.3, 0.6, 0.2, m.paint, Vector3(3.4 * s, 0, 0))
 		_engine(root, parts, m, Vector3(3.4 * s, 0, -3.35), 3, 2.6, 0.5)
 		_fin(root, [Vector2(3.95, -0.25), Vector2(5.2, -0.25), Vector2(5.45, 0.6), Vector2(5.4, 1.95), Vector2(4.95, 2.25), Vector2(4.3, 2.1), Vector2(3.95, 0.8)], 2.45 * s, 1.9, m)
-	_stab(root, 2.5, 3.95, 1.25, 1.05, 0.15, 0.45, m.paint)
+	_stab(root, 2.5, 3.95, 1.25, 1.05, 0.15, 0.45, m.wing)
 	parts.gear = [[Vector3(3.4, -1.45, -0.9), Vector3(3.4, -0.45, -0.9), 1.25, 5.0], [Vector3(0, -0.6, 4.6), Vector3(0, -0.3, 4.45), 0.45, 0.0]]
 	parts.anchors = [Vector3(-5.5 * m.span, 0.1, -0.5), Vector3(5.5 * m.span, 0.1, -0.5), Vector3(-3.4, 0.3, -1.6), Vector3(0, 1.2, 4.6)]
 	_strip(root, m, Vector3(0.88, 0.3, -4.8), Vector3(0.88, 0.3, 1.8))
@@ -167,7 +197,7 @@ static func _fighter(root: Node3D, parts: Dictionary, m: Dictionary) -> void:
 		_tube(root, -1.64, -1.56, 0.25, 0.25, m.dark, Vector3(0.62 * s, 0.02, 0))
 		_fin(root, [Vector2(2.3, 0.2), Vector2(4.2, 0.2), Vector2(4.25, 0.5), Vector2(4.0, 1.85), Vector2(3.55, 1.85)], 0.5 * s, 1.62, m, -16.0 * s)
 	_wings(root, parts, 4.2 * m.span, 3.2 * m.chord, -0.1, 0.7, 38.0, 0.3, m)
-	_stab(root, 2.0, 3.3, 1.3, 0.5, 0.8, -0.05, m.paint)
+	_stab(root, 2.0, 3.3, 1.3, 0.5, 0.8, -0.05, m.wing)
 	parts.gear = [[Vector3(0, -0.95, -3.4), Vector3(0, -0.4, -3.4), 0.6, 0.0], [Vector3(0.6, -0.95, -0.4), Vector3(0.5, -0.3, -0.4), 0.75, -1.0]]
 	parts.anchors = [Vector3(-3 * m.span, 0, 1.8), Vector3(3 * m.span, 0, 1.8), Vector3(0, 0, 4.0), Vector3(0, 1.2, 3.3)]
 	_strip(root, m, Vector3(0.62, 0.34, -1.5), Vector3(0.62, 0.32, 1.3))
@@ -197,7 +227,7 @@ static func _wings(root: Node3D, parts: Dictionary, half_span: float, chord: flo
 			var local := PackedVector2Array()
 			for p in poly:
 				local.append(Vector2(p.x * s - at.x, p.y - at.z))
-			var panel := _slab(root, local, 0.2 if tip else 0.22, m.paint, Transform3D(WING_B, at))
+			var panel := _slab(root, local, 0.2 if tip else 0.22, m.wing, Transform3D(WING_B, at))
 			if tip:
 				parts["ltip" if s < 0 else "rtip"] = panel
 				var cap_x := (half_span - minf(0.9, half_span * 0.15)) * s - at.x
@@ -229,7 +259,7 @@ static func _stab(root: Node3D, half: float, z0: float, rc: float, tc: float, sw
 static func _fin(root: Node3D, pts: Array, x: float, cap_y: float, m: Dictionary, roll := 0.0) -> void:
 	var poly := PackedVector2Array(pts)
 	var xf := Transform3D(Basis(Vector3.BACK, deg_to_rad(roll)) * FIN_B, Vector3(x, 0, 0))
-	_slab(root, poly, 0.15, m.paint, xf)
+	_slab(root, poly, 0.15, m.wing, xf)
 	for piece in Geometry2D.intersect_polygons(poly, PackedVector2Array([Vector2(-9, cap_y), Vector2(9, cap_y), Vector2(9, 9), Vector2(-9, 9)])):
 		_slab(root, piece, 0.17, m.cap if m.cap else m.trim, xf)
 
@@ -334,6 +364,19 @@ static func _toon(c: Color) -> Material:
 		mat.set_shader_parameter("albedo", c)
 		_mats[c] = mat
 	return _mats[c]
+
+
+static func _metal(c: Color) -> Material: # polished: hard highlights and a bright rim
+	var key := "metal%s" % c
+	if not _mats.has(key):
+		var mat := ShaderMaterial.new()
+		mat.shader = preload("res://toon.gdshader")
+		mat.set_shader_parameter("albedo", c)
+		mat.set_shader_parameter("specular_strength", 1.0)
+		mat.set_shader_parameter("specular_shininess", 24.0)
+		mat.set_shader_parameter("rim_color", Color(1.0, 0.95, 0.75, 0.9))
+		_mats[key] = mat
+	return _mats[key]
 
 
 static func _neon(c: Color) -> Material:
@@ -519,13 +562,26 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 		mat.vertex_color_use_as_albedo = true
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		puff.material = mat
-		var col: Color = BANNER_COLORS[banner]
-		if col.get_luminance() < 0.2: # "black" reads as smoky charcoal, not soot
-			col = Color(0.32, 0.33, 0.38)
-		parts.trail_col = col # plane.gd draws the first stretch as a smooth line in this colour
 		var ramp := Gradient.new() # puffs take over where the line ends: colour, then gone
-		ramp.offsets = PackedFloat32Array([0.0, 0.3, 0.6, 1.0])
-		ramp.colors = PackedColorArray([Color(col.lightened(0.35), 0.9), Color(col.lightened(0.35), 0.9), Color(col, 0.6), Color(col.lightened(0.25), 0.0)])
+		if banner >= BANNERS.size(): # premium: the puffs age through the colours (rainbow bands, fire to smoke)
+			var cols: Array = PREMIUM_TRAILS[mini(banner - BANNERS.size(), PREMIUM_TRAILS.size() - 1)].colors
+			parts.trail_col = cols[0]
+			var offs := PackedFloat32Array()
+			var cs := PackedColorArray()
+			for i in cols.size():
+				offs.append(0.3 + 0.6 * i / maxf(cols.size() - 1, 1))
+				cs.append(Color(cols[i], 0.85))
+			offs.append(1.0)
+			cs.append(Color(cols[-1], 0.0))
+			ramp.offsets = offs
+			ramp.colors = cs
+		else:
+			var col: Color = BANNER_COLORS[banner]
+			if col.get_luminance() < 0.2: # "black" reads as smoky charcoal, not soot
+				col = Color(0.32, 0.33, 0.38)
+			parts.trail_col = col # plane.gd draws the first stretch as a smooth line in this colour
+			ramp.offsets = PackedFloat32Array([0.0, 0.3, 0.6, 1.0])
+			ramp.colors = PackedColorArray([Color(col.lightened(0.35), 0.9), Color(col.lightened(0.35), 0.9), Color(col, 0.6), Color(col.lightened(0.25), 0.0)])
 		var swell := Curve.new() # hidden along the line, then blooming round puffs
 		swell.add_point(Vector2(0, 0.0))
 		swell.add_point(Vector2(0.24, 0.0))

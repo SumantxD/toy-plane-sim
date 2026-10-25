@@ -54,9 +54,11 @@ func _initialize() -> void:
 	print("after D -> world ", main.gs.world, "  focus: ", _focus())
 	await _key(KEY_S)
 	print("after S: ", _focus())
-	for i in 5:
+	for i in 8: # down to LAUNCH (the hangar column sits further down on the right)
+		if _focus() == "LAUNCH":
+			break
 		await _key(KEY_S)
-	print("after S x5: ", _focus())
+	print("after S to LAUNCH: ", _focus())
 	await _key(KEY_ENTER)
 	for i in 240:
 		await process_frame

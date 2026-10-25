@@ -13,7 +13,7 @@ func _initialize() -> void:
 	var info := Engine.get_license_info()
 	for k in info:
 		out += "\n---- %s ----\n%s\n" % [k, info[k]]
-	for f in ["res://addons/mqtt/LICENSE.md", "res://addons/webrtc_native/LICENSE.webrtc-native", "res://addons/webrtc_native/LICENSE.libdatachannel", "res://addons/webrtc_native/LICENSE.libjuice", "res://addons/webrtc_native/LICENSE.libsrtp", "res://addons/webrtc_native/LICENSE.usrsctp", "res://addons/webrtc_native/LICENSE.mbedtls", "res://addons/webrtc_native/LICENSE.plog"]:
+	for f in ["res://addons/mqtt/LICENSE.md", "res://addons/webrtc_native/LICENSE.webrtc-native", "res://addons/webrtc_native/LICENSE.libdatachannel", "res://addons/webrtc_native/LICENSE.libjuice", "res://addons/webrtc_native/LICENSE.libsrtp", "res://addons/webrtc_native/LICENSE.usrsctp", "res://addons/webrtc_native/LICENSE.mbedtls", "res://addons/webrtc_native/LICENSE.plog", "res://tools/storekit/src/LICENSE"]:
 		out += "\n==== %s ====\n%s\n" % [f.get_file(), FileAccess.get_file_as_string(f)]
 	out += "\n==== Flexible Toon Shader (atzuk4451) - MIT ====\nhttps://github.com/atzuk4451/FlexibleToonShaderGD-4.0\n"
 	var fa := FileAccess.open("res://THIRD_PARTY_LICENSES.txt", FileAccess.WRITE)

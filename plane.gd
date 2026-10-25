@@ -716,9 +716,10 @@ func _make_smoke(at: Vector3) -> CPUParticles3D:
 func _look() -> Array:
 	if role == "pilot":
 		var info: Dictionary = main.gs.players.get(str(name).to_int(), {})
-		return [clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1), clampi(int(info.get("banner", 0)), 0, Planes.BANNERS.size() - 1)]
-	var h := absi(hash(pilot))
-	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size()]
+		return [clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1), clampi(int(info.get("banner", 0)), 0, Planes.trail_names().size() - 1),
+			clampi(int(info.get("livery", 0)), 0, Planes.LIVERIES.size() - 1)]
+	var h := absi(hash(pilot)) # AI pilots wear free looks only: no fake social proof for the shop
+	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size(), 0]
 
 
 # Smoke trails on this screen: off when the setting says so. Your own trail fades with how straight
@@ -1104,9 +1105,10 @@ func _build_mesh() -> void:
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.albedo_color = Color(3.0, 1.4, 0.4)
-	parts = Planes.build(kind, body, main.toon(c), main.toon(Color(0.95, 0.93, 0.85)), main.toon(Color(0.15, 0.2, 0.3)), main.toon(Color(0.2, 0.2, 0.22)), glow)
-	if role in ["pilot", "wing", "fighter", "showcase"]:
-		var look := _look()
+	var dressed := role in ["pilot", "wing", "fighter", "showcase"]
+	var look := _look() if dressed else [0, 0, 0]
+	parts = Planes.build(kind, body, main.toon(c), main.toon(Color(0.95, 0.93, 0.85)), main.toon(Color(0.15, 0.2, 0.3)), main.toon(Color(0.2, 0.2, 0.22)), glow, look[2])
+	if dressed:
 		Planes.dress(kind, body, parts, max_rockets, max_bombs, look[0], look[1], main.toon(Color(0.2, 0.2, 0.22)), Callable(main, "toon"))
 
 	elif role == "prize":

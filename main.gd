@@ -97,6 +97,8 @@ var preview_key := ""
 
 func _ready() -> void:
 	Settings.load_saved()
+	shop.name = "Shop"
+	add_child(shop)
 	if TouchControls.on():
 		get_tree().root.content_scale_size = Vector2i(1100, 620) # phone: everything bigger, readable at arm's length
 		if not OS.has_feature("mobile"):
@@ -109,6 +111,10 @@ func _ready() -> void:
 		Engine.remove_meta("leave_msg")
 		print("MENU: ", status.text)
 	Menus.bind_wasd()
+	if Engine.has_meta("shop_try"): # back from a free test flight: the shop opens on what you tried
+		var tried: String = Engine.get_meta("shop_try")
+		Engine.remove_meta("shop_try")
+		shop_ui.open.call_deferred(tried, "How did it fly? Buy it to keep it, or carry on with the free looks.")
 	get_tree().set_auto_accept_quit(false) # closing the window says goodbye to clients first
 	if Engine.has_meta("rejoin"):
 		call_deferred("_try_rejoin")
@@ -209,7 +215,7 @@ func _ready() -> void:
 
 # ---------- connection ----------
 # LAN / IP: plain ENet on PORT. Online: rooms.gd (WebRTC P2P + room code over public MQTT).
-const VERSION := "0.8"
+const VERSION := "0.9"
 
 var room := "" # online room code we host or joined
 var rooms: Rooms
@@ -244,8 +250,11 @@ func _start_hosting() -> void:
 		gs.leader = 0 # first player to join leads
 	else:
 		_add_player(1, name_edit.text)
-		gs.players[1].sticker = Settings.values.get("sticker", 0)
-		gs.players[1].banner = Settings.values.get("banner", 0)
+		var look := my_look()
+		gs.players[1].sticker = look[0]
+		gs.players[1].banner = look[1]
+		gs.players[1].livery = look[2]
+		gs.players[1].killfx = look[3]
 	_push()
 	print("Hosting")
 	net_who = "host"
@@ -398,7 +407,8 @@ func _on_connected() -> void:
 	netlog("connected to %s v%s" % [last_target if last_target else "localhost:%d" % PORT, VERSION])
 	var fv := OS.get_cmdline_user_args().find("--fake-version") # test hook
 	register.rpc_id(1, {name = name_edit.text, token = _player_token(), version = OS.get_cmdline_user_args()[fv + 1] if fv >= 0 else VERSION, plane = Planes.ORDER.pick_random() if bot else plane_choice,
-		sticker = randi() % Planes.STICKERS.size() if bot else Settings.values.get("sticker", 0), banner = randi() % Planes.BANNERS.size() if bot else Settings.values.get("banner", 0)})
+		sticker = randi() % Planes.STICKERS.size() if bot else Settings.values.get("sticker", 0), banner = randi() % Planes.BANNERS.size() if bot else my_look()[1],
+		livery = 0 if bot else my_look()[2], killfx = 0 if bot else my_look()[3]})
 
 
 @rpc("authority", "reliable")
@@ -502,7 +512,9 @@ func register(info: Dictionary) -> void:
 	if Planes.TYPES.has(plane):
 		gs.players[id].plane = plane
 	gs.players[id].sticker = clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1)
-	gs.players[id].banner = clampi(int(info.get("banner", 0)), 0, Planes.BANNERS.size() - 1)
+	gs.players[id].banner = clampi(int(info.get("banner", 0)), 0, Planes.trail_names().size() - 1)
+	gs.players[id].livery = clampi(int(info.get("livery", 0)), 0, Planes.LIVERIES.size() - 1)
+	gs.players[id].killfx = clampi(int(info.get("killfx", 0)), 0, Planes.KILL_FX.size() - 1)
 	var back: Dictionary = {}
 	if token and not token in tokens.values():
 		tokens[id] = token
@@ -932,14 +944,31 @@ func request_mode(m: int) -> void:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func request_look(sticker: int, banner: int) -> void:
+func request_look(sticker: int, banner: int, livery: int, killfx: int) -> void:
 	if not multiplayer.is_server() or not _allow(_sender(), "look", 2.0, 4.0):
 		return
 	var id := _sender()
 	if gs.phase == "lobby" and gs.players.has(id):
 		gs.players[id].sticker = clampi(sticker, 0, Planes.STICKERS.size() - 1)
-		gs.players[id].banner = clampi(banner, 0, Planes.BANNERS.size() - 1)
+		gs.players[id].banner = clampi(banner, 0, Planes.trail_names().size() - 1)
+		gs.players[id].livery = clampi(livery, 0, Planes.LIVERIES.size() - 1)
+		gs.players[id].killfx = clampi(killfx, 0, Planes.KILL_FX.size() - 1)
 		_push()
+
+
+# What you fly with: [sticker, trail, livery, kill effect]; paid looks only if you own them (or are
+# trying them on a solo flight). Peers can't check a purchase, so this is the honest client's word.
+func my_look() -> Array:
+	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	return [int(Settings.values.get("sticker", 0)), shop.wear("banner", solo), shop.wear("livery", solo), shop.wear("killfx", solo)]
+
+
+func send_look() -> void:
+	if gs.phase == "lobby" and gs.players.has(multiplayer.get_unique_id()):
+		var look := my_look()
+		request_look.rpc_id(1, look[0], look[1], look[2], look[3])
+	preview_key = ""
+	_refresh_preview()
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1075,7 +1104,7 @@ func _end(text: String) -> void:
 # arrows/Tab move, Enter/Space press, Left/Right adjust sliders, Esc backs out of overlays.
 func _keep_menu_focus() -> void:
 	var top_panel: Control = null
-	for r in [credits_root, howto_root, touch_root, settings_root, pause_root, results_root, lobby_root, mp_root, menu_root]:
+	for r in [credits_root, howto_root, touch_root, settings_root, shop_ui, pause_root, results_root, lobby_root, mp_root, menu_root]:
 		if r and r.visible:
 			top_panel = r
 			break
@@ -1112,7 +1141,7 @@ var orbiting := false
 
 
 func _orbit_menu(dt: float) -> void:
-	if gs.phase == "menu" and not spectating:
+	if gs.phase == "menu" and not spectating and not (shop_ui and shop_ui.visible):
 		orbit += dt * TAU / ORBIT_LAP
 		var at := func(a: float) -> Vector3: return Vector3(sin(a) * ORBIT_R, 0.0, cos(a) * ORBIT_R)
 		var eye: Vector3 = at.call(orbit)
@@ -1923,6 +1952,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		howto_root.hide()
 		credits_root.hide()
 		return
+	if event.keycode == KEY_ESCAPE and shop_ui.visible:
+		shop_ui.close()
+		return
 	if event.keycode == KEY_ESCAPE and mp_open and gs.phase == "menu":
 		mp_open = false
 		_refresh_ui()
@@ -1965,14 +1997,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # A menu is over the game: the plane ignores the keyboard (W/A/S/D and arrows drive the menu).
 func menu_open() -> bool:
-	return pause_root.visible or settings_root.visible or touch_root.visible or howto_root.visible or credits_root.visible or (touch != null and touch.editing)
+	return pause_root.visible or settings_root.visible or touch_root.visible or shop_ui.visible or howto_root.visible or credits_root.visible or (touch != null and touch.editing)
 
 
 func _refresh_ui() -> void:
-	menu_root.visible = gs.phase == "menu" and not mp_open
-	mp_root.visible = gs.phase == "menu" and mp_open
+	var shopping := shop_ui != null and shop_ui.visible # the shop takes the left side on its own
+	menu_root.visible = gs.phase == "menu" and not mp_open and not shopping
+	mp_root.visible = gs.phase == "menu" and mp_open and not shopping
 	status.visible = gs.phase == "menu"
-	lobby_root.visible = gs.phase == "lobby"
+	lobby_root.visible = gs.phase == "lobby" and not shopping
 	var leader: bool = gs.leader == multiplayer.get_unique_id()
 	for sel: Menus.Selector in [mode_sel, world_sel, size_sel, skill_sel]:
 		sel.set_locked(not leader)
@@ -2011,6 +2044,9 @@ func _refresh_ui() -> void:
 	$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu" # not hanging over the home-screen flyby
 	if gs.phase == "ended":
 		results_title.text = gs.msg
+		if offer_match != gs.match_id:
+			offer_match = gs.match_id
+			_fill_offer()
 		for c in results_grid.get_children():
 			c.queue_free()
 		for h in ["PILOT", "TEAM", "PLANE", "KILLS", "DEATHS", "REVIVES"]:
@@ -2033,6 +2069,67 @@ func _carrying_flag(n: String) -> bool:
 	return gs.flags.any(func(f): return f.state == "carried" and f.carrier == n)
 
 
+# Hangar rows: every look, paid ones tagged with what they take ("try it" in solo games).
+func _fill_looks() -> void:
+	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	var tag := func(item: String) -> String:
+		if shop.owns(item):
+			return ""
+		return "Locked: in the Hangar Shop" + ("  (try it free in Free Flight)" if solo else "")
+	livery_sel.set_items(range(Planes.LIVERIES.size()).map(func(i): return {title = Planes.LIVERIES[i].name.to_upper(), sub = tag.call("livery:%d" % i)}))
+	banner_sel.set_items(range(Planes.trail_names().size()).map(func(i): return {title = Planes.trail_names()[i].to_upper(), sub = tag.call("trail:%d" % i)}))
+	killfx_sel.set_items(range(Planes.KILL_FX.size()).map(func(i): return {title = Planes.KILL_FX[i].to_upper(), sub = tag.call("killfx:%d" % i)}))
+	livery_sel.set_index(Settings.values.livery)
+	banner_sel.set_index(Settings.values.banner)
+	killfx_sel.set_index(Settings.values.killfx)
+
+
+# Under the scoreboard: paid looks other pilots flew this match (seeing them is the honest advert),
+# and after a win at most one set offer you can wave away.
+func _fill_offer() -> void:
+	for c in offer_box.get_children():
+		c.queue_free()
+	var me := multiplayer.get_unique_id()
+	for id in gs.players:
+		var p: Dictionary = gs.players[id]
+		var items := ["livery:%d" % p.get("livery", 0), "trail:%d" % p.get("banner", 0), "killfx:%d" % p.get("killfx", 0)].filter(func(it): return not Shop._free(it))
+		if id == me or items.is_empty() or not shop.sells():
+			continue
+		var row := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "Spotted: %s flew %s" % [p.name, ", ".join(items.map(func(it): return Shop.PRODUCTS[shop.product_for(it)].title))]
+		l.modulate = Color(1, 1, 1, 0.8)
+		row.add_child(l)
+		var it0: String = items[0]
+		_button_in(row, "SEE IT", func(): shop_ui.open(shop.product_for(it0)))
+		offer_box.add_child(row)
+		break
+	var won: bool = gs.msg.begins_with(TEAM_NAMES[_my_team()]) or gs.msg.ends_with("Mission complete!")
+	if not won:
+		return
+	shop.maybe_review()
+	var p := shop.offer_after_win()
+	if p == "":
+		return
+	var row := HBoxContainer.new()
+	var l := Label.new()
+	l.text = "Win in style: %s (%s)" % [Shop.PRODUCTS[p].title, shop.price(p)]
+	l.modulate = Menus.AMBER
+	row.add_child(l)
+	_button_in(row, "PREVIEW", func(): shop_ui.open(p))
+	_button_in(row, "NOT NOW", func():
+		shop.dismiss(p)
+		row.queue_free())
+	offer_box.add_child(row)
+
+
+func _button_in(row: Container, text: String, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.pressed.connect(cb)
+	row.add_child(b)
+
+
 func _cell(text: String, color: Color) -> void:
 	var l := Label.new()
 	l.text = text
@@ -2043,8 +2140,10 @@ func _cell(text: String, color: Color) -> void:
 
 # Spinning model of the chosen plane next to the lobby panel, plus its stat bars.
 func _refresh_preview() -> void:
-	preview.visible = gs.phase == "lobby"
-	var key := "%s/%d/%d" % [plane_choice, _my_team(), Worlds.index]
+	var in_shop := shop_ui != null and shop_ui.visible
+	preview.visible = gs.phase == "lobby" or in_shop
+	var look: Array = shop_ui.preview_look() if in_shop else [my_look()[0], 0, my_look()[2]] # lobby turntable: no trail
+	var key := "%s/%d/%d/%s" % [plane_choice, _my_team(), Worlds.index, look]
 	if not preview.visible or key == preview_key:
 		return
 	preview_key = key
@@ -2053,9 +2152,9 @@ func _refresh_preview() -> void:
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.albedo_color = Color(3.0, 1.4, 0.4)
-	var parts := Planes.build(plane_choice, preview, toon(Aircraft.TEAM_COLORS[_my_team()]), toon(Color(0.95, 0.93, 0.85)), toon(Color(0.15, 0.2, 0.3)), toon(Color(0.2, 0.2, 0.22)), glow)
+	var parts := Planes.build(plane_choice, preview, toon(Aircraft.TEAM_COLORS[_my_team()]), toon(Color(0.95, 0.93, 0.85)), toon(Color(0.15, 0.2, 0.3)), toon(Color(0.2, 0.2, 0.22)), glow, look[2])
 	var pt: Dictionary = Planes.TYPES[plane_choice]
-	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, Settings.values.get("sticker", 0), 0, toon(Color(0.2, 0.2, 0.22)), toon) # no trail on the turntable
+	Planes.dress(plane_choice, preview, parts, pt.rockets, pt.bombs, look[0], look[1], toon(Color(0.2, 0.2, 0.22)), toon)
 	var t: Dictionary = Planes.TYPES[plane_choice]
 	var v := Planes.variant(plane_choice)
 	stats_label.text = "%s\n%s" % [v.name, v.desc]
@@ -2330,6 +2429,7 @@ func _build_ui() -> void:
 	Menus.menu_item(box, "MULTIPLAYER", func():
 		mp_open = true
 		_refresh_ui(), self)
+	Menus.menu_item(box, "HANGAR SHOP", func(): shop_ui.open(), self)
 	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
 	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
 	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
@@ -2392,7 +2492,7 @@ func _build_ui() -> void:
 	var worlds: Array = []
 	for i in Worlds.LIST.size():
 		worlds.append({title = Worlds.NAMES[i].to_upper(), sub = Worlds.TAGLINES[i], pic = load("res://assets/ui/worlds/%s.png" % Worlds.LIST[i])})
-	world_sel = Menus.Selector.new("WORLD", worlds, Vector2(384, 164))
+	world_sel = Menus.Selector.new("WORLD", worlds, Vector2(384, 96 if TouchControls.on() else 164)) # phones: LAUNCH stays on screen
 	world_sel.changed.connect(func(i): request_world.rpc_id(1, i))
 	box.add_child(world_sel)
 	var modes: Array = []
@@ -2423,7 +2523,8 @@ func _build_ui() -> void:
 	lobby_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	lobby_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(lobby_root)
-	Menus.side_panel(lobby_root, box, 520).get_theme_stylebox("panel").content_margin_top = 30
+	box.remove_child(start_btn)
+	Menus.side_panel(lobby_root, box, 520, false, start_btn).get_theme_stylebox("panel").content_margin_top = 30
 	box.add_theme_constant_override("separation", 7)
 	var rbox := VBoxContainer.new()
 	var sq := Label.new()
@@ -2446,18 +2547,22 @@ func _build_ui() -> void:
 	plane_sel.custom_minimum_size.x = 340
 	sbox.add_child(plane_sel)
 	sticker_sel = Menus.Selector.new("STICKER  (just for looks)", Array(Planes.STICKERS).map(func(n): return {title = n.to_upper()}))
-	banner_sel = Menus.Selector.new("SMOKE TRAIL  (just for looks)", Array(Planes.BANNERS).map(func(n): return {title = n.to_upper()}))
-	for sel: Menus.Selector in [sticker_sel, banner_sel]:
+	banner_sel = Menus.Selector.new("SMOKE TRAIL  (just for looks)", [{title = ""}])
+	livery_sel = Menus.Selector.new("PAINT JOB  (just for looks)", [{title = ""}])
+	killfx_sel = Menus.Selector.new("KILL EFFECT  (just for looks)", [{title = ""}])
+	for sel: Menus.Selector in [sticker_sel, livery_sel, banner_sel, killfx_sel]:
 		sel.changed.connect(func(_i):
 			Settings.values.sticker = sticker_sel.index
 			Settings.values.banner = banner_sel.index
+			Settings.values.livery = livery_sel.index
+			Settings.values.killfx = killfx_sel.index
 			Settings.save()
-			request_look.rpc_id(1, sticker_sel.index, banner_sel.index)
-			preview_key = ""
-			_refresh_preview())
+			_fill_looks()
+			send_look())
 		sbox.add_child(sel)
-	sticker_sel.set_index(Settings.values.get("sticker", 0))
-	banner_sel.set_index(Settings.values.get("banner", 0))
+	_fill_looks()
+	shop.changed.connect(_fill_looks)
+	Menus.menu_item(sbox, "HANGAR SHOP", func(): shop_ui.open(), self, 18)
 	sbox.add_child(stats_label)
 	stats_label.hide() # the plane row already names and describes it
 	for s in ["Speed", "Agility", "Armor", "Rockets"]:
@@ -2507,6 +2612,8 @@ func _build_ui() -> void:
 	box.add_child(results_title)
 	results_grid.columns = 6
 	box.add_child(results_grid)
+	offer_box.add_theme_constant_override("separation", 4)
+	box.add_child(offer_box)
 	var back := Label.new()
 	back.text = "Back to the lobby in a few seconds..."
 	back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2560,6 +2667,8 @@ func _build_ui() -> void:
 	_button(box, "Close", func(): credits_root.hide())
 	credits_root = _panel(ui, box)
 
+	shop_ui = ShopUI.new(self, shop)
+	ui.add_child(shop_ui)
 	for r in [pause_root, results_root, settings_root, touch_root, howto_root, credits_root, lobby_root]:
 		r.hide()
 
@@ -2789,6 +2898,12 @@ var acked_world := -1
 var world_frame := 0
 var taunts: Taunts
 var touch: TouchControls
+var shop := Shop.new()
+var shop_ui: ShopUI
+var offer_match := -1 # results offer worked out once per match
+var offer_box := VBoxContainer.new()
+var livery_sel: Menus.Selector
+var killfx_sel: Menus.Selector
 var touch_root: Control
 var taunt_cd := 0
 var netstats := {} # --netstats: what lag does to remote planes, printed every 10 s
@@ -2899,6 +3014,9 @@ func sfx_event(kind: String, team: int, at: Vector3, who: String) -> void:
 		"kill":
 			if me:
 				Sfx.ui(self, Sfx.KILL, -4.0)
+			var fx: int = gs.players.get(int(who), {}).get("killfx", 0)
+			if fx > 0 and Sfx.enabled:
+				Fx.kill_effect(self, at, fx)
 		"prize_up":
 			Sfx.ui(self, Sfx.GRAB, -6.0, 1.3)
 		"prize":

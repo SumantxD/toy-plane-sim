@@ -47,7 +47,7 @@ static func bind_wasd() -> void:
 
 
 # Dark full-height strip the big menus sit on, so text reads over the live 3D world behind.
-static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right := false) -> Control:
+static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right := false, footer: Control = null) -> Control:
 	var root := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.05, 0.1, 0.72)
@@ -59,7 +59,19 @@ static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right :=
 	if right:
 		root.offset_left = -width
 	box.add_theme_constant_override("separation", 10)
-	root.add_child(box)
+	var scroll := ScrollContainer.new() # scrolls only when it doesn't fit (a phone's short screen)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+	if footer: # stays put under the scrolling part (the lobby's LAUNCH)
+		var col := VBoxContainer.new()
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		col.add_child(scroll)
+		col.add_child(footer)
+		root.add_child(col)
+	else:
+		root.add_child(scroll)
 	ui.add_child(root)
 	return root
 
@@ -329,7 +341,7 @@ Made with Claude Code and the Godot Engine.
 [b]Engine[/b]  Godot Engine (MIT license), godotengine.org
 [b]Networking[/b]  webrtc-native (MIT) with libdatachannel and libjuice (MPL-2.0),
   usrsctp and libsrtp (BSD-3), mbedTLS (Apache-2.0), plog (MIT);
-  godot-mqtt by goatchurchprime (MIT); public MQTT brokers HiveMQ, EMQX, Mosquitto;
+  godot-mqtt by goatchurchprime (MIT); godot-storekit by araid80 (MIT, iPhone purchases); public MQTT brokers HiveMQ, EMQX, Mosquitto;
   STUN by Google and Cloudflare.
 [b]3D models, sounds, font[/b]  Kenney (kenney.nl), CC0: Nature Kit, Holiday Kit, City Kit Industrial,
   City Kit Suburban, Sci-Fi Sounds, Impact Sounds, Interface Sounds, UI Pack.

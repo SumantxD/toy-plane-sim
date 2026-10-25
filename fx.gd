@@ -295,3 +295,109 @@ static func flare_burst(plane: Node3D) -> void:
 	plane.add_child(flash)
 	flash.position = Vector3(0, -2, 6)
 	flash.create_tween().tween_property(flash, "light_energy", 0.0, 1.2).finished.connect(flash.queue_free)
+
+
+# Paid kill effects (Planes.KILL_FX), played where the victim was hit, for everyone to see.
+static func kill_effect(main: Node, at: Vector3, kind: int) -> void:
+	match kind:
+		1:
+			for i in 3: # fireworks: three staggered gold/red/blue starbursts
+				main.get_tree().create_timer(i * 0.25).timeout.connect(func():
+					_burst(main, at + Vector3(randf_range(-12, 12), 8.0 + i * 6.0, randf_range(-12, 12)), [Color(1.8, 1.4, 0.4), Color(1.7, 0.4, 0.35), Color(0.5, 0.9, 1.8)][i]))
+			Sfx.at(main, at, Sfx.POP, 6.0, 2400.0)
+		2:
+			_lightning(main, at)
+		3:
+			_blaze(main, at)
+
+
+static func _burst(main: Node, at: Vector3, col: Color) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 90
+	p.lifetime = 1.6
+	p.local_coords = false
+	var spark := SphereMesh.new()
+	spark.radius = 0.35
+	spark.height = 0.7
+	spark.radial_segments = 4
+	spark.rings = 2
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.vertex_color_use_as_albedo = true
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark.material = mat
+	p.mesh = spark
+	p.spread = 180.0
+	p.initial_velocity_min = 22.0
+	p.initial_velocity_max = 30.0
+	p.gravity = Vector3(0, -6, 0)
+	p.damping_min = 8.0
+	p.damping_max = 12.0
+	var fade := Gradient.new()
+	fade.colors = PackedColorArray([Color(col, 1.0), Color(col, 0.0)])
+	p.color_ramp = fade
+	p.finished.connect(p.queue_free)
+	main.add_child(p)
+	p.global_position = at
+	p.restart()
+
+
+static func _lightning(main: Node, at: Vector3) -> void:
+	var bolt := MeshInstance3D.new()
+	var im := ImmediateMesh.new()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.6, 1.8, 2.4)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	bolt.mesh = im
+	bolt.material_override = mat
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var p := at + Vector3(0, 90, 0)
+	while p.y > at.y: # jagged zig-zag down to the hit
+		var q := Vector3(at.x + randf_range(-6, 6), p.y - randf_range(8, 16), at.z + randf_range(-6, 6))
+		q.y = maxf(q.y, at.y)
+		var w := Vector3(0.6, 0, 0)
+		for v in [p - w, p + w, q + w, p - w, q + w, q - w]:
+			im.surface_add_vertex(v)
+		p = q
+	im.surface_end()
+	main.add_child(bolt)
+	var flash := OmniLight3D.new()
+	flash.light_color = Color(0.7, 0.8, 1.0)
+	flash.light_energy = 8.0
+	flash.omni_range = 120.0
+	main.add_child(flash)
+	flash.global_position = at
+	Sfx.at(main, at, Sfx.THUNDER, 4.0, 3000.0)
+	var tw := bolt.create_tween()
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.45)
+	tw.parallel().tween_property(flash, "light_energy", 0.0, 0.45)
+	tw.tween_callback(bolt.queue_free)
+	tw.tween_callback(flash.queue_free)
+
+
+static func _blaze(main: Node, at: Vector3) -> void:
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.8
+	torus.outer_radius = 1.0
+	ring.mesh = torus
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.8, 0.7, 0.15)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material_override = mat
+	main.add_child(ring)
+	ring.global_position = at
+	var f := fire(2.5)
+	main.add_child(f)
+	f.global_position = at
+	main.get_tree().create_timer(1.0).timeout.connect(func(): f.emitting = false)
+	main.get_tree().create_timer(3.5).timeout.connect(f.queue_free)
+	var tw := ring.create_tween()
+	tw.tween_property(ring, "scale", Vector3.ONE * 30.0, 0.7).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.7)
+	tw.tween_callback(ring.queue_free)
