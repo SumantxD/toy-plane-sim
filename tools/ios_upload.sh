@@ -38,7 +38,7 @@ cat > $OUT/options.plist <<EOF
 	<key>teamID</key><string>$TEAM</string>
 	<key>destination</key><string>$DEST</string>
 	<key>signingStyle</key><string>automatic</string>
-	<key>uploadSymbols</key><true/>
+	<key>uploadSymbols</key><false/>
 </dict></plist>
 EOF
 xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist $OUT/options.plist -exportPath $OUT/export -allowProvisioningUpdates
