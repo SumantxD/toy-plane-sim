@@ -182,7 +182,7 @@ static func _twin(root: Node3D, parts: Dictionary, m: Dictionary) -> void:
 	_stab(root, 2.5, 3.95, 1.25, 1.05, 0.15, 0.45, m.wing)
 	parts.gear = [[Vector3(3.4, -1.45, -0.9), Vector3(3.4, -0.45, -0.9), 1.25, 5.0], [Vector3(0, -0.6, 4.6), Vector3(0, -0.3, 4.45), 0.45, 0.0]]
 	parts.anchors = [Vector3(-5.5 * m.span, 0.1, -0.5), Vector3(5.5 * m.span, 0.1, -0.5), Vector3(-3.4, 0.3, -1.6), Vector3(0, 1.2, 4.6)]
-	_strip(root, m, Vector3(0.88, 0.3, -4.8), Vector3(0.88, 0.3, 1.8))
+	_strip(root, m, Vector3(0.88, 0.3, -4.8), Vector3(0.88, 0.3, 1.75)) # stops short of the tail cone seam
 
 
 # Jet: radome, side intakes, swept wing, canted twin fins, glowing nozzle.
@@ -227,17 +227,23 @@ static func _wings(root: Node3D, parts: Dictionary, half_span: float, chord: flo
 			var local := PackedVector2Array()
 			for p in poly:
 				local.append(Vector2(p.x * s - at.x, p.y - at.z))
-			var panel := _slab(root, local, 0.2 if tip else 0.22, m.wing, Transform3D(WING_B, at))
+			var cap_x := (half_span - minf(0.9, half_span * 0.15)) * s - at.x
+			var band := PackedVector2Array([Vector2(cap_x, -9), Vector2(cap_x + 9 * s, -9), Vector2(cap_x + 9 * s, 9), Vector2(cap_x, 9)])
+			var body := local
+			if tip and m.world != 3 and m.cap: # the cap replaces the panel there, so no faces sit on top of each other (z-fighting)
+				var rest := Geometry2D.clip_polygons(local, band)
+				if rest.size() > 0:
+					body = rest[0]
+			var panel := _slab(root, body, 0.2 if tip else 0.22, m.wing, Transform3D(WING_B, at))
 			if tip:
 				parts["ltip" if s < 0 else "rtip"] = panel
-				var cap_x := (half_span - minf(0.9, half_span * 0.15)) * s - at.x
-				var band := PackedVector2Array([Vector2(cap_x, -9), Vector2(cap_x + 9 * s, -9), Vector2(cap_x + 9 * s, 9), Vector2(cap_x, 9)])
 				if m.world == 3: # desert camo: tan stripes across the outer wing
 					for b in 2:
 						var bx := (split + (half_span - split) * (0.2 + b * 0.4)) * s - at.x
 						band = PackedVector2Array([Vector2(bx - 0.4, -9), Vector2(bx + 0.4, -9), Vector2(bx + 1.2, 9), Vector2(bx + 0.4, 9)])
 						for piece in Geometry2D.intersect_polygons(local, band):
-							_slab(panel, piece, 0.03, m.accent, Transform3D(WING_B, Vector3(0, 0.11, 0)))
+							for inset in Geometry2D.offset_polygon(piece, -0.03): # inside the wing's edges, not flush with them
+								_slab(panel, inset, 0.03, m.accent, Transform3D(WING_B, Vector3(0, 0.11, 0)))
 				elif m.cap:
 					for piece in Geometry2D.intersect_polygons(local, band):
 						_slab(panel, piece, 0.24, m.cap, Transform3D(WING_B, Vector3.ZERO))
@@ -259,8 +265,10 @@ static func _stab(root: Node3D, half: float, z0: float, rc: float, tc: float, sw
 static func _fin(root: Node3D, pts: Array, x: float, cap_y: float, m: Dictionary, roll := 0.0) -> void:
 	var poly := PackedVector2Array(pts)
 	var xf := Transform3D(Basis(Vector3.BACK, deg_to_rad(roll)) * FIN_B, Vector3(x, 0, 0))
-	_slab(root, poly, 0.15, m.wing, xf)
-	for piece in Geometry2D.intersect_polygons(poly, PackedVector2Array([Vector2(-9, cap_y), Vector2(9, cap_y), Vector2(9, 9), Vector2(-9, 9)])):
+	var top := PackedVector2Array([Vector2(-9, cap_y), Vector2(9, cap_y), Vector2(9, 9), Vector2(-9, 9)])
+	for piece in Geometry2D.clip_polygons(poly, top): # fin below the cap, cap above: they meet, never overlap
+		_slab(root, piece, 0.15, m.wing, xf)
+	for piece in Geometry2D.intersect_polygons(poly, top):
 		_slab(root, piece, 0.17, m.cap if m.cap else m.trim, xf)
 
 
@@ -350,7 +358,7 @@ static func _gear(root: Node3D, gear: Array, kind: String, m: Dictionary) -> voi
 			tyre.mesh.radial_segments = 12
 			tyre.rotation_degrees.z = 90
 			tyre.position = p
-			var hub := _cyl(root, r * 0.45, r * 0.45, (0.48 if kind == "tyres" else 0.28) * sz, m.trim)
+			var hub := _cyl(root, r * 0.45, r * 0.45, (0.56 if kind == "tyres" else 0.36) * sz, m.trim) # clear of the tyre's sides
 			hub.rotation_degrees.z = 90
 			hub.position = p
 			if kind == "spats":

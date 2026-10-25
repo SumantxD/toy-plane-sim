@@ -49,9 +49,9 @@ static func smoke(scale := 1.0, life := 2.5, color := Color(0.22, 0.21, 0.21)) -
 		_smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_smoke_mat.vertex_color_use_as_albedo = true
 		_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_smoke_fade = Gradient.new() # multiplies p.color: thickest early, gone by the end
-		_smoke_fade.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
-		_smoke_fade.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.7), Color(1.3, 1.3, 1.3, 0.0)])
+		_smoke_fade = Gradient.new() # multiplies p.color: thickest early, gone well before the puffs get big
+		_smoke_fade.offsets = PackedFloat32Array([0.0, 0.12, 0.45, 0.7])
+		_smoke_fade.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.65), Color(1, 1, 1, 0.25), Color(1, 1, 1, 0.0)]) # never above 1: glow would make old puffs shine
 	var p := CPUParticles3D.new()
 	p.amount = 64
 	p.lifetime = life
@@ -72,7 +72,7 @@ static func smoke(scale := 1.0, life := 2.5, color := Color(0.22, 0.21, 0.21)) -
 	p.scale_amount_max = 1.4
 	var grow := Curve.new()
 	grow.add_point(Vector2(0, 0.6))
-	grow.add_point(Vector2(1, 3.5))
+	grow.add_point(Vector2(1, 2.2))
 	p.scale_amount_curve = grow
 	p.color = color
 	p.color_ramp = _smoke_fade
@@ -222,15 +222,18 @@ static func flak(main: Node, at: Vector3) -> void:
 	puff.mesh = SphereMesh.new()
 	puff.mesh.radial_segments = 8
 	puff.mesh.rings = 4
-	puff.material_override = main.toon(Color(0.12, 0.11, 0.11))
+	var soot := StandardMaterial3D.new() # a soft, see-through puff that thins away (not a solid shiny ball)
+	soot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	soot.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	soot.albedo_color = Color(0.2, 0.19, 0.19, 0.7)
+	puff.material_override = soot
 	puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	main.add_child(puff)
 	puff.global_position = at
 	puff.scale = Vector3.ONE * 4.0
 	var tw := puff.create_tween()
-	tw.tween_property(puff, "scale", Vector3.ONE * 18.0, 0.5).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(1.2)
-	tw.tween_property(puff, "scale", Vector3.ONE * 0.1, 1.0)
+	tw.tween_property(puff, "scale", Vector3.ONE * 14.0, 0.5).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(soot, "albedo_color:a", 0.0, 1.4).set_ease(Tween.EASE_IN)
 	tw.tween_callback(puff.queue_free)
 	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)
 
