@@ -1075,7 +1075,7 @@ func _end(text: String) -> void:
 # arrows/Tab move, Enter/Space press, Left/Right adjust sliders, Esc backs out of overlays.
 func _keep_menu_focus() -> void:
 	var top_panel: Control = null
-	for r in [credits_root, howto_root, settings_root, pause_root, results_root, lobby_root, mp_root, menu_root]:
+	for r in [credits_root, howto_root, touch_root, settings_root, pause_root, results_root, lobby_root, mp_root, menu_root]:
 		if r and r.visible:
 			top_panel = r
 			break
@@ -1916,9 +1916,10 @@ func say_bubble(plane_name: String, text: String) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if event.keycode == KEY_ESCAPE and (settings_root.visible or howto_root.visible or credits_root.visible):
+	if event.keycode == KEY_ESCAPE and (settings_root.visible or touch_root.visible or howto_root.visible or credits_root.visible):
 		Settings.save()
 		settings_root.hide()
+		touch_root.hide()
 		howto_root.hide()
 		credits_root.hide()
 		return
@@ -1964,7 +1965,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # A menu is over the game: the plane ignores the keyboard (W/A/S/D and arrows drive the menu).
 func menu_open() -> bool:
-	return pause_root.visible or settings_root.visible or howto_root.visible or credits_root.visible
+	return pause_root.visible or settings_root.visible or touch_root.visible or howto_root.visible or credits_root.visible or (touch != null and touch.editing)
 
 
 func _refresh_ui() -> void:
@@ -2301,7 +2302,8 @@ func _build_ui() -> void:
 		var touch_layer := CanvasLayer.new()
 		touch_layer.layer = 2
 		add_child(touch_layer)
-		touch_layer.add_child(TouchControls.new(self))
+		touch = TouchControls.new(self)
+		touch_layer.add_child(touch)
 	top.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	top.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	top.position.y = 12
@@ -2517,8 +2519,29 @@ func _build_ui() -> void:
 
 	box = VBoxContainer.new()
 	_title(box, "SETTINGS")
-	box.add_child(Menus.settings_panel(get_tree(), func(): settings_root.hide()))
+	var to_touch := Callable()
+	if TouchControls.on():
+		to_touch = func(): settings_root.hide(); touch_root.show()
+	box.add_child(Menus.settings_panel(get_tree(), func(): settings_root.hide(), to_touch))
 	settings_root = _panel(ui, box)
+
+	box = VBoxContainer.new()
+	_title(box, "TOUCH CONTROLS")
+	var v := Settings.values
+	Menus._check(box, "Tilt to steer (hold the phone how you like, it's level)", v.tilt, func(on): v.tilt = on)
+	Menus._check(box, "Auto-fire when the lead ring is in your sights", v.autofire, func(on): v.autofire = on)
+	Menus._check(box, "Vibration", v.vibrate, func(on): v.vibrate = on)
+	Menus._check(box, "Left-handed (mirror the layout)", v.touch_lefty, func(on): v.touch_lefty = on)
+	Menus._check(box, "Fixed stick (it stays put instead of following your thumb)", v.touch_fixed, func(on): v.touch_fixed = on)
+	Menus._slider(box, "Button opacity", 0.25, 1.0, v.touch_opacity, func(x): v.touch_opacity = x)
+	_button(box, "Customize layout", func():
+		touch_root.hide()
+		touch.edit(touch_root.show))
+	_button(box, "Done", func():
+		Settings.save()
+		touch_root.hide()
+		settings_root.show())
+	touch_root = _panel(ui, box)
 
 	box = VBoxContainer.new()
 	_title(box, "HOW TO PLAY")
@@ -2541,7 +2564,7 @@ func _build_ui() -> void:
 	_button(box, "Close", func(): credits_root.hide())
 	credits_root = _panel(ui, box)
 
-	for r in [pause_root, results_root, settings_root, howto_root, credits_root, lobby_root]:
+	for r in [pause_root, results_root, settings_root, touch_root, howto_root, credits_root, lobby_root]:
 		r.hide()
 
 
@@ -2769,6 +2792,8 @@ var stale_drops := 0
 var acked_world := -1
 var world_frame := 0
 var taunts: Taunts
+var touch: TouchControls
+var touch_root: Control
 var taunt_cd := 0
 var netstats := {} # --netstats: what lag does to remote planes, printed every 10 s
 var seen_phase := "lobby"

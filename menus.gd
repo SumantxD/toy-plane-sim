@@ -242,17 +242,23 @@ static func _box(bg: Color, border: Color, bw: int, pad: int) -> StyleBoxFlat:
 	return sb
 
 
-static func settings_panel(tree: SceneTree, on_close: Callable) -> VBoxContainer:
+static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Callable()) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	var v := Settings.values
 	_slider(box, "Volume", 0.0, 1.0, v.volume, func(x): v.volume = x; Settings.apply(tree))
-	_slider(box, "Mouse sensitivity", 0.2, 3.0, v.sensitivity, func(x): v.sensitivity = x)
-	_check(box, "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
+	var touch := TouchControls.on()
+	_slider(box, "Steering sensitivity" if touch else "Mouse sensitivity", 0.2, 3.0, v.sensitivity, func(x): v.sensitivity = x)
+	_check(box, "Invert steering up/down" if touch else "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
 	if not OS.has_feature("mobile"):
 		_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
 	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
 	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
 	_check(box, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)
+	if on_touch.is_valid():
+		var tb := Button.new()
+		tb.text = "Touch controls..."
+		tb.pressed.connect(on_touch)
+		box.add_child(tb)
 	var done := Button.new()
 	done.text = "Done"
 	done.pressed.connect(func():

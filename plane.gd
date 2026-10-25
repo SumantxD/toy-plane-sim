@@ -304,6 +304,7 @@ func _audio(dt: float) -> void:
 		if alive and warn_cd <= 0.0 and main.rockets.incoming(self):
 			warn_cd = 0.3
 			Sfx.ui(self, Sfx.WARN, -6.0)
+			TouchControls.buzz(60)
 		locked_warn_cd -= dt
 		if alive and locked_warn_cd <= 0.0 and not main.rockets.incoming(self) and locked_by():
 			locked_warn_cd = 0.5
@@ -513,6 +514,7 @@ func find_lock() -> Node:
 func report_hit(target: Node, weapon := 0, comp := -1) -> void:
 	if is_local():
 		Sfx.ui(main, (Sfx.HEAVY_HITS if weapon > 0 else Sfx.HITS).pick_random(), -10.0 if weapon == 0 else -4.0) # hit marker
+		TouchControls.buzz(8 if weapon == 0 else 40)
 	if multiplayer.is_server():
 		main.apply_hit(self, target, weapon, comp)
 	else:
@@ -667,6 +669,7 @@ func set_hp(v: int, c: PackedFloat32Array) -> void:
 	if v < hp and is_local():
 		Sfx.ui(main, Sfx.HURTS.pick_random(), 0.0, randf_range(0.9, 1.15))
 		shake = minf(shake + 0.35, 1.0)
+		TouchControls.buzz(35)
 	hp = v
 	comps = c
 	tag.text = _tag_text()
@@ -1054,7 +1057,7 @@ func _draw_hud() -> void:
 			hud.draw_line(q - Vector2(0, 24), q + Vector2(0, 24), Color(1, 0.6, 0.2), 1.5)
 			hud.draw_string(ThemeDB.fallback_font, q + Vector2(20, -10), "BOMB  %dm" % position.distance_to(at), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.6, 0.2))
 	if main.rockets.incoming(self):
-		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 110, hud.size.y - 120), "MISSILE!  [X] FLARES", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.RED)
+		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 110, hud.size.y - 120), "MISSILE!  TAP FLARE" if TouchControls.on() else "MISSILE!  [X] FLARES", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.RED)
 		_draw_threats()
 	elif locked_by():
 		hud.draw_string(ThemeDB.fallback_font, Vector2(hud.size.x / 2 - 70, hud.size.y - 120), "LOCKED ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 0.6, 0.2))
