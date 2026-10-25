@@ -44,6 +44,6 @@ Delete the app to remove everything stored on your device. We hold no data about
 
 ## Contact
 
-Questions or requests: open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
+Questions or requests: email st72365@gmail.com, or open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
 
 If this policy changes, the new version will be posted on this page with a new date.

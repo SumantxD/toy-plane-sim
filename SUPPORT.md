@@ -1,6 +1,6 @@
 # Toy Plane Arcade: Support
 
-**Report a problem or ask a question:** open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
+**Report a problem or ask a question:** email st72365@gmail.com (we reply within a few days), or open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
 
 ## Common questions
 
