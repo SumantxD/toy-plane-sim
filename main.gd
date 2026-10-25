@@ -2506,20 +2506,26 @@ func _build_ui() -> void:
 	ui.add_child(taunts)
 
 	var box := VBoxContainer.new()
-	Menus.big_title(box, "TOY PLANE", 60)
-	Menus.big_title(box, "ARCADE", 60).add_theme_color_override("font_color", Menus.AMBER)
+	var ph := TouchControls.phone() # a phone's short screen: everything fits without scrolling
+	Menus.big_title(box, "TOY PLANE", 44 if ph else 60)
+	Menus.big_title(box, "ARCADE", 44 if ph else 60).add_theme_color_override("font_color", Menus.AMBER)
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 16
+	gap.custom_minimum_size.y = 6 if ph else 16
 	box.add_child(gap)
-	Menus.menu_item(box, "BATTLE VS AI", solo_battle, self)
-	Menus.menu_item(box, "FREE FLIGHT", free_flight, self)
+	var fs := 24 if ph else 30
+	Menus.menu_item(box, "BATTLE VS AI", solo_battle, self, fs)
+	Menus.menu_item(box, "FREE FLIGHT", free_flight, self, fs)
 	Menus.menu_item(box, "MULTIPLAYER", func():
 		mp_open = true
-		_refresh_ui(), self)
-	Menus.menu_item(box, "HANGAR SHOP", func(): shop_ui.open(), self)
-	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
-	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
-	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
+		_refresh_ui(), self, fs)
+	Menus.menu_item(box, "HANGAR SHOP", func(): shop_ui.open(), self, fs)
+	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self, fs)
+	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self, fs)
+	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self, fs)
+	if ph: # thumb-sized rows (about 40 pt) in the space the smaller text freed
+		for b in box.get_children():
+			if b is Button:
+				b.custom_minimum_size.y = 60
 	if not TouchControls.phone(): # iOS apps never quit themselves
 		Menus.menu_item(box, "QUIT", _quit, self)
 	menu_root = Menus.side_panel(ui, box)

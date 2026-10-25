@@ -51,14 +51,21 @@ static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right :=
 	var root := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.05, 0.1, 0.72)
-	sb.set_content_margin_all(48)
-	sb.content_margin_top = 32
+	sb.set_content_margin_all(28 if TouchControls.phone() else 48)
+	sb.content_margin_top = 20 if TouchControls.phone() else 32
+	var safe := DisplayServer.get_display_safe_area() # keep text clear of the notch / Dynamic Island
+	var scr := DisplayServer.screen_get_size()
+	var inset := maxf(safe.position.x, scr.x - safe.end.x) * ui.get_viewport_rect().size.x / maxf(scr.x, 1.0)
+	if right:
+		sb.content_margin_right += inset
+	else:
+		sb.content_margin_left += inset
 	root.add_theme_stylebox_override("panel", sb)
 	root.set_anchors_preset(Control.PRESET_RIGHT_WIDE if right else Control.PRESET_LEFT_WIDE)
-	root.custom_minimum_size.x = width
+	root.custom_minimum_size.x = width + inset
 	if right:
-		root.offset_left = -width
-	box.add_theme_constant_override("separation", 10)
+		root.offset_left = -width - inset
+	box.add_theme_constant_override("separation", 4 if TouchControls.phone() else 10)
 	var scroll := ScrollContainer.new() # scrolls only when it doesn't fit (a phone's short screen)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true

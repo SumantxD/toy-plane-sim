@@ -1029,9 +1029,11 @@ func _draw_hud() -> void:
 		var p := cam.unproject_position(nose) # where your guns point
 		hud.draw_line(p - Vector2(10, 0), p + Vector2(10, 0), Color.YELLOW, 2)
 		hud.draw_line(p - Vector2(0, 10), p + Vector2(0, 10), Color.YELLOW, 2)
-	hud.draw_rect(Rect2(20, 40, 200, 10), Color(0, 0, 0, 0.5))
-	hud.draw_rect(Rect2(20, 40, 200.0 * hp / max_hp, 10), Color(0.3, 1, 0.4))
-	hud.draw_rect(Rect2(20, 90, 200.0 * boost, 4), Color(0.4, 0.8, 1))
+	var x := maxf(20.0, main.touch._pad()) if main.touch else 20.0 # clear of the notch / Dynamic Island
+	hud_text.position.x = x
+	hud.draw_rect(Rect2(x, 40, 200, 10), Color(0, 0, 0, 0.5))
+	hud.draw_rect(Rect2(x, 40, 200.0 * hp / max_hp, 10), Color(0.3, 1, 0.4))
+	hud.draw_rect(Rect2(x, 90, 200.0 * boost, 4), Color(0.4, 0.8, 1))
 	if not alive:
 		return
 	if lock and lock.alive and not cam.is_position_behind(lock.position):
