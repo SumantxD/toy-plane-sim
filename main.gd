@@ -739,6 +739,9 @@ func _goodbye() -> bool:
 
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED and gs.phase == "playing" and not menu_open(): # phone sent to the background (a call, the home swipe): come back to the pause menu
+		pause_root.show()
+		end_btn.visible = gs.leader == multiplayer.get_unique_id()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_quit()
 
@@ -1103,6 +1106,8 @@ func _end(text: String) -> void:
 # Keyboard menus: whenever a panel is up and nothing has focus, focus its first control, so
 # arrows/Tab move, Enter/Space press, Left/Right adjust sliders, Esc backs out of overlays.
 func _keep_menu_focus() -> void:
+	if TouchControls.on():
+		return # no keyboard on a phone, and a held focus scrolls panels and swallows taps
 	var top_panel: Control = null
 	for r in [credits_root, howto_root, touch_root, settings_root, shop_ui, pause_root, results_root, lobby_root, mp_root, menu_root]:
 		if r and r.visible:
@@ -2190,7 +2195,7 @@ func _refresh_hud() -> void:
 		var t := "%d:%02d" % [int(gs.time) / 60, int(gs.time) % 60]
 		top.text = "BLUE  %d lives, %d flying   |   %s   |   RED  %d lives, %d flying%s" % [gs.lives[0], _flying(0), t, gs.lives[1], _flying(1), rtt]
 	elif gs.mode == 2:
-		top.text = "FREE FLIGHT   Balloons popped: %d   (Esc for menu)%s" % [gs.popped, rtt]
+		top.text = "FREE FLIGHT   Balloons popped: %d   (%s for menu)%s" % [gs.popped, "II" if TouchControls.on() else "Esc", rtt]
 	elif gs.mode == 0:
 		var flying := players.get_children().filter(func(p): return p.role == "bomber" and p.alive).size()
 		top.text = "Wave %d/%d  (next %ds)   Bombers: %d flying, %d delivered, %d lost   Lives %d%s" % [gs.wave, WAVES, maxf(gs.next_wave, 0), flying, gs.arrived, gs.lost, gs.lives[0], rtt]

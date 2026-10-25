@@ -65,7 +65,10 @@ func open(product := "", note := "") -> void:
 	show()
 	main._refresh_ui()
 	_pick()
-	cat_sel.grab_focus()
+	if TouchControls.on(): # no keyboard on a phone: start at the top, title in view
+		(cat_sel.get_parent().get_parent() as ScrollContainer).scroll_vertical = 0
+	else:
+		cat_sel.grab_focus()
 
 
 func close() -> void:

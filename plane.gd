@@ -267,7 +267,7 @@ func _process(dt: float) -> void:
 			if comps[i] < 0.6:
 				broken.append("%s %d%%" % [Planes.COMPONENT_NAMES[i], comps[i] * 100])
 		var bank: Array = main.gs.get("bank", [0, 0])
-		var deploy := "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""] if main.gs.mode != 2 else ""
+		var deploy := ("   Supplies %d  (BUY)" % bank[team] if TouchControls.on() else "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""]) if main.gs.mode != 2 else ""
 		if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
 			deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
 		var bonus := ""

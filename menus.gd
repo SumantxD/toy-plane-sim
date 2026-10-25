@@ -254,6 +254,9 @@ static func _box(bg: Color, border: Color, bw: int, pad: int) -> StyleBoxFlat:
 	return sb
 
 
+const PRIVACY_URL := "https://github.com/SumantxD/toy-plane-sim/blob/main/PRIVACY.md"
+
+
 static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Callable()) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	var v := Settings.values
@@ -271,6 +274,10 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 		tb.text = "Touch controls..."
 		tb.pressed.connect(on_touch)
 		box.add_child(tb)
+	var privacy := Button.new()
+	privacy.text = "Privacy policy"
+	privacy.pressed.connect(func(): OS.shell_open(PRIVACY_URL))
+	box.add_child(privacy)
 	var done := Button.new()
 	done.text = "Done"
 	done.pressed.connect(func():
