@@ -3,3 +3,7 @@
 *.tmp
 /builds/
 .claude/worktrees/
+aso/creative/takes/
+aso/creative/raw/
+aso/**/*.import
+aso/tools/__pycache__/

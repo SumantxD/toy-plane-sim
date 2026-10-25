@@ -1,0 +1,30 @@
+# term | fail or warn | reason. Case-insensitive whole-word/phrase match against name, subtitle, promo, description, what's new, keywords.
+# Competitor app and company names are added automatically from competitors.json.
+apple | fail | Apple trademark; not allowed as part of a product name (apple.com trademark guidelines); 5.2.4 no implied endorsement
+iphone | warn | OK only as "for iPhone" referential phrase, never in app name (App Store Marketing Guidelines)
+ipad | warn | same rule as iPhone
+app store | warn | Apple mark; never in name or keywords
+game center | warn | Apple mark; describe the feature, don't use it as a keyword
+android | fail | Guideline 2.3.10: no other mobile platforms in metadata
+google play | fail | Guideline 2.3.10: no alternative app marketplaces
+play store | fail | Guideline 2.3.10
+steam | warn | Guideline 2.3.10 names marketplaces; Steam is a PC store, keep it out of App Store copy
+for kids | fail | Guideline 2.3.8: reserved for the Kids category
+for children | fail | Guideline 2.3.8: reserved for the Kids category
+editor's choice | fail | Guideline 5.2.4(b): Apple applies the badge, you can't claim it
+editors choice | fail | Guideline 5.2.4(b)
+top gun | fail | film trademark (Paramount); third-party trademark, Guideline 5.2.1
+war thunder | fail | competing game name
+ace combat | fail | competing game name (Bandai Namco)
+microsoft flight simulator | fail | competing game name
+infinite flight | fail | competing app name
+fortnite | fail | unrelated popular app name, Guideline 2.3.7
+pubg | fail | unrelated popular app name, Guideline 2.3.7
+roblox | fail | unrelated popular app name, Guideline 2.3.7
+minecraft | fail | unrelated popular app name, Guideline 2.3.7
+call of duty | fail | unrelated popular app name, Guideline 2.3.7
+lego | fail | toy trademark; "toy" is fine, brand names are not
+hot wheels | fail | toy trademark (Mattel)
+nerf | fail | toy trademark (Hasbro)
+online | warn | no public lobby or matchmaking (rooms.gd:4-6): as a search term it promises a player pool the game lacks, Guideline 2.3 | keywords
+up to 8 | warn | 8-phone room untested (positioning.md check 3; MAX_PLAYERS main.gd:4)

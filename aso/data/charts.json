@@ -1,0 +1,5764 @@
+{
+"fetched": "2026-10-25 17:17 IST",
+"source": "https://itunes.apple.com/<cc>/rss/topfreeapplications/limit=200/genre=<id>/json + https://itunes.apple.com/lookup",
+"charts": {
+"in_Action": [
+{
+"rank": 1,
+"id": 1526436837,
+"name": "BATTLEGROUNDS MOBILE INDIA",
+"seller": "KRAFTON Inc",
+"ratings": 765815,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 2,
+"id": 6746328263,
+"name": "Castle Busters",
+"seller": "Voodoo",
+"ratings": 8570,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 3,
+"id": 431946152,
+"name": "Roblox",
+"seller": "Roblox Corporation",
+"ratings": 406134,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 4,
+"id": 512939461,
+"name": "Subway Surfers",
+"seller": "Sybo Games ApS",
+"ratings": 377860,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 5,
+"id": 1389111413,
+"name": "Hole.io - Original Hole Game",
+"seller": "Voodoo",
+"ratings": 16485,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 6,
+"id": 1423046460,
+"name": "Paper.io 2",
+"seller": "Voodoo",
+"ratings": 51113,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 7,
+"id": 564540143,
+"name": "Hill Climb Racing",
+"seller": "Fingersoft",
+"ratings": 49694,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 8,
+"id": 6756882608,
+"name": "Ghost Sniper: War FPS Shooter",
+"seller": "Alda Games, s.r.o.",
+"ratings": 632,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 9,
+"id": 1287282214,
+"name": "Call of Duty®: Mobile",
+"seller": "Activision Publishing, Inc.",
+"ratings": 136086,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 10,
+"id": 1543976495,
+"name": "Mini Militia Classic",
+"seller": "Chad Towns",
+"ratings": 1066,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 11,
+"id": 1058528141,
+"name": "War Machines：Battle Tank Games",
+"seller": "Wildlife Studios, Inc",
+"ratings": 16692,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 12,
+"id": 529479190,
+"name": "Clash of Clans",
+"seller": "Supercell Oy",
+"ratings": 300906,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 13,
+"id": 1117270703,
+"name": "eFootball™",
+"seller": "Konami Digital Entertainment Co., Ltd.",
+"ratings": 162480,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 14,
+"id": 1351168404,
+"name": "Among Us!",
+"seller": "InnerSloth LLC",
+"ratings": 36724,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 15,
+"id": 572395608,
+"name": "Temple Run 2",
+"seller": "Imangi Studios, LLC",
+"ratings": 120037,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 16,
+"id": 6557072922,
+"name": "Z Survivor: Backpack Shooter",
+"seller": "Tapped Ltd",
+"ratings": 989,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 17,
+"id": 420009108,
+"name": "Temple Run",
+"seller": "Imangi Studios, LLC",
+"ratings": 72102,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 18,
+"id": 1568245971,
+"name": "Count Masters: Crowd Runner 3D",
+"seller": "Freeplay LLC",
+"ratings": 32500,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 19,
+"id": 930574573,
+"name": "Sniper 3D: Gun Shooting Games",
+"seller": "Wildlife Studios, Inc",
+"ratings": 458633,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 20,
+"id": 6754098532,
+"name": "RUSH: Xtreme",
+"seller": "SayGames LTD",
+"ratings": 7497,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 21,
+"id": 1214765807,
+"name": "MadOut 2: Grand Auto Racing 3D",
+"seller": "Vladislav Ivanchuk",
+"ratings": 12685,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 22,
+"id": 880047117,
+"name": "Angry Birds 2",
+"seller": "Rovio Entertainment Oyj",
+"ratings": 112195,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 23,
+"id": 6747378442,
+"name": "Sniper Agent: Offline Shooter",
+"seller": "Alda Games, s.r.o.",
+"ratings": 1412,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 24,
+"id": 6450851402,
+"name": "Indian Vehicle Simulator 3d",
+"seller": "Aman Yadav",
+"ratings": 14049,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 25,
+"id": 6747033069,
+"name": "Shoot & Hide",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 481,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 26,
+"id": 6760325543,
+"name": "CubeAway - 3DPuzzle",
+"seller": "GOODROID,Inc.",
+"ratings": 1905,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 27,
+"id": 1541153375,
+"name": "Stumble Guys",
+"seller": "Scopely, Inc.",
+"ratings": 31010,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 28,
+"id": 6468845173,
+"name": "GTA: Vice City – Definitive",
+"seller": "Rockstar Games, Inc.",
+"ratings": 1025,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 29,
+"id": 6451149639,
+"name": "Indian Bike Driving Simulator",
+"seller": "Asjad Ahmad",
+"ratings": 4686,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 30,
+"id": 405885221,
+"name": "Mini Militia - Doodle Army 2",
+"seller": "Miniclip SA",
+"ratings": 131177,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 31,
+"id": 6751412020,
+"name": "Downhill Skate Race Game",
+"seller": "Freeplay LLC",
+"ratings": 721,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 32,
+"id": 6473828980,
+"name": "Max Fire Battlegrounds Offline",
+"seller": "MINOR BUGS",
+"ratings": 254,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Role-Playing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 33,
+"id": 1473010859,
+"name": "SmashKarts.io",
+"seller": "Tall Team Limited",
+"ratings": 7497,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 34,
+"id": 6772532581,
+"name": "Real War: Survival Game",
+"seller": "NewGen Studio LLC",
+"ratings": 1327,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 35,
+"id": 1606386511,
+"name": "Twerk Race 3D — Fun Run Game",
+"seller": "Freeplay LLC",
+"ratings": 7058,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 36,
+"id": 6759914444,
+"name": "Privateers: Pirate Wars",
+"seller": "MADFATCAT LIMITED",
+"ratings": 84,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 37,
+"id": 6743944297,
+"name": "Red Dead Redemption NETFLIX",
+"seller": "Netflix, Inc.",
+"ratings": 9867,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 38,
+"id": 6483539426,
+"name": "Fortnite",
+"seller": "Epic Games Sweden AB",
+"ratings": 1918,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 39,
+"id": 1357967682,
+"name": "Worms Zone .io — Hungry Snake",
+"seller": "AZUR INTERACTIVE GAMES LIMITED",
+"ratings": 29447,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 40,
+"id": 6670476964,
+"name": "Moba Legends: 5v5",
+"seller": "VIZTA PTE. LTD.",
+"ratings": 6008,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 41,
+"id": 1053012308,
+"name": "Clash Royale",
+"seller": "Supercell Oy",
+"ratings": 98342,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 42,
+"id": 1479050948,
+"name": "Shadow Fight 4: Arena",
+"seller": "Nekki Limited",
+"ratings": 25463,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 43,
+"id": 1579072162,
+"name": "Race Master 3D: Car Racing",
+"seller": "BERESNEV s.r.o.",
+"ratings": 42089,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 44,
+"id": 1550945606,
+"name": "Soccer Superstar - Football",
+"seller": "SIMFACE LIMITED",
+"ratings": 11259,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 45,
+"id": 1346179411,
+"name": "Tennis Clash：Sports Stars Game",
+"seller": "Wildlife Studios, Inc",
+"ratings": 106823,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 46,
+"id": 1467648713,
+"name": "Critical Strike CS: Online FPS",
+"seller": "VERTIGOGAMES OU",
+"ratings": 8562,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 47,
+"id": 1186805817,
+"name": "Sniper Strike: Shooting Games",
+"seller": "Mobile Gaming Studios Ltd.",
+"ratings": 38174,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 48,
+"id": 6744592672,
+"name": "Snipers Duel",
+"seller": "Voodoo",
+"ratings": 975,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 49,
+"id": 1578165378,
+"name": "Offroad Car Simulator 2024",
+"seller": "RAPTY SOFT SRL",
+"ratings": 41768,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 50,
+"id": 1499081620,
+"name": "Going Balls",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 22419,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 51,
+"id": 696565994,
+"name": "Shadow Fight 2",
+"seller": "MOBILNYE IGRY OOO",
+"ratings": 41583,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Role-Playing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 52,
+"id": 1638823663,
+"name": "Traffic Racer Open World",
+"seller": "Makhsudjon Imomaliev",
+"ratings": 1010,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 53,
+"id": 6774642016,
+"name": "Indian Life Simulator 3D",
+"seller": "Hitesh Kumar Singh",
+"ratings": 418,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 54,
+"id": 1145275343,
+"name": "Super Mario Run",
+"seller": "Nintendo Co., Ltd.",
+"ratings": 2676,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 55,
+"id": 1499322051,
+"name": "G.T.E. A Gangster True Empire",
+"seller": "Evgeni Vasilec",
+"ratings": 14983,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 56,
+"id": 403858572,
+"name": "Fruit Ninja®",
+"seller": "Halfbrick",
+"ratings": 26649,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 57,
+"id": 847492141,
+"name": "Score! Hero",
+"seller": "First Touch Games Ltd.",
+"ratings": 61015,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 58,
+"id": 6447961802,
+"name": "Football League™ 2026",
+"seller": "MOBILE SOCCER PTE. LTD.",
+"ratings": 3267,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 59,
+"id": 6810919476,
+"name": "Drone Strike: Gunship War Game",
+"seller": "VNGGAMES PTE. LTD.",
+"ratings": 9,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 60,
+"id": 6476762693,
+"name": "Zombie Apocalypse・Shooter Game",
+"seller": "Freeplay LLC",
+"ratings": 19525,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 61,
+"id": 1314391359,
+"name": "FRAG Pro Shooter",
+"seller": "Oh BiBi",
+"ratings": 7265,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 62,
+"id": 6761614488,
+"name": "Apex Hunter: Animal Shooting",
+"seller": "COZYCRAFT PTE. LTD.",
+"ratings": 21,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 63,
+"id": 6447255668,
+"name": "Tear Them All: Robot games 3D",
+"seller": "Freeplay LLC",
+"ratings": 44,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 64,
+"id": 6630378520,
+"name": "Annoying Uncle Punch Game",
+"seller": "Zain UI Abideen",
+"ratings": 2058,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 65,
+"id": 1659408861,
+"name": "Super Fighter 3: Open City",
+"seller": "Starplay DMCC",
+"ratings": 21717,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": true
+},
+{
+"rank": 66,
+"id": 1543845882,
+"name": "Bridge Race",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 69240,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 67,
+"id": 6477413486,
+"name": "Level Devil - NOT A Troll Game",
+"seller": "WebVentures B.V.",
+"ratings": 6636,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 68,
+"id": 6462360082,
+"name": "Resident Evil 4",
+"seller": "CAPCOM Co., Ltd",
+"ratings": 421,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 69,
+"id": 1146465836,
+"name": "Hill Climb Racing 2",
+"seller": "Fingersoft",
+"ratings": 7583,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 70,
+"id": 6504188939,
+"name": "Subway Surfers City",
+"seller": "Sybo Games ApS",
+"ratings": 1732,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 71,
+"id": 6476977448,
+"name": "Indian Car and Bike Driving",
+"seller": "Shivam Rajawat",
+"ratings": 1505,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 72,
+"id": 1479587574,
+"name": "Hunter Assassin",
+"seller": "RUBY OYUN VE YAZILIM DANISMANLIK SANAYI TICARET ANONIM SIRKETI",
+"ratings": 60598,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 73,
+"id": 1518389230,
+"name": "Stealth Master: Assassin Ninja",
+"seller": "SayGames LTD",
+"ratings": 8605,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 74,
+"id": 1528161193,
+"name": "Western Sniper: Wild West FPS",
+"seller": "AI GAMES FZ LLC",
+"ratings": 13688,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 75,
+"id": 1345968745,
+"name": "Helix Jump",
+"seller": "Voodoo",
+"ratings": 36336,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 76,
+"id": 1623395612,
+"name": "Crazy Office — Slap & Smash",
+"seller": "Freeplay LLC",
+"ratings": 2875,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 77,
+"id": 6469411958,
+"name": "Lawless City - Street Chaos",
+"seller": "DIGITAL DELIGHTS GAMING",
+"ratings": 0,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 78,
+"id": 486717857,
+"name": "Lep's World - Jump n Run Games",
+"seller": "nerByte GmbH",
+"ratings": 26574,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 79,
+"id": 1559030764,
+"name": "Sword Play! Ninja Slice Runner",
+"seller": "AI GAMES FZ LLC",
+"ratings": 11008,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 80,
+"id": 949701151,
+"name": "MORTAL KOMBAT: A Fighting Game",
+"seller": "Warner Bros. Entertainment",
+"ratings": 6047,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Card"
+],
+"plane_word": false
+},
+{
+"rank": 81,
+"id": 1608916511,
+"name": "Rainbow Six Mobile",
+"seller": "Ubisoft Nova",
+"ratings": 1030,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 82,
+"id": 1333476679,
+"name": "Airline Commander: Flight Game",
+"seller": "RORTOS SRL",
+"ratings": 14854,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": true
+},
+{
+"rank": 83,
+"id": 1383187127,
+"name": "Ball Blast Cannon blitz mania",
+"seller": "Voodoo",
+"ratings": 44918,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 84,
+"id": 6819800438,
+"name": "Thunk: Knife Throw",
+"seller": "ALDEN MORRIS ENTERPRISES LLC",
+"ratings": 0,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 85,
+"id": 1148587060,
+"name": "Rope Hero: Vice Town",
+"seller": "Naxeex LTD",
+"ratings": 5814,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 86,
+"id": 896112560,
+"name": "Marvel Contest of Champions",
+"seller": "Kabam Games, Inc.",
+"ratings": 36391,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 87,
+"id": 6472040176,
+"name": "Animal Hunter: Wild Shooting",
+"seller": "Fun Fun Oyun Teknoloji Anonim Sirketi",
+"ratings": 17959,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 88,
+"id": 6749880542,
+"name": "Rogue City Escape",
+"seller": "Muhammad Subtain Ali Sattar",
+"ratings": 3,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 89,
+"id": 1197441484,
+"name": "Modern Strike Online: FPS PvP",
+"seller": "AZUR INTERACTIVE GAMES LIMITED",
+"ratings": 7566,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 90,
+"id": 6740549149,
+"name": "Kamla Horror Exorcism Escape",
+"seller": "Shubham Rajanwar",
+"ratings": 748,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 91,
+"id": 893677096,
+"name": "Plants vs. Zombies™",
+"seller": "EA Swiss Sarl",
+"ratings": 13794,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Puzzle",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 92,
+"id": 1061802598,
+"name": "GTA: Liberty City Stories",
+"seller": "Rockstar Games, Inc.",
+"ratings": 1261,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 93,
+"id": 699032795,
+"name": "Grand Theft Auto V: The Manual",
+"seller": "Rockstar Games, Inc.",
+"ratings": 1560,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Reference",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 94,
+"id": 1281535229,
+"name": "World War Heroes: WW2 FPS PVP",
+"seller": "AZUR INTERACTIVE GAMES LIMITED",
+"ratings": 14305,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 95,
+"id": 578252579,
+"name": "Vector: Parkour Run",
+"seller": "Nekki Limited",
+"ratings": 2029,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 96,
+"id": 1617075984,
+"name": "Grand Gangster Crime: Mafia 3D",
+"seller": "Muhammad Hasan Parvez",
+"ratings": 90,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 97,
+"id": 6748264318,
+"name": "Red Ball Forever: Jump & Roll",
+"seller": "FDG Entertainment GmbH & Co.KG",
+"ratings": 0,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 98,
+"id": 1229016807,
+"name": "Brawl Stars",
+"seller": "Supercell Oy",
+"ratings": 55487,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 99,
+"id": 1104692136,
+"name": "Snake.io - Fun Online Snake",
+"seller": "KOOAPPS INC.",
+"ratings": 9177,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 100,
+"id": 1151220243,
+"name": "Into the Dead 2: Zombie Killer",
+"seller": "Prodigy Design Limited T/A Sidhe Interactive",
+"ratings": 7046,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+}
+],
+"in_Simulation": [
+{
+"rank": 1,
+"id": 6475969303,
+"name": "Truck Masters: India Simulator",
+"seller": "Highbrow Interactive Private Limited",
+"ratings": 17202,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 2,
+"id": 6739124364,
+"name": "Top Tycoon: Coin Theme Empire",
+"seller": "Topzest Games Limited",
+"ratings": 9504,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 3,
+"id": 543186831,
+"name": "8 Ball Pool™",
+"seller": "Miniclip SA",
+"ratings": 661091,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 4,
+"id": 639191551,
+"name": "Dr. Driving",
+"seller": "SUD Inc.",
+"ratings": 10744,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Entertainment",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 5,
+"id": 6450917563,
+"name": "Pizza Ready",
+"seller": "Supercent Inc.",
+"ratings": 68187,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 6,
+"id": 6547846665,
+"name": "Downhill Race League",
+"seller": "BoomBit, Inc.",
+"ratings": 174,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 7,
+"id": 1094930513,
+"name": "EA SPORTS FC™ Football Mobile",
+"seller": "EA Swiss Sarl",
+"ratings": 232606,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 8,
+"id": 1577343721,
+"name": "Crazy Plane Landing",
+"seller": "BoomBit, Inc.",
+"ratings": 738,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": true
+},
+{
+"rank": 9,
+"id": 1351168404,
+"name": "Among Us!",
+"seller": "InnerSloth LLC",
+"ratings": 36724,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 10,
+"id": 981633844,
+"name": "Block Craft 3D: Crafting Game",
+"seller": "Wildlife Studios, Inc",
+"ratings": 33583,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 11,
+"id": 6756402226,
+"name": "Bus Simulator Indonesia: Maleo",
+"seller": "CV. Maleo Media Kreatif",
+"ratings": 2559,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 12,
+"id": 657500465,
+"name": "My Talking Tom",
+"seller": "Outfit7 Limited",
+"ratings": 66519,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 13,
+"id": 6755805872,
+"name": "Pawn to Don",
+"seller": "FUNCELL GAMES PRIVATE LIMITED",
+"ratings": 228,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Role-Playing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 14,
+"id": 959498315,
+"name": "Extreme Car Driving Simulator",
+"seller": "AxesInMotion S.L.",
+"ratings": 13628,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 15,
+"id": 6446197181,
+"name": "Glow Fashion Idol",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 2248,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 16,
+"id": 1247758515,
+"name": "Car Driving & Parking Games",
+"seller": "Better Games Studio Pty Ltd",
+"ratings": 12282,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 17,
+"id": 6504540166,
+"name": "Flop House: Homeless Shelter",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 2548,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 18,
+"id": 6752849675,
+"name": "Supermarket Tycoon Empire",
+"seller": "Celestial Roads LLC",
+"ratings": 805,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 19,
+"id": 6444705312,
+"name": "Vehicle Masters",
+"seller": "SayGames LTD",
+"ratings": 11030,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 20,
+"id": 6450851402,
+"name": "Indian Vehicle Simulator 3d",
+"seller": "Aman Yadav",
+"ratings": 14049,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 21,
+"id": 6747033069,
+"name": "Shoot & Hide",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 481,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 22,
+"id": 1553900372,
+"name": "Truck Simulator : Ultimate",
+"seller": "Zuuks Bilisim Hizmetleri Sanayi ve Ticaret Limited Sirketi",
+"ratings": 99851,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 23,
+"id": 1577721431,
+"name": "Real Cricket™",
+"seller": "KRAFTON Inc",
+"ratings": 53970,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 24,
+"id": 6451208928,
+"name": "Business Empire: RichMan",
+"seller": "NewPubCo, Inc",
+"ratings": 1594,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 25,
+"id": 6453025143,
+"name": "Bid Master.",
+"seller": "EYEWIND LIMITED.",
+"ratings": 176,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 26,
+"id": 6747710694,
+"name": "Bulldozer Master: Crush & Mine",
+"seller": "Supercent Inc.",
+"ratings": 621,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 27,
+"id": 6451149639,
+"name": "Indian Bike Driving Simulator",
+"seller": "Asjad Ahmad",
+"ratings": 4686,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 28,
+"id": 1598707696,
+"name": "Indian Truck Simulator Games",
+"seller": "Ubaid Alwani",
+"ratings": 886,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Entertainment",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 29,
+"id": 6498920694,
+"name": "We Are Cooking",
+"seller": "MATRYOSHKA GAMES CY LTD",
+"ratings": 758,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 30,
+"id": 883393043,
+"name": "Need for Speed No Limits Game",
+"seller": "EA Swiss Sarl",
+"ratings": 63093,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 31,
+"id": 6751412020,
+"name": "Downhill Skate Race Game",
+"seller": "Freeplay LLC",
+"ratings": 721,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 32,
+"id": 6753862216,
+"name": "Foodstars: Merge & Cook",
+"seller": "HAPPIBITS TECHNOLOGIES PTE. LTD.",
+"ratings": 309,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 33,
+"id": 6784124888,
+"name": "Bus Simulator India: Maleo",
+"seller": "CV. Maleo Media Kreatif",
+"ratings": 66,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 34,
+"id": 6469040590,
+"name": "Cooking World!",
+"seller": "MagicSeven Co., Ltd",
+"ratings": 579,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 35,
+"id": 1337578317,
+"name": "My Talking Tom 2",
+"seller": "Outfit7 Limited",
+"ratings": 101951,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 36,
+"id": 6744975195,
+"name": "Sled Surfers",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 1941,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 37,
+"id": 1643509748,
+"name": "Merge Cooking®",
+"seller": "HAPPIBITS TECHNOLOGIES PTE. LTD.",
+"ratings": 365,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 38,
+"id": 506627515,
+"name": "Hay Day",
+"seller": "Supercell Oy",
+"ratings": 44543,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Family",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 39,
+"id": 1422866002,
+"name": "Golf Battle",
+"seller": "Miniclip SA",
+"ratings": 13114,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 40,
+"id": 1580603339,
+"name": "Cricket League",
+"seller": "Miniclip SA",
+"ratings": 224329,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 41,
+"id": 6504122823,
+"name": "Epic Plane Evolution",
+"seller": "Voodoo",
+"ratings": 4853,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing"
+],
+"plane_word": true
+},
+{
+"rank": 42,
+"id": 6446430995,
+"name": "Real Highway Car Driving games",
+"seller": "Hassan Javed",
+"ratings": 6855,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 43,
+"id": 6758464488,
+"name": "Bus Masters: India Simulator",
+"seller": "Highbrow Interactive Private Limited",
+"ratings": 436,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 44,
+"id": 6780387121,
+"name": "Wild Water World",
+"seller": "Hong Kong Just Game Technology Limited",
+"ratings": 15,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 45,
+"id": 6449243946,
+"name": "Snake Clash!",
+"seller": "Supercent Inc.",
+"ratings": 18669,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 46,
+"id": 1374868881,
+"name": "Car Parking Multiplayer",
+"seller": "Aidana Kengbeiil",
+"ratings": 7948,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation",
+"Graphics & Design"
+],
+"plane_word": false
+},
+{
+"rank": 47,
+"id": 1030248722,
+"name": "Indian Train Simulator",
+"seller": "Highbrow Interactive Private Limited",
+"ratings": 12682,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 48,
+"id": 6479165492,
+"name": "Dog Escape: Pet Dog Games",
+"seller": "Sunday GmbH",
+"ratings": 2599,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 49,
+"id": 6443994440,
+"name": "Car Driving 2026 : School Game",
+"seller": "THP Soft Tech SRL",
+"ratings": 19971,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 50,
+"id": 1630315603,
+"name": "Truckers of Europe 3",
+"seller": "Yalcin Senturk",
+"ratings": 3235,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 51,
+"id": 6744592672,
+"name": "Snipers Duel",
+"seller": "Voodoo",
+"ratings": 975,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 52,
+"id": 6739345737,
+"name": "Palmon: Survival",
+"seller": "LILITH TECHNOLOGY HONG KONG LIMITED",
+"ratings": 215,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 53,
+"id": 1578165378,
+"name": "Offroad Car Simulator 2024",
+"seller": "RAPTY SOFT SRL",
+"ratings": 41768,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 54,
+"id": 6475709488,
+"name": "Carnival Tycoon: Coin Games",
+"seller": "Wild Candle Spin LLC",
+"ratings": 5977,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 55,
+"id": 6738698616,
+"name": "Real Cricket™ Swipe",
+"seller": "Nautilus Mobile App Private Limited",
+"ratings": 7910,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 56,
+"id": 1612163874,
+"name": "Idle Guy: Life Simulator games",
+"seller": "Heatherglade Publishing Korlatolt Felelossegu Tarsasag",
+"ratings": 2291,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Finance",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 57,
+"id": 6511238101,
+"name": "My Supermarket Simulator 3D",
+"seller": "Game District LLC",
+"ratings": 4863,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Family",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 58,
+"id": 1523627747,
+"name": "Teacher Simulator: Study Time!",
+"seller": "Kwalee Ltd",
+"ratings": 36221,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 59,
+"id": 6774642016,
+"name": "Indian Life Simulator 3D",
+"seller": "Hitesh Kumar Singh",
+"ratings": 418,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 60,
+"id": 1499322051,
+"name": "G.T.E. A Gangster True Empire",
+"seller": "Evgeni Vasilec",
+"ratings": 14983,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 61,
+"id": 1492451796,
+"name": "Woodturning 3D",
+"seller": "Voodoo",
+"ratings": 12012,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 62,
+"id": 6446024266,
+"name": "Dream Cricket 2026",
+"seller": "SPORTA TECHNOLOGIES PRIVATE LIMITED",
+"ratings": 33638,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 63,
+"id": 1021117809,
+"name": "Dr. Parking 4",
+"seller": "SUD Inc.",
+"ratings": 1907,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Education",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 64,
+"id": 471341991,
+"name": "Infinite Flight Simulator",
+"seller": "Infinite Flight LLC",
+"ratings": 1939,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Sports",
+"Simulation"
+],
+"plane_word": true
+},
+{
+"rank": 65,
+"id": 6761614488,
+"name": "Apex Hunter: Animal Shooting",
+"seller": "COZYCRAFT PTE. LTD.",
+"ratings": 21,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 66,
+"id": 1462911602,
+"name": "Dream League Soccer 2026",
+"seller": "First Touch Games Ltd.",
+"ratings": 56136,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 67,
+"id": 6754549880,
+"name": "Perfect Makeover Cleaning ASMR",
+"seller": "HMBL APPS",
+"ratings": 1022,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 68,
+"id": 1664415775,
+"name": "Royal Cooking",
+"seller": "MATRYOSHKA GAMES CY LTD",
+"ratings": 6923,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Entertainment",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 69,
+"id": 6630378520,
+"name": "Annoying Uncle Punch Game",
+"seller": "Zain UI Abideen",
+"ratings": 2058,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 70,
+"id": 1250783151,
+"name": "Scary Teacher 3D",
+"seller": "GenITeam LLC",
+"ratings": 25837,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Adventure",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 71,
+"id": 6742222069,
+"name": "Cookingdom",
+"seller": "ABI GLOBAL LTD.",
+"ratings": 7966,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Food & Drink",
+"Puzzle",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 72,
+"id": 6738694162,
+"name": "Jelly Master: Mukbang ASMR",
+"seller": "Hieu Nguyen Trung",
+"ratings": 1674,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 73,
+"id": 1321606577,
+"name": "From Zero to Hero: Idle game!",
+"seller": "Heatherglade Publishing Korlatolt Felelossegu Tarsasag",
+"ratings": 5667,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Finance",
+"Strategy",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 74,
+"id": 6761469046,
+"name": "Rap Star:Idle Clicker",
+"seller": "聪 马",
+"ratings": 233,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 75,
+"id": 6447225389,
+"name": "Traffic Driving Car Simulator",
+"seller": "Abc Vietnam telecommunication services company limited",
+"ratings": 3780,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 76,
+"id": 6476977448,
+"name": "Indian Car and Bike Driving",
+"seller": "Shivam Rajawat",
+"ratings": 1505,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 77,
+"id": 1025281689,
+"name": "World Cricket Championship 2",
+"seller": "Nextwave Multimedia Private Limited",
+"ratings": 34484,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 78,
+"id": 1413287364,
+"name": "Redecor - Home Design Game",
+"seller": "Reworks Oy",
+"ratings": 5343,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Graphics & Design",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 79,
+"id": 1473424857,
+"name": "My Talking Tom Friends",
+"seller": "Outfit7 Limited",
+"ratings": 52193,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Role-Playing"
+],
+"plane_word": false
+},
+{
+"rank": 80,
+"id": 959865119,
+"name": "Bus Simulator : EVO",
+"seller": "Marusac Alexandru Persoana Fizica Autorizata",
+"ratings": 10329,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 81,
+"id": 1579424683,
+"name": "Oxide: Survival Island Online",
+"seller": "HYPERHUG LTD",
+"ratings": 411,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 82,
+"id": 1580304919,
+"name": "Car Driving 2025 : Racing Game",
+"seller": "Camelia Monica Pintea",
+"ratings": 23162,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 83,
+"id": 6738469826,
+"name": "Lands of Jail",
+"seller": "SINGAPORE JUST GAME TECHNOLOGY PTE. LTD.",
+"ratings": 906,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 84,
+"id": 6757675986,
+"name": "Indian Railway Train Sim Game",
+"seller": "Naman Gulati",
+"ratings": 461,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 85,
+"id": 1669217910,
+"name": "Coloring ASMR",
+"seller": "Zego Global Pte Ltd",
+"ratings": 28333,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Lifestyle",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 86,
+"id": 6791947020,
+"name": "Driving Pro: Car Parking Game",
+"seller": "Terafort US LLC",
+"ratings": 48,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 87,
+"id": 1570525877,
+"name": "The Baby In Yellow",
+"seller": "Team Terrible Limited",
+"ratings": 2695,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 88,
+"id": 6449469030,
+"name": "Airplane Pro: Flight Simulator",
+"seller": "GameShark Studios LTD",
+"ratings": 11604,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": true
+},
+{
+"rank": 89,
+"id": 1102415991,
+"name": "RealmCraft: mine & craft world",
+"seller": "Tellurion mobile, Limited Liability Company",
+"ratings": 8176,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 90,
+"id": 6738846199,
+"name": "Frost World - Winter Survival",
+"seller": "Estoty LLC",
+"ratings": 566,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 91,
+"id": 6746701133,
+"name": "Design Family Life",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 183,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 92,
+"id": 6761373459,
+"name": "Car Thief: Auto Garage",
+"seller": "GAME FOUNDRY (SMC-PRIVATE) LIMITED",
+"ratings": 97,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Role-Playing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 93,
+"id": 6450103715,
+"name": "Real Car Driving - Racing City",
+"seller": "Tripsoft Pte. Ltd",
+"ratings": 10437,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 94,
+"id": 1333476679,
+"name": "Airline Commander: Flight Game",
+"seller": "RORTOS SRL",
+"ratings": 14854,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": true
+},
+{
+"rank": 95,
+"id": 6761043541,
+"name": "Last Beacon: Survival",
+"seller": "YG Technology FZ-LLC",
+"ratings": 21,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 96,
+"id": 1141250602,
+"name": "Offroad Prado Jeep Driving 4x4",
+"seller": "ZORVEX GAMES",
+"ratings": 11,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 97,
+"id": 6673911988,
+"name": "Roadside Empire: Gas Station",
+"seller": "Highcore Labs LLC",
+"ratings": 1317,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 98,
+"id": 1563148041,
+"name": "Ball Run 2048",
+"seller": "KAYAC Inc.",
+"ratings": 3907,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 99,
+"id": 6752633322,
+"name": "My Fish Shop! - Seafood Tycoon",
+"seller": "Supercent Inc.",
+"ratings": 231,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 100,
+"id": 1525505269,
+"name": "Fashion Show: Dress Up Games",
+"seller": "Ngoc Pham Thi",
+"ratings": 11393,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+}
+],
+"us_Action": [
+{
+"rank": 1,
+"id": 431946152,
+"name": "Roblox",
+"seller": "Roblox Corporation",
+"ratings": 20450666,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 2,
+"id": 6760325543,
+"name": "CubeAway - 3DPuzzle",
+"seller": "GOODROID,Inc.",
+"ratings": 135563,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 3,
+"id": 6483539426,
+"name": "Fortnite",
+"seller": "Epic Games Sweden AB",
+"ratings": 390110,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 4,
+"id": 512939461,
+"name": "Subway Surfers",
+"seller": "Sybo Games ApS",
+"ratings": 3862201,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 5,
+"id": 1423046460,
+"name": "Paper.io 2",
+"seller": "Voodoo",
+"ratings": 2943882,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 6,
+"id": 1287282214,
+"name": "Call of Duty®: Mobile",
+"seller": "Activision Publishing, Inc.",
+"ratings": 2020248,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 7,
+"id": 1351168404,
+"name": "Among Us!",
+"seller": "InnerSloth LLC",
+"ratings": 845723,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 8,
+"id": 6746328263,
+"name": "Castle Busters",
+"seller": "Voodoo",
+"ratings": 105794,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 9,
+"id": 6742809194,
+"name": "Warline: Sniper Strike",
+"seller": "Powerfantasy HK Limited",
+"ratings": 23817,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 10,
+"id": 1389111413,
+"name": "Hole.io - Original Hole Game",
+"seller": "Voodoo",
+"ratings": 1973931,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 11,
+"id": 1053012308,
+"name": "Clash Royale",
+"seller": "Supercell Oy",
+"ratings": 3877884,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 12,
+"id": 6747033069,
+"name": "Shoot & Hide",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 7944,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 13,
+"id": 1229016807,
+"name": "Brawl Stars",
+"seller": "Supercell Oy",
+"ratings": 3134855,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 14,
+"id": 1330123889,
+"name": "PUBG MOBILE",
+"seller": "Tencent Mobile International Limited",
+"ratings": 1613319,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 15,
+"id": 6774321349,
+"name": "Shoot Die Repeat",
+"seller": "Heseri Games Inc",
+"ratings": 1226,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 16,
+"id": 1300146617,
+"name": "Free Fire x NARUTO SHIPPUDEN",
+"seller": "GARENA INTERNATIONAL I PRIVATE LIMITED",
+"ratings": 366388,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 17,
+"id": 880047117,
+"name": "Angry Birds 2",
+"seller": "Rovio Entertainment Oyj",
+"ratings": 1580573,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 18,
+"id": 529479190,
+"name": "Clash of Clans",
+"seller": "Supercell Oy",
+"ratings": 2787883,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 19,
+"id": 6444407009,
+"name": "Treasure Masters",
+"seller": "Gimica GmbH",
+"ratings": 22517,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 20,
+"id": 893677096,
+"name": "Plants vs. Zombies™",
+"seller": "EA Swiss Sarl",
+"ratings": 940639,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Puzzle",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 21,
+"id": 6450834358,
+"name": "Sunday City: Life Simulator",
+"seller": "AP KEFIR LTD",
+"ratings": 8220,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 22,
+"id": 1366478176,
+"name": "Meta Horizon",
+"seller": "Meta Platforms, Inc.",
+"ratings": 225833,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 23,
+"id": 1118431695,
+"name": "Bowmasters - Multiplayer Games",
+"seller": "Playgendary Limited",
+"ratings": 1942460,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 24,
+"id": 6791525847,
+"name": "Slow Mo Strike: Knives in Time",
+"seller": "KAYAC Inc.",
+"ratings": 1222,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 25,
+"id": 1104692136,
+"name": "Snake.io - Fun Online Snake",
+"seller": "KOOAPPS INC.",
+"ratings": 479096,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 26,
+"id": 1117270703,
+"name": "eFootball™",
+"seller": "Konami Digital Entertainment Co., Ltd.",
+"ratings": 515190,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 27,
+"id": 1550945606,
+"name": "Soccer Superstar",
+"seller": "SIMFACE LIMITED",
+"ratings": 357147,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 28,
+"id": 6477413486,
+"name": "Level Devil - NOT A Troll Game",
+"seller": "WebVentures B.V.",
+"ratings": 64710,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 29,
+"id": 6762267809,
+"name": "Cube Topia 3D",
+"seller": "One Dot Mobile Limited",
+"ratings": 21475,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Puzzle",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 30,
+"id": 564540143,
+"name": "Hill Climb Racing",
+"seller": "Fingersoft",
+"ratings": 138409,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 31,
+"id": 420009108,
+"name": "Temple Run",
+"seller": "Imangi Studios, LLC",
+"ratings": 419837,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 32,
+"id": 6761614488,
+"name": "Apex Hunter: Animal Shooting",
+"seller": "COZYCRAFT PTE. LTD.",
+"ratings": 331,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 33,
+"id": 6471968553,
+"name": "Hunting Game: GPS Manhunt",
+"seller": "Jasper Aelvoet",
+"ratings": 79,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 34,
+"id": 1345968745,
+"name": "Helix Jump",
+"seller": "Voodoo",
+"ratings": 1511823,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 35,
+"id": 6463229324,
+"name": "Highway Overtake - Car Racing",
+"seller": "HYPERMONK GAMES OYUN YAZILIM PAZARLAMA VE DANISMANLIK ANONIM SIRKETI",
+"ratings": 61398,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 36,
+"id": 1469889140,
+"name": "Crazy Kick! Fun Football game",
+"seller": "Voodoo",
+"ratings": 965797,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 37,
+"id": 6741568655,
+"name": "Mobile Legends: Bang Bang.US",
+"seller": "Skystone Games Pte. Ltd.",
+"ratings": 34742,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 38,
+"id": 1057889290,
+"name": "Tomb of the Mask: Pixel Maze",
+"seller": "Playgendary Limited",
+"ratings": 1467075,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 39,
+"id": 1091944550,
+"name": "slither.io",
+"seller": "Lowtech Studios LLC",
+"ratings": 3300,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Entertainment",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 40,
+"id": 1543845882,
+"name": "Bridge Race",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 1050389,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 41,
+"id": 1499081620,
+"name": "Going Balls",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 423826,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 42,
+"id": 930574573,
+"name": "Sniper 3D: Gun Shooting Games",
+"seller": "Wildlife Studios, Inc",
+"ratings": 3318658,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 43,
+"id": 6753818799,
+"name": "Real War: Not Fake",
+"seller": "Heseri Games Inc",
+"ratings": 8533,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 44,
+"id": 6754098532,
+"name": "RUSH: Xtreme",
+"seller": "SayGames LTD",
+"ratings": 59624,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 45,
+"id": 6741921686,
+"name": "Bloons Blitz",
+"seller": "Ninja Kiwi Limited",
+"ratings": 2289,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 46,
+"id": 1541153375,
+"name": "Stumble Guys",
+"seller": "Scopely, Inc.",
+"ratings": 518477,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 47,
+"id": 1252850847,
+"name": "NBA 2K Mobile Basketball Game",
+"seller": "2K Sports",
+"ratings": 1683997,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 48,
+"id": 648668184,
+"name": "Happy Wheels",
+"seller": "Jim Bonacci",
+"ratings": 40697,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 49,
+"id": 6756882608,
+"name": "Ghost Sniper: War FPS Shooter",
+"seller": "Alda Games, s.r.o.",
+"ratings": 34270,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 50,
+"id": 6740428530,
+"name": "Friday Night Funkin' Mobile",
+"seller": "The Funkin' Crew Incorporated",
+"ratings": 147039,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Music"
+],
+"plane_word": false
+},
+{
+"rank": 51,
+"id": 1549027048,
+"name": "Rocket League Sideswipe",
+"seller": "Psyonix LLC",
+"ratings": 110778,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 52,
+"id": 403858572,
+"name": "Fruit Ninja®",
+"seller": "Halfbrick",
+"ratings": 377254,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 53,
+"id": 1480516829,
+"name": "Free Fire MAX x NARUTO",
+"seller": "GARENA INTERNATIONAL I PRIVATE LIMITED",
+"ratings": 59779,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 54,
+"id": 6642710010,
+"name": "War Drone: 3D Shooting Games",
+"seller": "Mobile Gaming Studios Ltd.",
+"ratings": 61103,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 55,
+"id": 1637363937,
+"name": "8 Ball Strike: Win Real Cash",
+"seller": "Aviagames Inc.",
+"ratings": 74601,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 56,
+"id": 6447961802,
+"name": "Football League™ 2026",
+"seller": "MOBILE SOCCER PTE. LTD.",
+"ratings": 46497,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 57,
+"id": 6504188939,
+"name": "Subway Surfers City",
+"seller": "Sybo Games ApS",
+"ratings": 22634,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 58,
+"id": 6763999535,
+"name": "Ragdoll Archers - CrazyGames",
+"seller": "Maxflow BVBA",
+"ratings": 5551,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 59,
+"id": 1278869953,
+"name": "Kick the Buddy",
+"seller": "Playgendary Limited",
+"ratings": 1045808,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 60,
+"id": 6446005634,
+"name": "Hunting Sniper",
+"seller": "SPARKS INFORMATION PTE. LTD.",
+"ratings": 35395,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 61,
+"id": 6755685940,
+"name": "Claw Master – Roguelike Hero",
+"seller": "AI GAMES FZ LLC",
+"ratings": 4295,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Roleplaying",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 62,
+"id": 6756477669,
+"name": "Pistol Duel: 3D Gun Battle",
+"seller": "KAYAC Inc.",
+"ratings": 2087,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 63,
+"id": 1606386511,
+"name": "Twerk Race 3D — Fun Run Game",
+"seller": "Freeplay LLC",
+"ratings": 269862,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 64,
+"id": 1579072162,
+"name": "Race Master 3D: Car Racing",
+"seller": "BERESNEV s.r.o.",
+"ratings": 637263,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 65,
+"id": 572395608,
+"name": "Temple Run 2",
+"seller": "Imangi Studios, LLC",
+"ratings": 495599,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 66,
+"id": 1503294866,
+"name": "Fun Run 4 - Multiplayer Race",
+"seller": "Dirtybit AS",
+"ratings": 35430,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 67,
+"id": 6740966864,
+"name": "Dicero!",
+"seller": "HABBY PTE. LTD.",
+"ratings": 22376,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 68,
+"id": 535500008,
+"name": "Hungry Shark Evolution",
+"seller": "Ubisoft",
+"ratings": 201953,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 69,
+"id": 1568245971,
+"name": "Count Masters: Crowd Runner 3D",
+"seller": "Freeplay LLC",
+"ratings": 601260,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 70,
+"id": 6446891577,
+"name": "Merge Blasters",
+"seller": "Gimica GmbH",
+"ratings": 40950,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 71,
+"id": 6812733413,
+"name": "Last Combat: Z Shooter",
+"seller": "PIXEL KING PTE. LTD.",
+"ratings": 732,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 72,
+"id": 6743944297,
+"name": "Red Dead Redemption NETFLIX",
+"seller": "Netflix, Inc.",
+"ratings": 60241,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 73,
+"id": 639930688,
+"name": "Dumb Ways to Die",
+"seller": "Metro Trains Melbourne Pty Ltd",
+"ratings": 30626,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Education"
+],
+"plane_word": false
+},
+{
+"rank": 74,
+"id": 582654048,
+"name": "Sonic Dash Run",
+"seller": "Sega America",
+"ratings": 418210,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 75,
+"id": 1467648713,
+"name": "Critical Strike CS: Online FPS",
+"seller": "VERTIGOGAMES OU",
+"ratings": 53464,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 76,
+"id": 6754965520,
+"name": "Rogue Legend - Roguelike RPG",
+"seller": "PocketHaven Games Ltd.",
+"ratings": 7526,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 77,
+"id": 1145275343,
+"name": "Super Mario Run",
+"seller": "Nintendo Co., Ltd.",
+"ratings": 78593,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 78,
+"id": 1518389230,
+"name": "Stealth Master: Assassin Ninja",
+"seller": "SayGames LTD",
+"ratings": 408427,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 79,
+"id": 6476762693,
+"name": "Zombie Apocalypse・Shooter Game",
+"seller": "Freeplay LLC",
+"ratings": 116103,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 80,
+"id": 1214765807,
+"name": "MadOut 2: Grand Auto Racing 3D",
+"seller": "Vladislav Ivanchuk",
+"ratings": 96248,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 81,
+"id": 1176011642,
+"name": "Galaxy Attack: Alien Shooter",
+"seller": "DINO GAME LIMITED",
+"ratings": 656139,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 82,
+"id": 1528146941,
+"name": "Wings of Heroes: Flying Games",
+"seller": "RORTOS SRL",
+"ratings": 68079,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": true
+},
+{
+"rank": 83,
+"id": 1637059453,
+"name": "Blood Strike: 2.5 Anniversary",
+"seller": "Hong Kong Netease Interactive Entertainment Limited",
+"ratings": 22504,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 84,
+"id": 1045516045,
+"name": "Flip Diving",
+"seller": "MotionVolt Games Oy",
+"ratings": 139014,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 85,
+"id": 1358222641,
+"name": "DRAGON BALL LEGENDS",
+"seller": "Bandai Namco Entertainment Inc.",
+"ratings": 809859,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Entertainment",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 86,
+"id": 1058528141,
+"name": "War Machines：Battle Tank Games",
+"seller": "Wildlife Studios, Inc",
+"ratings": 198946,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Strategy",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 87,
+"id": 6630378520,
+"name": "Annoying Uncle Punch Game",
+"seller": "Zain UI Abideen",
+"ratings": 26737,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 88,
+"id": 1293634699,
+"name": "Mario Kart Tour",
+"seller": "Nintendo Co., Ltd.",
+"ratings": 1036692,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 89,
+"id": 1608916511,
+"name": "Rainbow Six Mobile",
+"seller": "Ubisoft Nova",
+"ratings": 30165,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 90,
+"id": 1015495041,
+"name": "iGun Pro 2",
+"seller": "Crimson Moon Entertainment LLC",
+"ratings": 87248,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 91,
+"id": 1577525428,
+"name": "War Thunder Mobile",
+"seller": "GAIJIN NETWORK LTD",
+"ratings": 139758,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 92,
+"id": 949701151,
+"name": "Mortal Kombat",
+"seller": "Warner Bros. Entertainment",
+"ratings": 151789,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Card"
+],
+"plane_word": false
+},
+{
+"rank": 93,
+"id": 1146465836,
+"name": "Hill Climb Racing 2",
+"seller": "Fingersoft",
+"ratings": 187318,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 94,
+"id": 6502820653,
+"name": "Archero 2",
+"seller": "HABBY PTE. LTD.",
+"ratings": 23267,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Action",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 95,
+"id": 6759914444,
+"name": "Privateers: Pirate Wars",
+"seller": "MADFATCAT LIMITED",
+"ratings": 2070,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 96,
+"id": 1359706682,
+"name": "Standoff 2",
+"seller": "AXLEBOLT LTD",
+"ratings": 142595,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 97,
+"id": 6452946592,
+"name": "Ragdoll Break: Let's destroy!",
+"seller": "KAYAC Inc.",
+"ratings": 66329,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 98,
+"id": 1593430099,
+"name": "Bloody Bastards",
+"seller": "Tibith Ltd",
+"ratings": 46659,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 99,
+"id": 6741186588,
+"name": "Ragdoll Blade",
+"seller": "TATSUMAKI GAMES INC.",
+"ratings": 7119,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 100,
+"id": 1659408861,
+"name": "Super Fighter 3: Open City",
+"seller": "Starplay DMCC",
+"ratings": 257363,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Adventure",
+"Action"
+],
+"plane_word": true
+}
+],
+"us_Simulation": [
+{
+"rank": 1,
+"id": 6754464806,
+"name": "Car Evolve",
+"seller": "Heseri Games Inc",
+"ratings": 11392,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 2,
+"id": 6443575749,
+"name": "Whiteout Survival",
+"seller": "Century Games Pte. Ltd.",
+"ratings": 470985,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 3,
+"id": 1351168404,
+"name": "Among Us!",
+"seller": "InnerSloth LLC",
+"ratings": 845723,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 4,
+"id": 543186831,
+"name": "8 Ball Pool™",
+"seller": "Miniclip SA",
+"ratings": 4802967,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 5,
+"id": 6744975195,
+"name": "Sled Surfers",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 80732,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 6,
+"id": 1478902583,
+"name": "Retro Bowl",
+"seller": "New Star Games",
+"ratings": 931849,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 7,
+"id": 6498920694,
+"name": "We Are Cooking",
+"seller": "MATRYOSHKA GAMES CY LTD",
+"ratings": 38508,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 8,
+"id": 6753862216,
+"name": "Foodstars: Merge & Cook",
+"seller": "HAPPIBITS TECHNOLOGIES PTE. LTD.",
+"ratings": 8074,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 9,
+"id": 6767180267,
+"name": "Satisfying Clean ASMR",
+"seller": "DongZ Future Technology Co.,Ltd",
+"ratings": 3859,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 10,
+"id": 6446197181,
+"name": "Glow Fashion Idol",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 57211,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 11,
+"id": 6759412341,
+"name": "EA College Football Mobile 27",
+"seller": "EA Swiss Sarl",
+"ratings": 36002,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 12,
+"id": 6747710694,
+"name": "Bulldozer Master: Crush & Mine",
+"seller": "Supercent Inc.",
+"ratings": 9460,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 13,
+"id": 1094930513,
+"name": "EA SPORTS FC Soccer Mobile 27",
+"seller": "EA Swiss Sarl",
+"ratings": 2645555,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 14,
+"id": 6747033069,
+"name": "Shoot & Hide",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 7944,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 15,
+"id": 6743738094,
+"name": "My Sticker Room - Decor Game",
+"seller": "SayGames LTD",
+"ratings": 56398,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Puzzle",
+"Entertainment",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 16,
+"id": 6774321349,
+"name": "Shoot Die Repeat",
+"seller": "Heseri Games Inc",
+"ratings": 1226,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 17,
+"id": 6810886970,
+"name": "Just a Rock",
+"seller": "Heseri Games Inc",
+"ratings": 5,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 18,
+"id": 6444705312,
+"name": "Vehicle Masters",
+"seller": "SayGames LTD",
+"ratings": 158964,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 19,
+"id": 6740756687,
+"name": "PolyFootball",
+"seller": "Kyle Miceli",
+"ratings": 238,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 20,
+"id": 6756989323,
+"name": "Last Asylum: Plague",
+"seller": "WISENESS GAME ONLINE INTERNATIONAL LTD",
+"ratings": 42374,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 21,
+"id": 6761469046,
+"name": "Rap Star:Idle Clicker",
+"seller": "聪 马",
+"ratings": 50027,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying"
+],
+"plane_word": false
+},
+{
+"rank": 22,
+"id": 981633844,
+"name": "Block Craft 3D: Building Games",
+"seller": "Wildlife Studios, Inc",
+"ratings": 887219,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 23,
+"id": 6450834358,
+"name": "Sunday City: Life Simulator",
+"seller": "AP KEFIR LTD",
+"ratings": 8220,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Action"
+],
+"plane_word": false
+},
+{
+"rank": 24,
+"id": 1664415775,
+"name": "Royal Cooking",
+"seller": "MATRYOSHKA GAMES CY LTD",
+"ratings": 181767,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Entertainment",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 25,
+"id": 1610874732,
+"name": "Melon: Sandbox",
+"seller": "Payge Limited",
+"ratings": 142250,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 26,
+"id": 1512265589,
+"name": "Madden NFL 27 Mobile Football",
+"seller": "EA Swiss Sarl",
+"ratings": 1344086,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 27,
+"id": 6764201639,
+"name": "Idle Cat Gunner: Shooter RPG",
+"seller": "Neptune Company",
+"ratings": 5481,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 28,
+"id": 1595314851,
+"name": "Lamar - Idle Vlogger",
+"seller": "CRAZY LABS BY TABTALE , G.P.",
+"ratings": 183777,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 29,
+"id": 6805006706,
+"name": "Age of Spirits",
+"seller": "LEXIANGCO.,LIMITED",
+"ratings": 3923,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 30,
+"id": 6504122823,
+"name": "Epic Plane Evolution",
+"seller": "Voodoo",
+"ratings": 190594,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing"
+],
+"plane_word": true
+},
+{
+"rank": 31,
+"id": 1495723103,
+"name": "Solar Smash",
+"seller": "PARADYME LIMITED",
+"ratings": 401432,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 32,
+"id": 6451208928,
+"name": "Business Empire: RichMan",
+"seller": "NewPubCo, Inc",
+"ratings": 35301,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 33,
+"id": 6761614488,
+"name": "Apex Hunter: Animal Shooting",
+"seller": "COZYCRAFT PTE. LTD.",
+"ratings": 331,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 34,
+"id": 6811006356,
+"name": "Foodie Pop!",
+"seller": "ABI GLOBAL LTD.",
+"ratings": 630,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 35,
+"id": 1374403536,
+"name": "BitLife - Life Simulator",
+"seller": "Candywriter, LLC",
+"ratings": 1796974,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 36,
+"id": 6450917563,
+"name": "Pizza Ready!",
+"seller": "Supercent Inc.",
+"ratings": 346280,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 37,
+"id": 6449243946,
+"name": "Snake Clash!",
+"seller": "Supercent Inc.",
+"ratings": 803844,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 38,
+"id": 6741471925,
+"name": "Highway Racer Pro",
+"seller": "SPEKTRA GAMES OYUN VE YAZILIM ANONIM SIRKETI",
+"ratings": 82608,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports",
+"Racing"
+],
+"plane_word": false
+},
+{
+"rank": 39,
+"id": 6465175605,
+"name": "Makeup ASMR: Makeover Story",
+"seller": "JUNGFRAU TECH PTE. LTD.",
+"ratings": 123282,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 40,
+"id": 6453025143,
+"name": "Bid Master : Auction Game",
+"seller": "EYEWIND LIMITED.",
+"ratings": 3047,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 41,
+"id": 1632904520,
+"name": "Retro Bowl College",
+"seller": "New Star Games",
+"ratings": 15036,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Simulation",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 42,
+"id": 1635760774,
+"name": "My Perfect Hotel",
+"seller": "SayGames LTD",
+"ratings": 709290,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 43,
+"id": 6799871015,
+"name": "Dumpling Surprise: Unbox ASMR",
+"seller": "Thu Nguyen",
+"ratings": 82,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 44,
+"id": 6733244789,
+"name": "Little Farm Story: Idle Tycoon",
+"seller": "SayGames LTD",
+"ratings": 39423,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 45,
+"id": 1509450845,
+"name": "CookieRun: Kingdom",
+"seller": "Devsisters Corp.",
+"ratings": 357880,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 46,
+"id": 506627515,
+"name": "Hay Day",
+"seller": "Supercell Oy",
+"ratings": 653883,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Family",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 47,
+"id": 1523627747,
+"name": "Teacher Simulator: Study Time!",
+"seller": "Kwalee Ltd",
+"ratings": 832523,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 48,
+"id": 6779201235,
+"name": "Superstore Story 3D",
+"seller": "Pusilung HK Limited",
+"ratings": 5397,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 49,
+"id": 6511238101,
+"name": "My Supermarket Simulator 3D®",
+"seller": "Game District LLC",
+"ratings": 132801,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Family",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 50,
+"id": 6821128741,
+"name": "Armor Sandbox",
+"seller": "Vitor Japiassu",
+"ratings": 34,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 51,
+"id": 6738469826,
+"name": "Lands of Jail",
+"seller": "SINGAPORE JUST GAME TECHNOLOGY PTE. LTD.",
+"ratings": 26217,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 52,
+"id": 466965151,
+"name": "The Sims™ FreePlay",
+"seller": "Electronic Arts Inc.",
+"ratings": 464259,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 53,
+"id": 1635318586,
+"name": "Avatar World ®",
+"seller": "Pazu Games Ltd",
+"ratings": 1239796,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Roleplaying"
+],
+"plane_word": false
+},
+{
+"rank": 54,
+"id": 657500465,
+"name": "My Talking Tom",
+"seller": "Outfit7 Limited",
+"ratings": 378627,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 55,
+"id": 6791533156,
+"name": "Mukbang Scoop ASMR",
+"seller": "WingsMob Global Ltd.",
+"ratings": 11844,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 56,
+"id": 6738694162,
+"name": "Jelly Master: Mukbang ASMR",
+"seller": "Hieu Nguyen Trung",
+"ratings": 61639,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 57,
+"id": 1462911602,
+"name": "Dream League Soccer 2026",
+"seller": "First Touch Games Ltd.",
+"ratings": 734640,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Sports",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 58,
+"id": 6642710010,
+"name": "War Drone: 3D Shooting Games",
+"seller": "Mobile Gaming Studios Ltd.",
+"ratings": 61103,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Action",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 59,
+"id": 1645842987,
+"name": "Rent Please! Landlord Sim",
+"seller": "Shimmer Games Co., Ltd.",
+"ratings": 53021,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 60,
+"id": 1597760047,
+"name": "OneState RP: Role Play Online",
+"seller": "CHILLBASE LTD",
+"ratings": 26323,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying"
+],
+"plane_word": false
+},
+{
+"rank": 61,
+"id": 1668713081,
+"name": "Burger Please!",
+"seller": "Supercent Inc.",
+"ratings": 137183,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 62,
+"id": 6755805872,
+"name": "Pawn to Don Mafia Crime Story",
+"seller": "FUNCELL GAMES PRIVATE LIMITED",
+"ratings": 2384,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 63,
+"id": 6766739255,
+"name": "Rebel Glam: Dress Up Games",
+"seller": "Arcloom., Ltd.",
+"ratings": 17101,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 64,
+"id": 1579424683,
+"name": "Oxide: Survival Island Online",
+"seller": "HYPERHUG LTD",
+"ratings": 24158,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 65,
+"id": 6790912531,
+"name": "Auto Drill: Galaxy",
+"seller": "LAVA LABS OYUN YAZILIM VE PAZARLAMA ANONIM SIRKETI",
+"ratings": 682,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Strategy",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 66,
+"id": 1127240206,
+"name": "Klondike Adventures: Farm Game",
+"seller": "VIZOR APPS LTD",
+"ratings": 131331,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 67,
+"id": 6746389113,
+"name": "Hatch Dragons",
+"seller": "Runaway Play Ltd",
+"ratings": 28480,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 68,
+"id": 6780387121,
+"name": "Wild Water World",
+"seller": "Hong Kong Just Game Technology Limited",
+"ratings": 1089,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 69,
+"id": 6738846199,
+"name": "Frost World - Winter Survival",
+"seller": "Estoty LLC",
+"ratings": 23938,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 70,
+"id": 1643509748,
+"name": "Merge Cooking®",
+"seller": "HAPPIBITS TECHNOLOGIES PTE. LTD.",
+"ratings": 51589,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Puzzle"
+],
+"plane_word": false
+},
+{
+"rank": 71,
+"id": 991153141,
+"name": "Fallout Shelter",
+"seller": "Bethesda Softworks LLC",
+"ratings": 566607,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying"
+],
+"plane_word": false
+},
+{
+"rank": 72,
+"id": 6816922141,
+"name": "Hoop Life:Idle Game",
+"seller": "聪 马",
+"ratings": 583,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 73,
+"id": 6673911988,
+"name": "Roadside Empire: Gas station",
+"seller": "Highcore Labs LLC",
+"ratings": 33233,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 74,
+"id": 6766267906,
+"name": "Tiny Bookshop",
+"seller": "Skystone Games Inc.",
+"ratings": 408,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 75,
+"id": 1645281275,
+"name": "Idle Bank Tycoon: Money Game",
+"seller": "Kolibri Games GmbH",
+"ratings": 116500,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 76,
+"id": 1374868881,
+"name": "Car Parking Multiplayer",
+"seller": "Aidana Kengbeiil",
+"ratings": 59633,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Racing",
+"Simulation",
+"Graphics & Design"
+],
+"plane_word": false
+},
+{
+"rank": 77,
+"id": 6754549880,
+"name": "Perfect Makeover Cleaning ASMR",
+"seller": "HMBL APPS",
+"ratings": 15001,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Casual"
+],
+"plane_word": false
+},
+{
+"rank": 78,
+"id": 1586980403,
+"name": "Coloring Match",
+"seller": "SUPERSONIC STUDIOS LTD",
+"ratings": 509091,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Family",
+"Graphics & Design",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 79,
+"id": 6757801241,
+"name": "I Am Taxi Driver",
+"seller": "Estoty LLC",
+"ratings": 38296,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying"
+],
+"plane_word": false
+},
+{
+"rank": 80,
+"id": 1566854514,
+"name": "Football Head Coach 27 - FHC",
+"seller": "Gamebasics BV",
+"ratings": 77892,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Sports",
+"Sports"
+],
+"plane_word": false
+},
+{
+"rank": 81,
+"id": 1337578317,
+"name": "My Talking Tom 2",
+"seller": "Outfit7 Limited",
+"ratings": 858577,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Roleplaying",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 82,
+"id": 911121200,
+"name": "Good Pizza, Great Pizza",
+"seller": "TAPBLAZE, LLC",
+"ratings": 322569,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Food & Drink",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 83,
+"id": 1277029359,
+"name": "Chapters: Interactive Stories",
+"seller": "Crazy Maple Studio, Inc.",
+"ratings": 115787,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation",
+"Books"
+],
+"plane_word": false
+},
+{
+"rank": 84,
+"id": 6754582466,
+"name": "My Leisure Time",
+"seller": "HONGKONG YUEYOO TECHNOLOGY CO., LIMITED",
+"ratings": 4092,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 85,
+"id": 6443447108,
+"name": "My Cruise",
+"seller": "EYEWIND LIMITED.",
+"ratings": 23324,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 86,
+"id": 1570525877,
+"name": "The Baby In Yellow",
+"seller": "Team Terrible Limited",
+"ratings": 49713,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Entertainment",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 87,
+"id": 6745251520,
+"name": "Happy Citizens - Mayor Sim",
+"seller": "MIYA TECH LIMITED",
+"ratings": 5974,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 88,
+"id": 656971078,
+"name": "Episode - Choose Your Story",
+"seller": "Episode Interactive, LLC",
+"ratings": 2818303,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 89,
+"id": 1592298170,
+"name": "Sponge Art",
+"seller": "AI GAMES FZ LLC",
+"ratings": 84753,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Puzzle",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 90,
+"id": 1619719913,
+"name": "Makeup Stylist -DIY Salon game",
+"seller": "LI SAIHUA",
+"ratings": 121759,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 91,
+"id": 1247758515,
+"name": "Car Driving Simulator Games",
+"seller": "Better Games Studio Pty Ltd",
+"ratings": 105859,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Racing",
+"Entertainment"
+],
+"plane_word": false
+},
+{
+"rank": 92,
+"id": 6762239563,
+"name": "Twisted Story",
+"seller": "CHICKEN SKIN LLC",
+"ratings": 1982,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Adventure"
+],
+"plane_word": false
+},
+{
+"rank": 93,
+"id": 6443802883,
+"name": "Venue: Relaxing Design Game",
+"seller": "Superbloom Games Inc",
+"ratings": 34672,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Casual",
+"Lifestyle"
+],
+"plane_word": false
+},
+{
+"rank": 94,
+"id": 959498315,
+"name": "Extreme Car Driving Simulator",
+"seller": "AxesInMotion S.L.",
+"ratings": 72167,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Sports",
+"Racing",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 95,
+"id": 1600871388,
+"name": "Eatventure",
+"seller": "Lessmore GmbH",
+"ratings": 80067,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Casual",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 96,
+"id": 6752769771,
+"name": "I Am Monkey - original game",
+"seller": "Estoty LLC",
+"ratings": 166140,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 97,
+"id": 6742222069,
+"name": "Cookingdom",
+"seller": "ABI GLOBAL LTD.",
+"ratings": 146055,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Food & Drink",
+"Puzzle",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 98,
+"id": 1116645064,
+"name": "Idle Miner Tycoon clicker game",
+"seller": "Kolibri Games GmbH",
+"ratings": 865967,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Simulation",
+"Strategy"
+],
+"plane_word": false
+},
+{
+"rank": 99,
+"id": 6501972568,
+"name": "Soulplay - AI Character Chat",
+"seller": "Studio Dopa LLC",
+"ratings": 12243,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Entertainment",
+"Roleplaying",
+"Simulation"
+],
+"plane_word": false
+},
+{
+"rank": 100,
+"id": 1575332738,
+"name": "Fidget Toys Trading: 3D Pop It",
+"seller": "Freeplay LLC",
+"ratings": 126050,
+"primary_genre": "Games",
+"genres": [
+"Games",
+"Simulation",
+"Board",
+"Entertainment"
+],
+"plane_word": false
+}
+]
+}
+}

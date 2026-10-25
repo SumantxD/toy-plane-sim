@@ -1,8 +1,8 @@
-# Toy Plane Sim: Privacy Policy
+# Toy Plane Arcade: Privacy Policy
 
 Last updated: 25 October 2026
 
-Toy Plane Sim is a game made by Sumant Tirkey. It has no accounts, no ads, no analytics and no tracking. This page explains the little information the game handles and where it goes.
+Toy Plane Arcade is a game made by Sumant Tirkey. It has no accounts, no ads, no analytics and no tracking. This page explains the little information the game handles and where it goes.
 
 ## What stays on your device
 

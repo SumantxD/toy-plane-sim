@@ -1,0 +1,53 @@
+review_id,regex_themes,true_themes,note
+14680688633,ads,ads,
+7435931725,ads,ads,
+14204830669,ads,ads;misleading store art/ads,ad promised 'draw your own plane'
+14561966989,ads;fun/simple (praise),ads;fun/simple (praise),
+14620541584,pay_to_win/grind,pay_to_win/grind,
+14678963905,ads;pay_to_win/grind;crash/won't open;fun/simple (praise),ads;pay_to_win/grind;fun/simple (praise),'crash' = plane crashing in-game
+14688117654,pay_to_win/grind,pay_to_win/grind,grind got worse after season change
+14588267486,pay_to_win/grind,,'grind' = playing; complaint is about money deducted
+7074649179,crash/won't open;fun/simple (praise),crash/won't open;fun/simple (praise),
+14232907485,crash/won't open,crash/won't open,
+14629203899,crash/won't open,crash/won't open,
+14638663609,crash/won't open,crash/won't open,black screen in match
+11550817404,connection/server,connection/server,
+14067402161,ads;crash/won't open;connection/server;no ads (praise),crash/won't open;connection/server,mentions a bought no-ads plan; not an ads complaint or praise
+12273160530,connection/server;fun/simple (praise),fun/simple (praise),"praises playing with no internet (offline), not a connection complaint"
+13951539265,connection/server;fuel/energy timers;fun/simple (praise),,"'connect' (how modes connect), 'fuel' = upgrade stat, 'could be fun'"
+14026263311,matchmaking/bots;fun/simple (praise),matchmaking/bots;fun/simple (praise),skill mismatch; asks for training bots
+13444381208,matchmaking/bots,matchmaking/bots,
+14692466147,matchmaking/bots;fun/simple (praise),matchmaking/bots,'used to be fun'
+13134347612,matchmaking/bots,matchmaking/bots,
+1354720302,connection/server;friends/private rooms,friends/private rooms,"LAN request is a friends/local-play theme, not a connection complaint"
+14671417822,friends/private rooms;fun/simple (praise),fun/simple (praise),'my friends agree'
+14619584255,friends/private rooms,matchmaking/bots,"'Friends,' as address; real complaint is bots"
+10545794221,friends/private rooms;fun/simple (praise),friends/private rooms;fun/simple (praise),
+14635899712,fuel/energy timers;cockpit view,cockpit view,'first timer' matched timer
+12715011140,fuel/energy timers;fun/simple (praise),fuel/energy timers;fun/simple (praise),crate timers 2/4/8 h
+14366539957,fuel/energy timers,fuel/energy timers,
+8687321034,fuel/energy timers,,'fuel train' mission
+13896909528,ads;misleading store art/ads,misleading store art/ads,"ads = marketing ads, not in-game ads"
+14677812440,ads;misleading store art/ads,misleading store art/ads,same
+13406622914,ads;misleading store art/ads,misleading store art/ads,same
+14528219392,ads;misleading store art/ads,ads;misleading store art/ads,
+12658700935,more maps/modes,more maps/modes,
+14034019957,crash/won't open;more maps/modes,crash/won't open;more maps/modes,
+14678709435,more maps/modes,more maps/modes,
+13788231302,more maps/modes,more maps/modes,
+14616554168,pay_to_win/grind;cockpit view;fun/simple (praise),cockpit view;fun/simple (praise),'grinded' = played a lot (praise)
+13551760031,cockpit view;fun/simple (praise),cockpit view;fun/simple (praise),
+14192408152,connection/server;cockpit view;fun/simple (praise),connection/server;cockpit view,'to make enjoyable'
+14629081330,crash/won't open;cockpit view,crash/won't open,describes game as first person; not a request
+14634492008,ads;pay_to_win/grind;no ads (praise);fun/simple (praise),no ads (praise);fun/simple (praise),"'No adds', 'doesn't seem p2w' are praise"
+14679183775,ads;pay_to_win/grind;no ads (praise);fun/simple (praise),pay_to_win/grind;no ads (praise);fun/simple (praise),
+14241968074,ads;no ads (praise),no ads (praise),
+14703268549,ads;no ads (praise),ads,'wish there were no adds' is a complaint
+8037830510,fun/simple (praise),fun/simple (praise),
+14673163767,pay_to_win/grind;fun/simple (praise),pay_to_win/grind;fun/simple (praise),
+14602484208,friends/private rooms;fun/simple (praise),fun/simple (praise),friends list is pointless; not a play-with-friends request
+14703947748,fun/simple (praise),fun/simple (praise),
+14258413283,toxic chat/players,toxic chat/players,
+14690475954,ads;fun/simple (praise);toxic chat/players,ads;fun/simple (praise),'I swear'
+14689982030,toxic chat/players,toxic chat/players,
+14699377948,pay_to_win/grind;matchmaking/bots;toxic chat/players,pay_to_win/grind;matchmaking/bots;toxic chat/players,

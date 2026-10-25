@@ -1,0 +1,18 @@
+{
+ "screenshots": [
+  {
+   "round": "r2-3",
+   "score": 7,
+   "verdict": "",
+   "fixes": [
+    "02_room_code.png (upload slot 2) shows the overlap glitch the user reported: on the blue jet a white cloud slab cuts straight through both wings and the tailplane (clear at full resolution around x 1850-2450, y 820-1270). The whole right half is also blown out to white and lavender, so at phone size it reads as a washed-out render error rather than a dogfight. A top agency would not ship frame 2 like this.",
+    "02_room_code.png: replace the right-half take (raw/sel_dogfight_lan_c, Sky Islands) with one where no cloud layer crosses the plane and the sky is not blown out. The quickest option: reuse a clean volcano-lagoon or desert LAN take that 01 and first_alt_2 do not already use, or re-capture Sky Islands with the camera above the cloud deck. After that, check the plane at full resolution for faces cutting through each other before you compose.",
+    "User's game-side reports (plane faces overlapping, and the large dark shiny balls left at the end of a destruction): none of the shipped frames shows the dark end-of-explosion balls, and the only overlap glitch visible in the shipped set is the one in 02 (checked at full resolution on 01, 02, 04, 06, 07 and first_alt_2). Both are game rendering bugs, which this ASO pass is not allowed to fix (no edits to game code). Once the game fix lands, re-capture any take with an explosion or a wreck, and do a full-resolution check of every plane for overlapping faces before composing.",
+    "Frame 8 (CAPTURE THE FLAG / STORM THE BASE, with an AA gun or SAM) is still missing. The set still never shows the modes or the battlefield items. Capture it with capture_scenes.gd --only ctf and add it to the upload set.",
+    "07_no_pay_to_win.png: nothing in the frame shows that the plane is a cosmetic skin, so 'NEVER PAY TO WIN' rests on the text alone. Optional: add a small real 'Golden Ace' label from the shop, or a second skin, so the frame shows the claim instead of only stating it.",
+    "01, c01_no_ads and ppo_in_aeroplane use the identical capture. That is fine for PPO variants of frame 1, but make sure no single listing uploads more than one of them.",
+    "Storyboard 'Readability at 350 px' bullet still describes the revision-3 07 ('HANGAR SHOP', amber box) and the badge. Update it to the current full-bleed 07 and the removed badge."
+   ]
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-# Toy Plane Sim
+# Toy Plane Arcade
 
 A cartoon low-poly multiplayer plane game made with Godot 4.7. Fly with friends over the internet using a room code, with no server and no accounts.
 
@@ -8,7 +8,7 @@ A cartoon low-poly multiplayer plane game made with Godot 4.7. Fly with friends 
 
 Get the latest **Mac** or **Windows** zip from [Releases](https://github.com/SumantxD/toy-plane-sim/releases/latest). Unzip it and open `HOW_TO_PLAY.txt`.
 
-- **Mac:** the first time, right-click `Toy Plane Sim.app` > Open > Open (the app isn't from the App Store).
+- **Mac:** the first time, right-click `Toy Plane Arcade.app` > Open > Open (the app isn't from the App Store).
 - **Windows:** if SmartScreen appears, click More info > Run anyway.
 - **Both:** when the firewall asks, click **Allow**, or online play can't connect.
 

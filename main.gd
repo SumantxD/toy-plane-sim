@@ -284,7 +284,7 @@ func _open_router_port(port: int) -> void:
 	var upnp := UPNP.new()
 	if upnp.discover(1200) != UPNP.UPNP_RESULT_SUCCESS or not upnp.get_gateway() or not upnp.get_gateway().is_valid_gateway():
 		return
-	if upnp.add_port_mapping(port, port, "Toy Plane Sim", "UDP", 4 * 3600) == UPNP.UPNP_RESULT_SUCCESS:
+	if upnp.add_port_mapping(port, port, "Toy Plane Arcade", "UDP", 4 * 3600) == UPNP.UPNP_RESULT_SUCCESS:
 		_set_public_ip.call_deferred(upnp.query_external_address())
 
 
@@ -2425,7 +2425,7 @@ func _build_ui() -> void:
 
 	var box := VBoxContainer.new()
 	Menus.big_title(box, "TOY PLANE", 60)
-	Menus.big_title(box, "SIM", 60).add_theme_color_override("font_color", Menus.AMBER)
+	Menus.big_title(box, "ARCADE", 60).add_theme_color_override("font_color", Menus.AMBER)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 16
 	box.add_child(gap)
@@ -2706,10 +2706,11 @@ func _build_intro(ui: Control) -> void:
 	intro_root = _panel(ui, ib, Control.PRESET_CENTER_TOP, 120)
 	var kb := VBoxContainer.new()
 	kb.add_child(keys_label)
-	keys_root = _panel(ui, kb, Control.PRESET_CENTER_LEFT, 20)
+	keys_root = _panel(ui, kb, Control.PRESET_CENTER_LEFT, 110 if TouchControls.on() else 20) # phones: clear of the throttle slider
 	for r in [intro_root, keys_root]:
 		r.hide()
 	count_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	count_label.offset_top = 200 # centred below the match card, not on it
 	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	count_label.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
@@ -2785,11 +2786,12 @@ func _tick_intro(dt: float) -> void:
 	if not intro_root:
 		return
 	intro_t -= dt
-	keys_t -= dt
+	if intro_t <= 0.0: # one card at a time: the controls follow the match card (they overlapped on phones)
+		keys_t -= dt
 	var playing: bool = gs.phase == "playing" and not menu_root.visible
 	intro_root.visible = playing and intro_t > 0.0
 	intro_root.modulate.a = clampf(intro_t / 0.6, 0.0, 1.0)
-	keys_root.visible = playing and keys_t > 0.0
+	keys_root.visible = playing and keys_t > 0.0 and intro_t <= 0.0
 	keys_root.modulate.a = clampf(keys_t / 0.6, 0.0, 1.0)
 	if not gs.get("loading", false): # set by sync(), ticked here in between
 		count_local = maxf(count_local - dt, 0.0)

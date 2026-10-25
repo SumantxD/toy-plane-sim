@@ -1,0 +1,37 @@
+review_id,regex_themes,true_themes,note
+13440389376,ads,ads,
+14520871685,ads;fun/simple (praise),ads;fun/simple (praise);pay_to_win/grind,"also p2w pricing, missed by regex"
+14437466796,ads,ads,
+14536657309,ads,ads,
+11390597417,ads,ads,
+14682170853,ads;fun/simple (praise),ads,'starting to have fun' then an ad
+14531576923,pay_to_win/grind,pay_to_win/grind,
+14702308233,pay_to_win/grind,pay_to_win/grind;fuel/energy timers,'have to buy fuel'; fuel missed by regex
+14666704683,pay_to_win/grind;fun/simple (praise),pay_to_win/grind;fun/simple (praise),
+14287259833,pay_to_win/grind,,question: do I have to buy something?
+14667200318,pay_to_win/grind;fun/simple (praise),pay_to_win/grind,'what's the fun in that'
+7462726955,pay_to_win/grind,pay_to_win/grind,replay levels hundreds of times or buy stars
+13900101141,crash/won't open;connection/server,crash/won't open,"'lags' = frame-rate, not network"
+12897949950,connection/server,connection/server,false 'connect to internet' error
+10354765722,connection/server;fun/simple (praise),connection/server;fun/simple (praise),disconnect loses fuel; asks for an offline mode for travel
+11454567450,connection/server;fuel/energy timers,connection/server;fuel/energy timers,
+13251124091,connection/server,connection/server,
+14592969978,connection/server,,'no lagging' is praise
+13251920123,friends/private rooms,,AI-written essay on squad roles
+2828998225,friends/private rooms;fun/simple (praise),friends/private rooms;fun/simple (praise),'We can play Local'
+14532473254,matchmaking/bots;friends/private rooms,matchmaking/bots;friends/private rooms,
+13365886677,friends/private rooms;fun/simple (praise),friends/private rooms;fun/simple (praise),asks for personal rooms to face friends
+8851980606,friends/private rooms;fun/simple (praise),friends/private rooms;fun/simple (praise),
+11597428419,friends/private rooms,friends/private rooms,plays with cousins and friends
+13841177931,fuel/energy timers;fun/simple (praise),fuel/energy timers,refuelling cost; 'real fun' is sarcastic
+14443192328,pay_to_win/grind;fuel/energy timers,pay_to_win/grind;fuel/energy timers,
+12897101393,pay_to_win/grind;fuel/energy timers;fun/simple (praise),pay_to_win/grind;fun/simple (praise),'Energy shield' is a weapon
+10590034287,fuel/energy timers,,'aircraft with fuel'
+13766248108,fuel/energy timers,,waiting for downloads
+9842179664,fuel/energy timers;more maps/modes;fun/simple (praise),fuel/energy timers;more maps/modes;fun/simple (praise);connection/server,fuel tank limits play; network loss missed by regex
+14388476452,ads;misleading store art/ads;no ads (praise);fun/simple (praise),ads;fun/simple (praise),paid ad-free and still got ads
+14294372711,no ads (praise);fun/simple (praise),no ads (praise);fun/simple (praise),
+14522836129,no ads (praise);fun/simple (praise),fun/simple (praise),garbled 'no ad free coin'
+13916039609,no ads (praise),ads,'Please no adds' is a complaint
+12577903132,no ads (praise);fun/simple (praise),fun/simple (praise),bought No Ads not working
+14679208788,ads;no ads (praise),,no-ads pass too expensive

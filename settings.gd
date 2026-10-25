@@ -12,6 +12,9 @@ static var values := DEFAULTS.duplicate()
 
 static func load_saved() -> void:
 	var cfg := ConfigFile.new()
+	var old := OS.get_user_data_dir().get_base_dir().path_join("Toy Plane Sim/settings.cfg") # the game's old name: keep players' settings
+	if not FileAccess.file_exists(PATH) and FileAccess.file_exists(old):
+		DirAccess.copy_absolute(old, ProjectSettings.globalize_path(PATH))
 	if cfg.load(PATH) == OK:
 		for k in DEFAULTS:
 			var v = cfg.get_value("prefs", k, DEFAULTS[k])

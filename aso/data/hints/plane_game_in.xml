@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0">
+  <dict>
+    <key>title</key>
+    <string>Suggestions</string>
+    <key>hints</key>
+    <array>
+      <dict>
+        <key>term</key>
+        <string>plane games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=plane%20games</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20plane%20game</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>plane game 3d</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=plane%20game%203d</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>fighter plane games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=fighter%20plane%20games</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>jet plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=jet%20plane%20game</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>indian plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=indian%20plane%20game</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>best plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=best%20plane%20game</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>war plane games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=war%20plane%20games</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>real plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=real%20plane%20game</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>paper plane game</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=paper%20plane%20game</string>
+      </dict>
+    </array>
+  </dict>
+</plist>

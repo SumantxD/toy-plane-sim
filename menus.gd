@@ -338,11 +338,11 @@ static func howto_text() -> String:
   on the firewall prompt the first time. If a code still won't connect (very strict mobile
   networks), install Tailscale (free), have the host share their computer, click "Host on LAN",
   and join with the host's Tailscale address (100.x.x.x). Or add a free TURN relay (e.g. metered.ca):
-  put turn_urls, turn_username and turn_credential in settings.cfg (Toy Plane Sim's user folder)."""
+  put turn_urls, turn_username and turn_credential in settings.cfg (Toy Plane Arcade's user folder)."""
 
 
 static func credits_text() -> String:
-	return """[b]Toy Plane Sim[/b]  v%s
+	return """[b]Toy Plane Arcade[/b]  v%s
 Made with Claude Code and the Godot Engine.
 
 [b]Engine[/b]  Godot Engine (MIT license), godotengine.org

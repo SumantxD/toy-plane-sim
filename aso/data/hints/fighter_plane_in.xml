@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0">
+  <dict>
+    <key>title</key>
+    <string>Suggestions</string>
+    <key>hints</key>
+    <array>
+      <dict>
+        <key>term</key>
+        <string>fighter plane games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=fighter%20plane%20games</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>fighter plane simulator</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=fighter%20plane%20simulator</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>fighter plane</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=fighter%20plane</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>fighter plane defender - free airplane games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=fighter%20plane%20defender%20-%20free%20airplane%20games</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air fighter - plane games!</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20fighter%20-%20plane%20games%21</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air fighter: plane combat</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20fighter%3A%20plane%20combat</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>aircraft carrier strike - fighter planes</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=aircraft%20carrier%20strike%20-%20fighter%20planes</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>sky combat 2: fighter planes</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=sky%20combat%202%3A%20fighter%20planes</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>ww2 fighter planes ar</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=ww2%20fighter%20planes%20ar</string>
+      </dict>
+    </array>
+  </dict>
+</plist>

@@ -1,4 +1,4 @@
-# Toy Plane Sim: Support
+# Toy Plane Arcade: Support
 
 **Report a problem or ask a question:** open an issue at https://github.com/SumantxD/toy-plane-sim/issues.
 

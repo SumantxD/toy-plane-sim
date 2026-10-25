@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0">
+  <dict>
+    <key>title</key>
+    <string>Suggestions</string>
+    <key>hints</key>
+    <array>
+      <dict>
+        <key>term</key>
+        <string>air combat</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>last wing: air combat shooter</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=last%20wing%3A%20air%20combat%20shooter</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>ace fighter: modern air combat</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=ace%20fighter%3A%20modern%20air%20combat</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>metalstorm: modern air combat</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=metalstorm%3A%20modern%20air%20combat</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat online</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%20online</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat - sky fighter</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%20-%20sky%20fighter</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat - strike of top gun</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%20-%20strike%20of%20top%20gun</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat special force fps</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%20special%20force%20fps</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat!</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%21</string>
+      </dict>
+      <dict>
+        <key>term</key>
+        <string>air combat - shooting games</string>
+        <key>url</key>
+        <string>https://search.itunes.apple.com/WebObjects/MZStore.woa/wa/search?clientApplication=Software&amp;src=hint&amp;submit=edit&amp;term=air%20combat%20-%20shooting%20games</string>
+      </dict>
+    </array>
+  </dict>
+</plist>

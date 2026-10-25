@@ -1,7 +1,7 @@
 extends SceneTree
 # Writes THIRD_PARTY_LICENSES.txt (Godot + bundled libraries). Run: godot --headless -s tools/make_licenses.gd
 func _initialize() -> void:
-	var out := "TOY PLANE SIM - THIRD-PARTY NOTICES\n\n"
+	var out := "TOY PLANE ARCADE - THIRD-PARTY NOTICES\n\n"
 	out += "Kenney assets (models, sounds, UI font): Creative Commons Zero (CC0), kenney.nl - no attribution required.\n"
 	out += "libdatachannel and libjuice are MPL-2.0; source: https://github.com/paullouisageneau/libdatachannel and https://github.com/paullouisageneau/libjuice\n\n"
 	out += "==== Godot Engine ====\n" + Engine.get_license_text() + "\n"
