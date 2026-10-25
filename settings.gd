@@ -35,6 +35,8 @@ static func apply(tree: SceneTree) -> void:
 		return
 	var win := tree.root
 	win.mode = Window.MODE_FULLSCREEN if values.fullscreen else Window.MODE_WINDOWED
-	win.msaa_3d = Viewport.MSAA_2X if values.quality == 1 else Viewport.MSAA_DISABLED
+	win.msaa_3d = Viewport.MSAA_2X if values.quality == 1 and not OS.has_feature("mobile") else Viewport.MSAA_DISABLED # phones: FXAA only
 	for light in tree.get_nodes_in_group("sun"):
 		light.shadow_enabled = values.quality == 1
+		if OS.has_feature("mobile"):
+			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS

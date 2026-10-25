@@ -248,7 +248,8 @@ static func settings_panel(tree: SceneTree, on_close: Callable) -> VBoxContainer
 	_slider(box, "Volume", 0.0, 1.0, v.volume, func(x): v.volume = x; Settings.apply(tree))
 	_slider(box, "Mouse sensitivity", 0.2, 3.0, v.sensitivity, func(x): v.sensitivity = x)
 	_check(box, "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
-	_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
+	if not OS.has_feature("mobile"):
+		_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
 	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
 	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
 	_check(box, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)

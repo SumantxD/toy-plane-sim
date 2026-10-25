@@ -2335,7 +2335,8 @@ func _build_ui() -> void:
 	Menus.menu_item(box, "SETTINGS", func(): settings_root.show(), self)
 	Menus.menu_item(box, "HOW TO PLAY", func(): howto_root.show(), self)
 	Menus.menu_item(box, "CREDITS", func(): credits_root.show(), self)
-	Menus.menu_item(box, "QUIT", _quit, self)
+	if not OS.has_feature("mobile"): # iOS apps never quit themselves
+		Menus.menu_item(box, "QUIT", _quit, self)
 	menu_root = Menus.side_panel(ui, box)
 
 	box = VBoxContainer.new()
@@ -2617,18 +2618,27 @@ func _show_intro() -> void:
 			col[0], TEAM_NAMES[0].to_upper(), size[0], "  <- you" if team == 0 else "", col[1], TEAM_NAMES[1].to_upper(), size[1], "  <- you" if team == 1 else ""])
 	lines.append("[font_size=16]Your plane: [b]%s[/b]  -  guns, %d rockets, %d bombs, %d flares[/font_size][/center]" % [Planes.variant(me.get("plane", "cub")).name, t.rockets, t.bombs, t.flares])
 	intro_label.text = "\n".join(lines)
-	var keys := ["[font_size=20][b]CONTROLS[/b][/font_size]  [font_size=13](H hides)[/font_size]",
-		"[color=#9fd3ff]FLY[/color]   Mouse aims  |  W / S throttle  |  Shift boost",
-		"         Q / E + arrows: manual stick",
-		"[color=#ff9f80]FIGHT[/color]  Left click / Space: guns",
-		"         Hold right click / F: rocket (wait for LOCK)",
-		"         Hold B: bomb sight, release to drop",
-		"         X: flares when you hear MISSILE"]
-	keys.append("[color=#a8f0a0]TEAM[/color]   1 Help!  |  2 On me")
-	if gs.mode != 2:
-		keys.append("         Supplies buy: 3 AA  4 SAM  5 Radar" + ("  6 Repair HQ" if gs.mode == 5 else ""))
-	keys.append("[color=#e0c8ff]VIEW[/color]   C camera  |  M map  N zoom  |  Esc menu")
-	keys.append("[color=#ffd34d]FUN[/color]    Hold T: taunt wheel, release to send")
+	var keys: Array
+	if TouchControls.on():
+		keys = ["[font_size=20][b]CONTROLS[/b][/font_size]",
+			"[color=#9fd3ff]FLY[/color]   Drag on the left: steer  |  FAST / SLOW throttle  |  BOOST",
+			"[color=#ff9f80]FIGHT[/color]  Hold FIRE: guns  |  hold ROCKET for LOCK, let go to fire",
+			"         Hold BOMB for the sight, let go to drop  |  FLARE when you hear MISSILE",
+			"[color=#e0c8ff]VIEW[/color]   II menu  |  CAM camera",
+			"[color=#ffd34d]FUN[/color]    Hold TAUNT and slide to pick a message"]
+	else:
+		keys = ["[font_size=20][b]CONTROLS[/b][/font_size]  [font_size=13](H hides)[/font_size]",
+			"[color=#9fd3ff]FLY[/color]   Mouse aims  |  W / S throttle  |  Shift boost",
+			"         Q / E + arrows: manual stick",
+			"[color=#ff9f80]FIGHT[/color]  Left click / Space: guns",
+			"         Hold right click / F: rocket (wait for LOCK)",
+			"         Hold B: bomb sight, release to drop",
+			"         X: flares when you hear MISSILE"]
+		keys.append("[color=#a8f0a0]TEAM[/color]   1 Help!  |  2 On me")
+		if gs.mode != 2:
+			keys.append("         Supplies buy: 3 AA  4 SAM  5 Radar" + ("  6 Repair HQ" if gs.mode == 5 else ""))
+		keys.append("[color=#e0c8ff]VIEW[/color]   C camera  |  M map  N zoom  |  Esc menu")
+		keys.append("[color=#ffd34d]FUN[/color]    Hold T: taunt wheel, release to send")
 	keys_label.text = "\n".join(keys)
 	var runs: int = Settings.values.get("matches", 0)
 	Settings.values.matches = runs + 1
