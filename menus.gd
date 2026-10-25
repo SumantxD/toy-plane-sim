@@ -52,7 +52,7 @@ static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right :=
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.05, 0.1, 0.72)
 	sb.set_content_margin_all(48)
-	sb.content_margin_top = 56
+	sb.content_margin_top = 32
 	root.add_theme_stylebox_override("panel", sb)
 	root.set_anchors_preset(Control.PRESET_RIGHT_WIDE if right else Control.PRESET_LEFT_WIDE)
 	root.custom_minimum_size.x = width

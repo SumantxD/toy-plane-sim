@@ -2322,12 +2322,8 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	Menus.big_title(box, "TOY PLANE", 60)
 	Menus.big_title(box, "SIM", 60).add_theme_color_override("font_color", Menus.AMBER)
-	var ver := Label.new()
-	ver.text = "v%s   -   six worlds, friends online, no server needed" % VERSION
-	ver.modulate = Color(1, 1, 1, 0.6)
-	box.add_child(ver)
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 30
+	gap.custom_minimum_size.y = 16
 	box.add_child(gap)
 	Menus.menu_item(box, "BATTLE VS AI", solo_battle, self)
 	Menus.menu_item(box, "FREE FLIGHT", free_flight, self)
