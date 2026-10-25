@@ -2322,7 +2322,7 @@ func _draw_minimap(team: int) -> void:
 	var font := ThemeDB.fallback_font
 	overlay.draw_string(font, r.position + Vector2(size / 2.0 - 5, 15), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	overlay.draw_rect(Rect2(r.position + Vector2(-2, size + 2), Vector2(size + 4, 22)), Color(0, 0, 0, 0.6))
-	overlay.draw_string(font, r.position + Vector2(4, size + 18), "%s    M hide   N zoom" % Worlds.NAMES[Worlds.index], HORIZONTAL_ALIGNMENT_LEFT, size - 8, 13, Color(1, 1, 1, 0.9))
+	overlay.draw_string(font, r.position + Vector2(4, size + 18), Worlds.NAMES[Worlds.index] if TouchControls.on() else "%s    M hide   N zoom" % Worlds.NAMES[Worlds.index], HORIZONTAL_ALIGNMENT_LEFT, size - 8, 13, Color(1, 1, 1, 0.9)) # phones: the MAP button does it
 	var ppm := size / span # pixels per metre
 	var inner := r.grow(-4.0)
 	var at := func(p: Vector3) -> Vector2:
