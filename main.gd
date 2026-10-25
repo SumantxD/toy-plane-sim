@@ -2849,7 +2849,7 @@ func _show_intro() -> void:
 			"[color=#ff9f80]FIGHT[/color]  Hold FIRE: guns  |  hold ROCKET for LOCK, let go to fire",
 			"         Hold BOMB for the sight, let go to drop  |  FLARE when you hear MISSILE",
 			"[color=#e0c8ff]VIEW[/color]   II menu  |  CAM camera",
-			"[color=#ffd34d]FUN[/color]    Hold TAUNT and slide to pick a message"]
+			"[color=#ffd34d]FUN[/color]    Hold TAUNT and slide to pick (2nd finger: more)"]
 	else:
 		keys = ["[font_size=20][b]CONTROLS[/b][/font_size]  [font_size=13](H hides)[/font_size]",
 			"[color=#9fd3ff]FLY[/color]   Mouse aims  |  W / S throttle  |  Shift boost",

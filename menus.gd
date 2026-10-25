@@ -302,7 +302,7 @@ Hold FIRE: guns. Red circles show where to lead your shots.
 Hold ROCKET to aim (lock box, or a dotted path), let go to fire. Rockets need a lock: keep the target in the box until it closes (LOCKING -> LOCK).
 LOCKED ON means someone is locking you. MISSILE! means one is chasing you: tap FLARE (flares break the lock of rockets already fired), or turn hard and BOOST.
 Hold BOMB to see where a bomb will land, let go to drop. Bombs wreck HQs and defenses.
-II = pause menu.  CAM = camera near / normal / far.  Hold TAUNT and slide to pick a message.
+II = pause menu.  CAM = camera near / normal / far.  Hold TAUNT and slide to pick a message; tap a second finger for more messages.
 
 [b]DAMAGE[/b]
 A hit wing pulls you to that side, a hit engine sputters (dead = glide), a hit tail makes turns sluggish. Crashing into ground or buildings kills you.
