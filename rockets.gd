@@ -96,14 +96,23 @@ static func bomb_step(p: Vector3, v: Vector3, dt: float) -> Array:
 	return [p + v * dt, v]
 
 
-# Where a bomb dropped now would hit the ground (HUD marker, AI release timing).
+# Where a bomb dropped now would hit the ground (HUD marker, AI release timing). Coarse 0.1 s steps
+# (velocity offset half a step: tracks the true arc), then the crossing step is bisected.
 func bomb_impact(p: Vector3, v: Vector3) -> Vector3:
+	const DT := 0.1
 	var m := main()
-	for i in 600:
-		var s := bomb_step(p, v, 0.05)
-		p = s[0]
-		v = s[1]
+	v += (Vector3.DOWN * GRAVITY - v * v.length() * BOMB_DRAG) * (DT / 2.0)
+	for i in 300:
+		var a := p
+		p += v * DT
+		v += (Vector3.DOWN * GRAVITY - v * v.length() * BOMB_DRAG) * DT
 		if m.hits_ground(p):
+			for k in 4:
+				var mid := (a + p) / 2.0
+				if m.hits_ground(mid):
+					p = mid
+				else:
+					a = mid
 			break
 	return p
 
@@ -204,9 +213,9 @@ func _missile() -> Node3D:
 	flame.position.z = 1.6
 	flame.scale = Vector3(1, 1, 1.8)
 	root.add_child(flame)
-	var smoke := Fx.smoke(0.55, 1.8, Color(0.93, 0.93, 0.9))
+	var smoke := Fx.smoke(0.7, 1.8, Color(0.93, 0.93, 0.9))
 	smoke.name = "Smoke"
-	smoke.amount = 130
+	smoke.amount = 70
 	smoke.direction = Vector3(0, 0, 1)
 	smoke.spread = 8.0
 	smoke.initial_velocity_min = 2.0
@@ -244,16 +253,26 @@ func predict(p: Vector3, v: Vector3) -> PackedVector3Array:
 			v = s[1]
 			t += 0.02
 		pts.append(p)
-		if p.y < Terrain.height(p.x, p.z):
+		if p.y < Terrain.ground(p.x, p.z):
 			break
 	return pts
 
 
 func incoming(plane: Node) -> bool:
-	return rockets.values().any(func(r): return is_instance_valid(r.target) and r.target == plane)
+	for r in rockets.values():
+		if is_instance_valid(r.target) and r.target == plane:
+			return true
+	return false
 
+
+var live: Array[Node] = [] # this frame's live targets (fuse checks)
 
 func _process(dt: float) -> void:
+	live.clear()
+	if not rockets.is_empty():
+		for t in get_tree().get_nodes_in_group("targets"):
+			if t.alive:
+				live.append(t)
 	for id in rockets.keys():
 		var r: Dictionary = rockets[id]
 		if r.bomb:
@@ -267,13 +286,15 @@ func _process(dt: float) -> void:
 		r.v = s[1]
 		r.t += dt
 		r.mesh.global_transform = Transform3D(Basis.looking_at(r.v), r.p)
-		r.trail.append(r.p)
-		if r.trail.size() > 40:
-			r.trail.pop_front()
+		if r.t >= r.get("trail_t", 0.0): # trail points at 30 Hz; the drawn line still ends at the rocket
+			r.trail_t = r.t + 1.0 / 30.0
+			r.trail.append(r.p)
+			if r.trail.size() > 20:
+				r.trail.pop_front()
 		var hit: bool = main().hits_ground(r.p)
 		if not hit:
-			for t in get_tree().get_nodes_in_group("targets"):
-				if t.alive and t.team != r.team and _seg_dist(a, r.p, t.position) < FUSE * r.grip + t.hit_radius:
+			for t in live:
+				if t.team != r.team and t.alive and _seg_dist(a, r.p, t.position) < FUSE * r.grip + t.hit_radius:
 					hit = true
 					break
 		if hit and r.local:
@@ -292,8 +313,8 @@ func _bomb_tick(id: String, r: Dictionary, dt: float) -> void:
 	r.mesh.global_transform = Transform3D(Basis.looking_at(r.v) * Basis(Vector3.RIGHT, PI / 2.0), r.p)
 	var hit: bool = main().hits_ground(r.p)
 	if not hit:
-		for t in get_tree().get_nodes_in_group("targets"):
-			if t.alive and t.team != r.team and _seg_dist(a, r.p, t.position) < 4.0 + t.hit_radius:
+		for t in live:
+			if t.team != r.team and t.alive and _seg_dist(a, r.p, t.position) < 4.0 + t.hit_radius:
 				hit = true
 				break
 	if hit and r.local:
@@ -325,6 +346,8 @@ func _draw_trails() -> void:
 		for i in r.trail.size():
 			trails.surface_set_color(Color(1, 1, 1, float(i) / r.trail.size() * 0.8))
 			trails.surface_add_vertex(r.trail[i])
+		trails.surface_set_color(Color(1, 1, 1, 0.8))
+		trails.surface_add_vertex(r.p)
 		trails.surface_end()
 
 

@@ -41,6 +41,8 @@ var open := false
 var page := 0
 var pick := -1
 var aim := Vector2.ZERO
+var clouds := {} # tint -> skywriting material for this world
+var clouds_world := -1
 
 
 func _init(m: Node) -> void:
@@ -97,9 +99,15 @@ func say(plane: Node3D, text: String) -> void:
 	else:
 		at = plane.global_position + Vector3.UP * 32.0
 	var tint: Color = Color(1.0, 0.85, 0.4) if plane.team > 1 else plane.TEAM_COLORS[plane.team]
+	if clouds_world != Worlds.index:
+		clouds_world = Worlds.index
+		clouds.clear()
+		SkyText._balls.clear()
+	if not clouds.has(tint):
+		clouds[tint] = SkyText.cloud(tint)
 	var sky := SkyText.new()
 	main.add_child(sky)
-	sky.write(text.to_upper(), at, right, SkyText.cloud(tint))
+	sky.write(text.to_upper(), at, right, clouds[tint])
 
 
 func _draw() -> void:
@@ -133,7 +141,14 @@ class SkyText extends MultiMeshInstance3D:
 	const WRITE := 1.3 # seconds to write the whole line
 	const HOLD := 3.2
 	const FADE := 1.6
-	var puffs: Array = [] # [base position, appear time, size, wobble phase], sorted by appear time
+	static var _cells := {} # glyph -> its lit [column, row] cells
+	static var _balls := {} # cloud material -> puff mesh
+	# Per puff, sorted by appear time: base position, appear time, size, wobble phase.
+	var pos := PackedVector3Array()
+	var when := PackedFloat32Array()
+	var scl := PackedFloat32Array()
+	var phase := PackedFloat32Array()
+	var buf := PackedFloat32Array() # multimesh buffer: 3x4 transform + custom data per puff
 	var t := 0.0
 	var lo := 0 # puffs before this have finished popping in
 	var wob_t := 0.0
@@ -153,6 +168,17 @@ class SkyText extends MultiMeshInstance3D:
 		m.render_priority = 1
 		return m
 
+	static func _glyph(ch: String) -> Array:
+		if not _cells.has(ch):
+			var rows: Array = GLYPHS[ch]
+			var cells := []
+			for row in 7:
+				for col in 5:
+					if rows[row] & (16 >> col):
+						cells.append(Vector2i(col, row))
+			_cells[ch] = cells
+		return _cells[ch]
+
 	func write(text: String, center: Vector3, right: Vector3, cloud: Material) -> void:
 		var cols := 0
 		for ch in text:
@@ -160,37 +186,59 @@ class SkyText extends MultiMeshInstance3D:
 		var origin := center - right * (cols * SPACING / 2.0) + Vector3.UP * (3.5 * SPACING)
 		var x := 0
 		for ch in text:
-			var rows: Array = GLYPHS.get(ch, [])
 			if ch == " ":
 				x += 6
 				continue
-			if rows.is_empty():
+			if not GLYPHS.has(ch):
 				continue
-			for row in 7:
-				for col in 5:
-					if rows[row] & (16 >> col):
-						var p := origin + right * ((x + col) * SPACING) + Vector3.DOWN * (row * SPACING)
-						var when := float(x + col) / maxf(cols, 1.0) * WRITE
-						puffs.append([p + Vector3(randf_range(-0.3, 0.3), randf_range(-0.3, 0.3), randf_range(-0.5, 0.5)), when, randf_range(1.7, 2.2), randf() * TAU])
-						if randf() < 0.45: # a smaller puff beside it: fluffy, not dotted
-							puffs.append([p + Vector3(randf_range(-1.2, 1.2), randf_range(-1.2, 1.2), randf_range(-0.8, 0.8)), when + 0.05, randf_range(0.9, 1.3), randf() * TAU])
+			for c: Vector2i in _glyph(ch):
+				var p := origin + right * ((x + c.x) * SPACING) + Vector3.DOWN * (c.y * SPACING)
+				var w := float(x + c.x) / maxf(cols, 1.0) * WRITE
+				_add(p + Vector3(randf_range(-0.3, 0.3), randf_range(-0.3, 0.3), randf_range(-0.5, 0.5)), w, randf_range(1.7, 2.2))
+				if randf() < 0.45: # a smaller puff beside it: fluffy, not dotted
+					_add(p + Vector3(randf_range(-1.2, 1.2), randf_range(-1.2, 1.2), randf_range(-0.8, 0.8)), w + 0.05, randf_range(0.9, 1.3))
 			x += 6
-		puffs.sort_custom(func(a, b): return a[1] < b[1])
-		var ball := SphereMesh.new()
-		ball.radius = 1.0
-		ball.height = 2.0
-		ball.radial_segments = 10
-		ball.rings = 5
-		ball.material = cloud
+		# Sort by appear time: (time, index) packed in one int, so the engine sorts natively.
+		var n := pos.size()
+		var keys := PackedInt64Array()
+		keys.resize(n)
+		for i in n:
+			keys[i] = int(when[i] * 1e6) << 16 | i
+		keys.sort()
+		var p0 := pos.duplicate()
+		var w0 := when.duplicate()
+		var s0 := scl.duplicate()
+		var f0 := phase.duplicate()
+		for i in n:
+			var k := keys[i] & 0xFFFF
+			pos[i] = p0[k]
+			when[i] = w0[k]
+			scl[i] = s0[k]
+			phase[i] = f0[k]
+		if not _balls.has(cloud):
+			var ball := SphereMesh.new()
+			ball.radius = 1.0
+			ball.height = 2.0
+			ball.radial_segments = 6
+			ball.rings = 3
+			ball.material = cloud
+			_balls[cloud] = ball
 		multimesh = MultiMesh.new()
 		multimesh.transform_format = MultiMesh.TRANSFORM_3D
 		multimesh.use_custom_data = true
-		multimesh.mesh = ball
-		multimesh.instance_count = puffs.size()
-		for i in puffs.size():
-			multimesh.set_instance_custom_data(i, Color(0.0, -1e6, 0.0, 0.0)) # cloud shader: no base cut
+		multimesh.mesh = _balls[cloud]
+		multimesh.instance_count = n
+		buf.resize(n * 16)
+		for i in n:
+			buf[i * 16 + 13] = -1e6 # custom data: cloud shader, no base cut
 		cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_place()
+
+	func _add(p: Vector3, w: float, s: float) -> void:
+		pos.append(p)
+		when.append(w)
+		scl.append(s)
+		phase.append(randf() * TAU)
 
 	# Phones can't move ~500 puffs every frame: while writing only the ones popping in move each frame;
 	# the gentle wobble runs at 10 Hz; only the fade at the end moves everything every frame.
@@ -199,26 +247,41 @@ class SkyText extends MultiMeshInstance3D:
 		wob_t -= dt
 		if t > WRITE + HOLD or wob_t <= 0.0:
 			wob_t = 0.1
-			_place(0, puffs.size())
+			_place()
 		else:
-			while lo < puffs.size() and t - puffs[lo][1] > 0.35:
+			while lo < when.size() and t - when[lo] > 0.35:
 				lo += 1
 			var hi := lo
-			while hi < puffs.size() and puffs[hi][1] <= t:
+			while hi < when.size() and when[hi] <= t:
 				hi += 1
 			_place(lo, hi)
 		if t > WRITE + HOLD + FADE:
 			queue_free()
 
+	# All puffs go through the raw buffer in one call; a few popping in, one by one.
 	func _place(from := 0, to := -1) -> void:
 		var gone := clampf((t - WRITE - HOLD) / FADE, 0.0, 1.0) # 0 while readable, 1 when blown away
-		for i in range(from, puffs.size() if to < 0 else to):
-			var p: Array = puffs[i]
-			var age: float = t - p[1]
+		var all := to < 0
+		for i in range(from, pos.size() if all else to):
+			var ph := phase[i]
+			var age := t - when[i]
 			var s := 0.0
 			if age > 0.0:
 				var pop := clampf(age / 0.3, 0.0, 1.0)
-				s = p[2] * (1.0 + 0.25 * sin(pop * PI)) * pop * (1.0 - gone * gone) # bouncy pop in, shrink away at the end
-			var wob := Vector3(sin(t * 1.6 + p[3]), cos(t * 1.3 + p[3]), 0.0) * 0.3
-			var drift := Vector3(sin(p[3]) * 6.0, 4.0 + cos(p[3]) * 3.0, cos(p[3] * 1.7) * 4.0) * gone # break up in the wind
-			multimesh.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * maxf(s, 0.001)), p[0] + wob + drift))
+				s = scl[i] * (1.0 + 0.25 * sin(pop * PI)) * pop * (1.0 - gone * gone) # bouncy pop in, shrink away at the end
+			s = maxf(s, 0.001)
+			var p := pos[i] + Vector3(sin(t * 1.6 + ph), cos(t * 1.3 + ph), 0.0) * 0.3 # wobble
+			if gone > 0.0: # break up in the wind
+				p += Vector3(sin(ph) * 6.0, 4.0 + cos(ph) * 3.0, cos(ph * 1.7) * 4.0) * gone
+			if not all:
+				multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(s, s, s)), p))
+				continue
+			var b := i * 16
+			buf[b] = s
+			buf[b + 3] = p.x
+			buf[b + 5] = s
+			buf[b + 7] = p.y
+			buf[b + 10] = s
+			buf[b + 11] = p.z
+		if all:
+			multimesh.buffer = buf

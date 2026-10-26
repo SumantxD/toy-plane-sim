@@ -101,6 +101,7 @@ var leave_btn: Button
 var kick_box: Container = HFlowContainer.new() if TouchControls.phone() else VBoxContainer.new() # host: a KICK per joined pilot
 var switch_btn: Button
 var overlay := Control.new()
+var minimap := Control.new() # its own canvas item: redrawn less often than the overlay
 var top := Label.new()
 var feed := Label.new()
 var settings_root: Control
@@ -1038,7 +1039,7 @@ func _push(full := false) -> void:
 		return
 	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
 		if gs.phase != "menu":
-			sync(gs.duplicate(true), true) # solo free flight: apply locally
+			sync({}, true) # solo: gs already is the state, just apply it locally
 	else:
 		full = full or gs_sent.is_empty()
 		var d := {}
@@ -1411,10 +1412,15 @@ func _process(dt: float) -> void:
 		fps_ms = lerpf(fps_ms, dt * 1000.0, 0.1)
 		if Engine.get_process_frames() % 15 == 0:
 			fps_label.text = "%d FPS  %.1f ms" % [Engine.get_frames_per_second(), fps_ms]
-	for p in pings:
-		p[2] -= dt
-	pings = pings.filter(func(p): return p[2] > 0.0)
+	if pings:
+		for p in pings:
+			p[2] -= dt
+		pings = pings.filter(func(p): return p[2] > 0.0)
 	overlay.queue_redraw()
+	map_t -= dt
+	if map_t <= 0.0: # the minimap redraws at 20 Hz, the markers every frame
+		map_t = 0.05
+		minimap.queue_redraw()
 	_track_seen(dt)
 	_tick_intro(dt)
 	if netstats:
@@ -1532,7 +1538,11 @@ func _tick_battle(dt: float) -> void:
 
 
 func _flying(team: int) -> int:
-	return players.get_children().filter(func(p): return p.team == team and p.alive and p.role in ["pilot", "wing"]).size()
+	var n := 0
+	for p in players.get_children():
+		if p.team == team and p.alive and p.role in ["pilot", "wing"]:
+			n += 1
+	return n
 
 
 func _tick_beacons(dt: float) -> void:
@@ -1894,7 +1904,7 @@ func _spawn_ai(role: String, team: int, pos: Vector3, yaw: float, offset: Vector
 # AI radio chatter in the feed, rate-limited so it reads like comms, not spam.
 var stat_shots := 0 # test stats: AI gun accuracy
 var stat_hits := 0
-var seen := {} # "victim>attacker" -> msec the victim last had that enemy in view (host)
+var seen := {} # victim id -> {attacker id: msec the victim last had that enemy in view} (host)
 var ambushes := {} # "attacker>victim" -> msec an ambush started (its 0.6 s window, then a 10 s cooldown)
 var seen_t := 0.0
 
@@ -1908,9 +1918,10 @@ func _track_seen(dt: float) -> void:
 	var now := Time.get_ticks_msec()
 	var planes := get_tree().get_nodes_in_group("targets").filter(func(p): return p.alive and p.has_method("off_guard"))
 	for v in planes:
+		var row: Dictionary = seen.get_or_add(v.get_instance_id(), {})
 		for a in planes:
-			if a.team != v.team and v.sees(a):
-				seen["%d>%d" % [v.get_instance_id(), a.get_instance_id()]] = now
+			if a.team != v.team and v.position.distance_squared_to(a.position) < 1440000.0 and v.sees(a):
+				row[a.get_instance_id()] = now
 
 
 # Catching someone off guard (research: reward getting there unseen; tail position alone already wins).
@@ -1928,12 +1939,12 @@ func _off_guard(a: Node, t: Node, dmg: int) -> int:
 	var tag := ""
 	if now - start < 600:
 		tag = "AMBUSH!"
-	elif now - start > 10000 and now - seen.get("%d>%d" % [t.get_instance_id(), a.get_instance_id()], -100000) > 2500:
+	elif now - start > 10000 and now - seen.get(t.get_instance_id(), {}).get(a.get_instance_id(), -100000) > 2500:
 		ambushes[k] = now
 		tag = "AMBUSH!"
 	elif t.off_guard(a):
 		tag = "TAIL SHOT"
-	seen["%d>%d" % [t.get_instance_id(), a.get_instance_id()]] = now # it knows you're there now
+	seen.get_or_add(t.get_instance_id(), {})[a.get_instance_id()] = now # it knows you're there now
 	if tag == "":
 		return dmg
 	var out := ceili(dmg * (1.75 if tag == "AMBUSH!" else 1.25))
@@ -2142,9 +2153,12 @@ func _yaw_to(d: Vector3) -> float:
 
 
 func hits_ground(p: Vector3) -> bool:
-	if Terrain.solid(p) or p.y < Worlds.cur.env.kill_y:
+	if p.y > Terrain.max_h + obstacle_top and absf(p.x) < Terrain.FINE_EXTENT and absf(p.z) < Terrain.FINE_EXTENT:
+		return false # above every hill and building
+	var g := Terrain.span(p.x, p.z)
+	if p.y < g.x + 1.0 and p.y > g.y or p.y < Worlds.cur.env.kill_y:
 		return true
-	return p.y < Terrain.height(p.x, p.z) + obstacle_top and hits_obstacle(p)
+	return p.y < g.x + obstacle_top and hits_obstacle(p)
 
 
 # Obstacles bucketed into 100 m cells so a point test only scans its own cell.
@@ -2169,6 +2183,7 @@ func hits_obstacle(p: Vector3) -> bool:
 
 
 var boom_mesh: SphereMesh
+var boom_pool: Array[MeshInstance3D] = []
 
 
 func boom(pos: Vector3, size := 1.0) -> void:
@@ -2178,24 +2193,33 @@ func boom(pos: Vector3, size := 1.0) -> void:
 		Sfx.at(self, pos, Sfx.BOOMS[0], 9.0, 4000.0, 0.7) # bombs: deeper and louder
 	else:
 		Sfx.at(self, pos, Sfx.BOOMS.pick_random(), 4.0, 3000.0)
+	if Fx.far(self, pos):
+		return
 	if not boom_mesh: # one shared, lighter ball: the default sphere is 4k triangles and was rebuilt per bang
 		boom_mesh = SphereMesh.new()
 		boom_mesh.radial_segments = 24
 		boom_mesh.rings = 12
-	var m := MeshInstance3D.new()
-	m.mesh = boom_mesh
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var m: MeshInstance3D = boom_pool.pop_back() if boom_pool else null # fireballs are reused
+	if not m:
+		m = MeshInstance3D.new()
+		m.mesh = boom_mesh
+		var fresh := StandardMaterial3D.new()
+		fresh.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fresh.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.material_override = fresh
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(m)
+	var mat: StandardMaterial3D = m.material_override
 	mat.albedo_color = Color(3.0, 1.6, 0.3)
-	m.material_override = mat
-	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	m.position = pos
-	add_child(m)
+	m.scale = Vector3.ONE
+	m.show()
 	var tw := m.create_tween().set_parallel()
 	tw.tween_property(m, "scale", Vector3.ONE * 22.0 * size, 0.7 * size)
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.6)
-	tw.chain().tween_callback(m.queue_free)
+	tw.chain().tween_callback(func():
+		m.hide()
+		boom_pool.append(m))
 
 
 # ---------- input & UI ----------
@@ -2324,6 +2348,10 @@ func _refresh_ui() -> void:
 		status.offset_left = x
 		status.offset_right = x + status.custom_minimum_size.x
 	lobby_root.visible = gs.phase == "lobby" and not shopping
+	if gs.phase == "playing": # lobby widgets are hidden mid-match: they refresh once it's back
+		_refresh_preview()
+		$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu"
+		return
 	var leader: bool = gs.leader == multiplayer.get_unique_id()
 	for sel: Menus.Selector in [mode_sel, world_sel, size_sel, skill_sel]:
 		sel.set_locked(not leader)
@@ -2618,8 +2646,6 @@ func _draw_overlay() -> void:
 		for g in battlefield.guns:
 			if g.alive and g.visible and g.team != team and cam.global_position.distance_to(g.global_position) < 1300.0:
 				_marker(cam, g.global_position + Vector3.UP * 8.0, Color(1.0, 0.3, 0.25), Battlefield.Turret.SPEC[g.kind].tag)
-	if show_map:
-		_draw_minimap(team)
 	var me := _plane(multiplayer.get_unique_id())
 	if not me or not me.alive:
 		return
@@ -2657,6 +2683,30 @@ func _bake_map() -> void:
 		map_img = null
 
 
+var map_t := 0.0
+var spotted := {} # enemies a friendly plane or defense can see, refreshed at 5 Hz
+var spot_ms := 0
+
+
+func _draw_map_layer() -> void:
+	if not Sfx.enabled:
+		return # headless: nothing to draw on
+	var cam := get_viewport().get_camera_3d()
+	if not show_map or gs.phase != "playing" or not cam or cam == lobby_cam:
+		return
+	var team := _my_team()
+	if Time.get_ticks_msec() >= spot_ms:
+		spot_ms = Time.get_ticks_msec() + 200
+		spotted.clear()
+		for e in players.get_children():
+			if e.team != team and _spotted(e, team):
+				spotted[e] = true
+		for g in battlefield.guns if battlefield else []:
+			if g.team != team and _spotted(g, team):
+				spotted[g] = true
+	_draw_minimap(team)
+
+
 func _spotted(e: Node, team: int) -> bool:
 	if e.role == "striker" or _carrying_flag(str(e.name)):
 		return true # raids are announced, flag carriers glow
@@ -2680,18 +2730,18 @@ func _draw_minimap(team: int) -> void:
 	var centre := Vector2.ZERO
 	if map_zoom > 1.0 and me:
 		centre = Vector2(me.position.x, me.position.z).clamp(Vector2.ONE * (span - MAP_WORLD) / 2.0, Vector2.ONE * (MAP_WORLD - span) / 2.0)
-	overlay.draw_rect(r.grow(2.0), Color(0, 0, 0, 0.6))
+	minimap.draw_rect(r.grow(2.0), Color(0, 0, 0, 0.6))
 	if map_tex:
 		var px := map_tex.get_width() / MAP_WORLD
 		var src := Rect2((centre - Vector2.ONE * span / 2.0 + Vector2.ONE * MAP_WORLD / 2.0) * px, Vector2.ONE * span * px)
-		overlay.draw_texture_rect_region(map_tex, r, src, Color(1, 1, 1, 0.92))
+		minimap.draw_texture_rect_region(map_tex, r, src, Color(1, 1, 1, 0.92))
 	else:
-		overlay.draw_rect(r, Color(0.04, 0.06, 0.1, 0.82))
-	overlay.draw_rect(r, Color(1, 1, 1, 0.6), false, 1.5)
+		minimap.draw_rect(r, Color(0.04, 0.06, 0.1, 0.82))
+	minimap.draw_rect(r, Color(1, 1, 1, 0.6), false, 1.5)
 	var font := ThemeDB.fallback_font
-	overlay.draw_string(font, r.position + Vector2(size / 2.0 - 5, 15), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
-	overlay.draw_rect(Rect2(r.position + Vector2(-2, size + 2), Vector2(size + 4, 22)), Color(0, 0, 0, 0.6))
-	overlay.draw_string(font, r.position + Vector2(4, size + 18), Worlds.NAMES[Worlds.index] if TouchControls.on() else "%s    M hide   N zoom" % Worlds.NAMES[Worlds.index], HORIZONTAL_ALIGNMENT_LEFT, size - 8, 13, Color(1, 1, 1, 0.9)) # phones: the MAP button does it
+	minimap.draw_string(font, r.position + Vector2(size / 2.0 - 5, 15), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+	minimap.draw_rect(Rect2(r.position + Vector2(-2, size + 2), Vector2(size + 4, 22)), Color(0, 0, 0, 0.6))
+	minimap.draw_string(font, r.position + Vector2(4, size + 18), Worlds.NAMES[Worlds.index] if TouchControls.on() else "%s    M hide   N zoom" % Worlds.NAMES[Worlds.index], HORIZONTAL_ALIGNMENT_LEFT, size - 8, 13, Color(1, 1, 1, 0.9)) # phones: the MAP button does it
 	var ppm := size / span # pixels per metre
 	var inner := r.grow(-4.0)
 	var at := func(p: Vector3) -> Vector2:
@@ -2702,12 +2752,12 @@ func _draw_minimap(team: int) -> void:
 			if not pin:
 				return
 			q = q.clamp(inner.position, inner.end) # objectives stay on the rim, pointing the way
-		overlay.draw_rect(Rect2(q - Vector2.ONE * (sz / 2.0 + 1.0), Vector2.ONE * (sz + 2.0)), Color(0, 0, 0, 0.85))
-		overlay.draw_rect(Rect2(q - Vector2.ONE * sz / 2.0, Vector2.ONE * sz), c)
+		minimap.draw_rect(Rect2(q - Vector2.ONE * (sz / 2.0 + 1.0), Vector2.ONE * (sz + 2.0)), Color(0, 0, 0, 0.85))
+		minimap.draw_rect(Rect2(q - Vector2.ONE * sz / 2.0, Vector2.ONE * sz), c)
 	for c in battlefield.crates.values() if battlefield else []:
 		dot.call(c.pos, Color(1.0, 0.85, 0.2), 6.0)
 	for g in battlefield.guns if battlefield else []:
-		if g.alive and g.visible and (g.team == team or _spotted(g, team)):
+		if g.alive and g.visible and (g.team == team or spotted.has(g)):
 			dot.call(g.global_position, Battlefield.Aircraft_TEAM[g.team].darkened(0.35), 5.0)
 	for b in gs.beacons:
 		if b[1] == team:
@@ -2719,33 +2769,33 @@ func _draw_minimap(team: int) -> void:
 			if gs.flags[ft].state == "carried":
 				continue
 			var fp: Vector2 = (at.call(gs.flags[ft].pos) as Vector2).clamp(inner.position + Vector2(0, 12), inner.end - Vector2(9, 0))
-			overlay.draw_line(fp, fp + Vector2(0, -13), Color.WHITE, 2.0)
-			overlay.draw_colored_polygon(PackedVector2Array([fp + Vector2(0, -13), fp + Vector2(10, -10), fp + Vector2(0, -6)]), Battlefield.Aircraft_TEAM[ft])
+			minimap.draw_line(fp, fp + Vector2(0, -13), Color.WHITE, 2.0)
+			minimap.draw_colored_polygon(PackedVector2Array([fp + Vector2(0, -13), fp + Vector2(10, -10), fp + Vector2(0, -6)]), Battlefield.Aircraft_TEAM[ft])
 	if objectives and gs.mode == 5:
 		for h in objectives.hqs:
 			if h.alive:
 				dot.call(h.position, Battlefield.Aircraft_TEAM[h.team], 12.0, true)
 	if objectives and me and (str(me.name) in gs.get("cargo", []) or _carrying_flag(str(me.name))):
 		var hq: Vector2 = (at.call(objectives.home(me.team)) as Vector2).clamp(inner.position, inner.end)
-		overlay.draw_arc(hq, 9.0 + 3.0 * sin(Time.get_ticks_msec() / 150.0), 0, TAU, 20, Color(0.4, 1.0, 0.5), 2.5)
+		minimap.draw_arc(hq, 9.0 + 3.0 * sin(Time.get_ticks_msec() / 150.0), 0, TAU, 20, Color(0.4, 1.0, 0.5), 2.5)
 	var spectator: bool = spectating or not gs.players.has(multiplayer.get_unique_id())
 	for p in players.get_children():
 		if not p.alive or p == me:
 			continue
-		if p.team != team and not p.role in ["balloon", "prize"] and not spectator and not _spotted(p, team):
+		if p.team != team and not p.role in ["balloon", "prize"] and not spectator and not spotted.has(p):
 			continue
 		var c: Color = Color(0.85, 0.85, 0.9) if p.role == "balloon" else (Color(1.0, 0.8, 0.2) if p.role == "prize" else Battlefield.Aircraft_TEAM[p.team])
 		dot.call(p.position, c, 9.0 if p.role in ["bomber", "striker"] else (4.0 if p.role == "balloon" else 6.0))
 		if _carrying_flag(str(p.name)):
-			overlay.draw_arc(at.call(p.position), 9.0, 0, TAU, 16, Battlefield.Aircraft_TEAM[1 - p.team], 2.0)
+			minimap.draw_arc(at.call(p.position), 9.0, 0, TAU, 16, Battlefield.Aircraft_TEAM[1 - p.team], 2.0)
 	if me and me.alive:
 		var fwd := Vector2(-me.basis.z.x, -me.basis.z.z).normalized()
 		var m: Vector2 = at.call(me.position)
 		var side := fwd.orthogonal()
 		var arrow := PackedVector2Array([m + fwd * 11.0, m - fwd * 7.0 + side * 7.0, m - fwd * 3.0, m - fwd * 7.0 - side * 7.0])
-		overlay.draw_colored_polygon(arrow, Color.WHITE)
+		minimap.draw_colored_polygon(arrow, Color.WHITE)
 		arrow.append(arrow[0])
-		overlay.draw_polyline(arrow, Color.BLACK, 1.5)
+		minimap.draw_polyline(arrow, Color.BLACK, 1.5)
 
 
 func _marker(cam: Camera3D, pos: Vector3, color: Color, text: String) -> void:
@@ -2784,6 +2834,10 @@ func _build_ui() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.draw.connect(_draw_overlay)
 	ui.add_child(overlay)
+	minimap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	minimap.draw.connect(_draw_map_layer)
+	overlay.add_child(minimap)
 	if TouchControls.on():
 		var touch_layer := CanvasLayer.new()
 		touch_layer.layer = 2

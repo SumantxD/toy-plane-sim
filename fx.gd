@@ -7,6 +7,24 @@ extends RefCounted
 static var _fire_mat: StandardMaterial3D
 static var _smoke_mat: StandardMaterial3D
 static var _smoke_fade: Gradient
+const FAR := 800.0 # effects further than this from the camera skip their particles
+const MAX_SITES := 4 # burning crash sites / falling wrecks at once; the oldest give way
+static var _sites: Array = []
+static var _wrecks: Array = []
+static var _puffs: Array = [] # idle flak puffs for reuse
+
+
+static func far(main: Node, at: Vector3) -> bool:
+	var cam := main.get_viewport().get_camera_3d()
+	return cam != null and cam.global_position.distance_squared_to(at) > FAR * FAR
+
+
+# Keeps the newest few of `list` (instance ids); `drop` handles the oldest live one past the cap.
+static func _cap(list: Array, n: Node, drop: Callable) -> void:
+	list.assign(list.filter(func(id): return is_instance_valid(instance_from_id(id))))
+	while list.size() >= MAX_SITES:
+		drop.call(instance_from_id(list.pop_front()))
+	list.append(n.get_instance_id())
 
 
 static func fire(scale := 1.0) -> CPUParticles3D:
@@ -98,7 +116,7 @@ class Wreck extends Node3D:
 			var want := Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.98 else Vector3.FORWARD)
 			basis = basis.slerp(want, minf(1.0, dt * 1.2)).orthonormalized()
 		rotate_object_local(Vector3.FORWARD, spin.z * dt)
-		var ground := Terrain.height(position.x, position.z)
+		var ground := Terrain.ground(position.x, position.z)
 		if position.y <= ground + 1.0 or main.hits_obstacle(position) or t > 12.0:
 			Fx.crash(main, Vector3(position.x, maxf(position.y, ground), position.z), vel)
 			queue_free()
@@ -107,6 +125,8 @@ class Wreck extends Node3D:
 # A balloon bursts: confetti and rubber scraps fly out and flutter down; no fire, no falling wreck.
 static func pop(main: Node, at: Vector3, big: bool) -> void:
 	Sfx.at(main, at, Sfx.POP, 8.0 if big else 4.0, 1600.0)
+	if far(main, at):
+		return
 	var p := CPUParticles3D.new()
 	p.one_shot = true
 	p.explosiveness = 1.0
@@ -149,9 +169,14 @@ static func shoot_down(main: Node, body: Node3D, at: Transform3D, vel: Vector3) 
 	w.spin = Vector3(0, 0, randf_range(2.0, 6.0) * (1.0 if randf() < 0.5 else -1.0))
 	main.add_child(w)
 	w.global_transform = at
-	var shell: Node3D = body.duplicate()
-	shell.show()
+	var shell := _shell(body)
 	w.add_child(shell)
+	if far(main, at.origin):
+		return
+	_cap(_wrecks, w, func(old: Node) -> void:
+		for c in old.get_children():
+			if c is CPUParticles3D:
+				c.emitting = false)
 	var s: float = body.scale.x
 	var f := fire(1.3 * s)
 	f.position = Vector3(0, 0.5, -1.0) * s
@@ -160,7 +185,7 @@ static func shoot_down(main: Node, body: Node3D, at: Transform3D, vel: Vector3) 
 	trail.position = Vector3(0, 0.5, 0.5) * s
 	w.add_child(trail)
 	# Sometimes a wing comes off and tumbles away on its own.
-	var parts := shell.get_children().filter(func(c): return c is MeshInstance3D and absf(c.position.x) > 2.0)
+	var parts := shell.get_children().filter(func(c): return c.has_meta("top") and c is MeshInstance3D and absf(c.position.x) > 2.0)
 	if parts and randf() < 0.5:
 		var wing: MeshInstance3D = parts.pick_random()
 		var g := wing.global_transform
@@ -168,35 +193,72 @@ static func shoot_down(main: Node, body: Node3D, at: Transform3D, vel: Vector3) 
 		_debris(main, wing, g, w.vel + g.basis.x.normalized() * 12.0 + Vector3.UP * 6.0, 4.0)
 
 
+# The wreck's look without duplicate()-ing the plane's node tree (that cost a few ms per kill on phones):
+# its visible meshes flattened under one node, sharing meshes and materials, plus any smoke trails.
+static func _shell(body: Node3D) -> Node3D:
+	var shell := Node3D.new()
+	shell.transform = body.transform
+	var inv := body.global_transform.affine_inverse()
+	for n in body.find_children("*", "GeometryInstance3D", true, false):
+		var shown := true
+		var up: Node = n
+		while up != body and shown:
+			shown = up.visible
+			up = up.get_parent()
+		if not shown:
+			continue
+		var c: GeometryInstance3D
+		if n is MeshInstance3D:
+			c = MeshInstance3D.new()
+			c.mesh = n.mesh
+			c.material_override = n.material_override
+			c.cast_shadow = n.cast_shadow
+		elif n is CPUParticles3D:
+			c = n.duplicate()
+		else:
+			continue
+		c.transform = inv * n.global_transform
+		if n.get_parent() == body:
+			c.set_meta("top", true) # (a wing that may come off)
+		shell.add_child(c)
+	return shell
+
+
 static func crash(main: Node, pos: Vector3, vel: Vector3) -> void:
 	main.boom(pos, 2.6)
+	var near := not far(main, pos)
 	var debris_mat: Material = main.toon(Color(0.18, 0.16, 0.15))
-	for i in 6:
+	for i in 6 if near else 0:
 		var d := MeshInstance3D.new()
 		d.mesh = BoxMesh.new()
 		d.mesh.size = Vector3(randf_range(0.5, 1.6), randf_range(0.2, 0.6), randf_range(0.5, 1.8))
 		d.material_override = debris_mat
 		_debris(main, d, Transform3D(Basis(), pos + Vector3.UP), Vector3(randf_range(-25, 25), randf_range(15, 35), randf_range(-25, 25)) + vel * 0.2, 2.5)
-	# The crash site keeps burning and smoking for a while.
+	# The crash site keeps burning and smoking for a while (it stands still: particles step at 30 Hz).
 	var site := Node3D.new()
 	main.add_child(site)
 	site.global_position = pos
+	_cap(_sites, site, func(old: Node) -> void: old.queue_free())
 	var f := fire(5.0)
 	f.lifetime = 1.1
 	f.amount = 70
 	f.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	f.emission_sphere_radius = 7.0
+	f.fixed_fps = 30
+	f.emitting = near
 	site.add_child(f)
-	var sm := smoke(4.5, 10.0)
+	var sm := smoke(4.5, 6.0)
+	sm.amount = 40
 	sm.position.y = 6.0
 	sm.spread = 12.0
 	sm.initial_velocity_min = 6.0
 	sm.initial_velocity_max = 10.0 # rises as a column you can spot from across the map
+	sm.fixed_fps = 30
 	site.add_child(sm)
 	var tw := site.create_tween()
-	tw.tween_interval(8.0)
+	tw.tween_interval(3.0)
 	tw.tween_callback(func(): f.emitting = false)
-	tw.tween_interval(4.0)
+	tw.tween_interval(1.0)
 	tw.tween_callback(func(): sm.emitting = false)
 	tw.tween_interval(6.0)
 	tw.tween_callback(site.queue_free)
@@ -215,32 +277,44 @@ static func _debris(main: Node, piece: Node3D, at: Transform3D, v: Vector3, life
 	tw.tween_callback(piece.queue_free)
 
 
-# Cartoon flak: a black puff with an orange core, a small bang.
+# Cartoon flak: a black puff with an orange core, a small bang. Puffs are reused.
 static func flak(main: Node, at: Vector3) -> void:
 	main.boom(at, 0.45)
-	var puff := MeshInstance3D.new()
-	puff.mesh = SphereMesh.new()
-	puff.mesh.radial_segments = 8
-	puff.mesh.rings = 4
-	var soot := StandardMaterial3D.new() # a soft, see-through puff that thins away (not a solid shiny ball)
-	soot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	soot.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)
+	if far(main, at):
+		return
+	var puff: MeshInstance3D = null
+	while _puffs and not is_instance_valid(puff):
+		puff = _puffs.pop_back()
+	if not is_instance_valid(puff):
+		puff = MeshInstance3D.new()
+		puff.mesh = SphereMesh.new()
+		puff.mesh.radial_segments = 8
+		puff.mesh.rings = 4
+		var m := StandardMaterial3D.new() # a soft, see-through puff that thins away (not a solid shiny ball)
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		puff.material_override = m
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		main.add_child(puff)
+	var soot: StandardMaterial3D = puff.material_override
 	soot.albedo_color = Color(0.2, 0.19, 0.19, 0.7)
-	puff.material_override = soot
-	puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	main.add_child(puff)
 	puff.global_position = at
 	puff.scale = Vector3.ONE * 4.0
+	puff.show()
 	var tw := puff.create_tween()
 	tw.tween_property(puff, "scale", Vector3.ONE * 14.0, 0.5).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(soot, "albedo_color:a", 0.0, 1.4).set_ease(Tween.EASE_IN)
-	tw.tween_callback(puff.queue_free)
-	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)
+	tw.tween_callback(func():
+		puff.hide()
+		_puffs.append(puff))
 
 
 # Movie-style flare dump: two streams kicked out left and right behind the plane, each flare a hot
 # white-orange ball dragging smoke, drooping as it slows: the "angel wings" V. Lives in world space.
 static func flare_burst(plane: Node3D) -> void:
+	if far(plane, plane.global_position):
+		return
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.albedo_color = Color(5.0, 3.6, 1.6)
@@ -268,8 +342,8 @@ static func flare_burst(plane: Node3D) -> void:
 		hot.scale_amount_curve.add_point(Vector2(0, 1.3))
 		hot.scale_amount_curve.add_point(Vector2(0.7, 0.8))
 		hot.scale_amount_curve.add_point(Vector2(1, 0.0))
-		var trail := smoke(0.55, 2.6, Color(0.92, 0.92, 0.9))
-		trail.amount = 220
+		var trail := smoke(0.75, 2.6, Color(0.92, 0.92, 0.9))
+		trail.amount = 90
 		trail.direction = dir
 		trail.spread = 8.0
 		trail.initial_velocity_min = 46.0
@@ -302,16 +376,21 @@ static func flare_burst(plane: Node3D) -> void:
 
 # Paid kill effects (Planes.KILL_FX), played where the victim was hit, for everyone to see.
 static func kill_effect(main: Node, at: Vector3, kind: int) -> void:
+	var near := not far(main, at) # far away: just the sound
 	match kind:
 		1:
-			for i in 3: # fireworks: three staggered gold/red/blue starbursts
+			for i in 3 if near else 0: # fireworks: three staggered gold/red/blue starbursts
 				main.get_tree().create_timer(i * 0.25).timeout.connect(func():
 					_burst(main, at + Vector3(randf_range(-12, 12), 8.0 + i * 6.0, randf_range(-12, 12)), [Color(1.8, 1.4, 0.4), Color(1.7, 0.4, 0.35), Color(0.5, 0.9, 1.8)][i]))
 			Sfx.at(main, at, Sfx.POP, 6.0, 2400.0)
 		2:
-			_lightning(main, at)
+			if near:
+				_lightning(main, at)
+			else:
+				Sfx.at(main, at, Sfx.THUNDER, 4.0, 3000.0)
 		3:
-			_blaze(main, at)
+			if near:
+				_blaze(main, at)
 
 
 static func _burst(main: Node, at: Vector3, col: Color) -> void:
@@ -396,6 +475,7 @@ static func _blaze(main: Node, at: Vector3) -> void:
 	main.add_child(ring)
 	ring.global_position = at
 	var f := fire(2.5)
+	f.fixed_fps = 30
 	main.add_child(f)
 	f.global_position = at
 	var fid := f.get_instance_id() # never capture the node: a scene change may free it first

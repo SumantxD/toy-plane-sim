@@ -26,17 +26,29 @@ func _ready() -> void:
 
 func fire(p: Vector3, v: Vector3, owner: Node, local: bool) -> void:
 	if shots.size() < MAX:
-		shots.append({p = p, v = v, t = LIFE, owner = owner, local = local})
+		shots.append({p = p, v = v, t = LIFE, owner = owner, local = local, b = Basis.looking_at(v)})
 
 
 var whiz_cd := 0.0
 
 
 func _process(dt: float) -> void:
-	var targets := get_tree().get_nodes_in_group("targets")
+	var main := get_tree().current_scene
+	# Live targets once per frame (not per round): position, reach and team in packed arrays.
+	var tn: Array[Node] = []
+	var tp := PackedVector3Array()
+	var tr := PackedFloat32Array()
+	var tt := PackedInt32Array()
+	for t in get_tree().get_nodes_in_group("targets"):
+		if t.alive:
+			tn.append(t)
+			tp.append(t.position)
+			tr.append(t.hit_radius)
+			tt.append(t.team)
 	# Enemy rounds passing close to *you* snap past your ears.
-	var me: Node = get_tree().current_scene.players.get_node_or_null(str(multiplayer.get_unique_id()))
+	var me: Node = main.players.get_node_or_null(str(multiplayer.get_unique_id()))
 	whiz_cd -= dt
+	var n := 0
 	for s in shots:
 		var a: Vector3 = s.p
 		s.p += s.v * dt
@@ -46,18 +58,25 @@ func _process(dt: float) -> void:
 				s.whizzed = true
 				whiz_cd = 0.12
 				Sfx.ui(self, Sfx.WHIZ, -1.0, randf_range(0.85, 1.2))
-		if get_tree().current_scene.hits_ground(s.p):
+		if main.hits_ground(s.p):
 			s.t = 0.0
 		elif s.local and is_instance_valid(s.owner):
-			for t in targets:
-				if t != s.owner and t.alive and t.team != s.owner.team and _seg_hits(a, s.p, t.position, t.hit_radius + (0.0 if s.owner.get("is_ai") else 4.0)): # players' rounds forgive a near miss
-					s.owner.report_hit(t, 0, t.component_at(_closest(a, s.p, t.position)))
+			var team: int = s.owner.team
+			var slack := 0.0 if s.owner.get("is_ai") else 4.0 # players' rounds forgive a near miss
+			var mid: Vector3 = (a + s.p) * 0.5
+			var half := a.distance_to(s.p) * 0.5
+			for i in tn.size():
+				var r := tr[i] + slack
+				if tt[i] != team and mid.distance_squared_to(tp[i]) < (half + r) * (half + r) and tn[i] != s.owner and tn[i].alive and _seg_hits(a, s.p, tp[i], r):
+					s.owner.report_hit(tn[i], 0, tn[i].component_at(_closest(a, s.p, tp[i])))
 					s.t = 0.0
 					break
-	shots = shots.filter(func(s): return s.t > 0.0)
-	multimesh.visible_instance_count = shots.size()
-	for i in shots.size():
-		multimesh.set_instance_transform(i, Transform3D(Basis.looking_at(shots[i].v), shots[i].p))
+		if s.t > 0.0:
+			shots[n] = s
+			multimesh.set_instance_transform(n, Transform3D(s.b, s.p))
+			n += 1
+	shots.resize(n)
+	multimesh.visible_instance_count = n
 
 
 static func _seg_hits(a: Vector3, b: Vector3, c: Vector3, r: float) -> bool:

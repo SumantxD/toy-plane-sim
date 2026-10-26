@@ -109,7 +109,7 @@ static func think(p: Node, dt: float, main: Node) -> void:
 		aim = _run_move(p, s, dt)
 	else:
 		aim = _steer(p, s, sk, tr, dt, main)
-	p.aim_dir = _avoid(p, aim, tr, main)
+	p.aim_dir = _avoid(p, aim, tr, main, dt)
 
 
 static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main: Node) -> void:
@@ -184,7 +184,7 @@ static func _decide(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, main
 	if not t:
 		s.state = PATROL
 		# Bored show-offs fill the quiet with stunts.
-		if randf() < 0.08 * tr.flair and p.position.y - Terrain.height(p.position.x, p.position.z) > 250.0:
+		if randf() < 0.08 * tr.flair and p.position.y - Terrain.ground(p.position.x, p.position.z) > 250.0:
 			_start_move(p, s, ["roll", "loop"].pick_random(), null)
 		return
 	var d: float = p.position.distance_to(t.position)
@@ -321,7 +321,13 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 				s.rocket_t = sk.rocket_cd * randf_range(0.7, 1.4)
 			# Ground targets: release a bomb when the predicted impact lands on them.
 			if t.role in ["hq", "turret"] and p.bombs_left > 0 and p.bomb_cd <= 0.0 and d < 900.0:
-				var hit_at: Vector3 = main.rockets.bomb_impact(p.position + Vector3.DOWN * 2.0, p.velocity)
+				# 10 Hz, or sooner once the velocity has changed: in between the impact point rides along.
+				s.bomb_t = s.get("bomb_t", 0.0) - dt
+				if s.bomb_t <= 0.0 or p.velocity.distance_squared_to(s.bomb_v) > p.velocity.length_squared() * 0.0001:
+					s.bomb_t = 0.1
+					s.bomb_v = p.velocity
+					s.bomb_off = main.rockets.bomb_impact(p.position + Vector3.DOWN * 2.0, p.velocity) - p.position
+				var hit_at: Vector3 = p.position + s.bomb_off
 				if Vector2(hit_at.x - t.position.x, hit_at.z - t.position.z).length() < t.hit_radius + 12.0:
 					p.wants_bomb = true
 			return aim.normalized()
@@ -352,7 +358,7 @@ static func _steer(p: Node, s: Dictionary, sk: Dictionary, tr: Dictionary, dt: f
 			mid += e.position
 		return (mid / enemies.size() - p.position).normalized()
 	var c: Vector3 = main.home_for(p.team) * 0.5
-	c.y = Terrain.height(c.x, c.z) + 280.0
+	c.y = Terrain.ground(c.x, c.z) + 280.0
 	var r: Vector3 = p.position - c
 	r.y = 0.0
 	return (r.normalized().cross(Vector3.UP) + (c - p.position).normalized() * 0.4).normalized()
@@ -484,26 +490,23 @@ static func _say(p: Node, main: Node, kind: String, chance: float) -> void:
 
 # ---------- safety layer over any intent: ground, buildings, other planes, map edge, ceiling ----------
 
-static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3:
-	var t = p.ai.get("target")
+static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node, dt: float) -> Vector3:
+	var s: Dictionary = p.ai
+	var t = s.get("target")
 	# Strafing an HQ means committing to a dive: short look-ahead, low floor.
 	var strafe: bool = is_instance_valid(t) and t.role == "hq" and p.position.distance_to(t.position) < 700.0
-	var margin: float = 25.0 if strafe else 50.0 + 40.0 * tr.get("caution", 0.5) # hotheads cut it closer
-	for k in ([1.0] if strafe else [1.0, 2.5]):
-		var probe: Vector3 = p.position + p.velocity * k
-		if Terrain.solid(probe):
-			# Heading into ground: climb, unless we're under a floating island (then dive under it).
-			var under: bool = p.position.y < Terrain.bottom(probe.x, probe.z)
-			return (aim + (Vector3.DOWN if under else Vector3.UP) * 3.0).normalized()
-		if Terrain.solid(probe + Vector3.DOWN * margin * 0.5) and probe.y < Terrain.bottom(probe.x, probe.z) + 30.0:
-			return (aim + Vector3.DOWN * 2.0).normalized() # about to hit a floating island's underside
-		if probe.y < Terrain.floor_below(probe) + margin * (1.0 if k < 2.0 else 1.5) or main.hits_obstacle(probe):
-			if not p.ai.get("move", {}).is_empty() and p.ai.move.name in ["splits", "loop", "boomzoom"]:
-				p.ai.move = {} # abort a dive that would end in the ground
-			return (aim + Vector3.UP * (3.0 if k < 2.0 else 1.5)).normalized()
-	for f in main.players.get_children():
-		if f != p and f.alive and p.position.distance_to(f.position) < 45.0:
-			aim += (p.position - f.position).normalized() * 0.8
+	# Look-ahead probes run ~18 times a second per pilot (staggered); the verdict holds in between.
+	s.av_t = s.get("av_t", 0.0) - dt
+	if s.av_t <= 0.0:
+		s.av_t = randf_range(0.045, 0.065)
+		s.av = _probe(p, strafe, tr, main)
+		s.sep = Vector3.ZERO
+		for f in main.players.get_children():
+			if f != p and f.alive and p.position.distance_squared_to(f.position) < 2025.0:
+				s.sep += (p.position - f.position).normalized() * 0.8
+	if s.av != Vector3.ZERO:
+		return (aim + s.av).normalized()
+	aim += s.sep
 	if Vector2(p.position.x, p.position.z).length() > 2350.0 and not strafe: # outside both bases (blue runway ends at z 2300)
 		aim += Vector3(-p.position.x, 0, -p.position.z).normalized() * 1.5
 	if p.position.y > 700.0:
@@ -511,10 +514,43 @@ static func _avoid(p: Node, aim: Vector3, tr: Dictionary, main: Node) -> Vector3
 	return aim.normalized()
 
 
+# Ground, floating islands and buildings ahead: the steer to add to the aim (zero = all clear).
+static func _probe(p: Node, strafe: bool, tr: Dictionary, main: Node) -> Vector3:
+	var margin: float = 25.0 if strafe else 50.0 + 40.0 * tr.get("caution", 0.5) # hotheads cut it closer
+	for k in ([1.0] if strafe else [1.0, 2.5]):
+		var probe: Vector3 = p.position + p.velocity * k
+		var g := Terrain.span(probe.x, probe.z) # ground top, underside
+		if probe.y < g.x + 1.0 and probe.y > g.y:
+			# Heading into ground: climb, unless we're under a floating island (then dive under it).
+			return (Vector3.DOWN if p.position.y < g.y else Vector3.UP) * 3.0
+		var low := probe.y - margin * 0.5
+		if low < g.x + 1.0 and low > g.y and probe.y < g.y + 30.0:
+			return Vector3.DOWN * 2.0 # about to hit a floating island's underside
+		if probe.y < Terrain.floor_below(probe, g.x) + margin * (1.0 if k < 2.0 else 1.5) or main.hits_obstacle(probe):
+			if not p.ai.get("move", {}).is_empty() and p.ai.move.name in ["splits", "loop", "boomzoom"]:
+				p.ai.move = {} # abort a dive that would end in the ground
+			return Vector3.UP * (3.0 if k < 2.0 else 1.5)
+	return Vector3.ZERO
+
+
+static var _foes := {} # team -> enemy planes, rebuilt each frame (read-only for callers)
+static var _foes_frame := -1
+
+
 static func _enemies(p: Node, main: Node) -> Array:
-	var list: Array = main.players.get_children().filter(func(e): return e.alive and e.team != p.team and e.role != "balloon" and e.is_in_group("targets"))
+	if _foes_frame != Engine.get_process_frames():
+		_foes_frame = Engine.get_process_frames()
+		_foes.clear()
+	var team: int = p.team
+	if not _foes.has(team):
+		_foes[team] = main.players.get_children().filter(func(e): return e.alive and e.team != team and e.role != "balloon" and e.is_in_group("targets"))
+	var list: Array = _foes[team]
 	if main.battlefield and main.gs.mode != 2:
+		var own := false
 		for g in main.battlefield.guns:
-			if g.alive and g.active and g.team != p.team and g.position.distance_to(p.position) < 900.0:
+			if g.alive and g.active and g.team != team and g.position.distance_to(p.position) < 900.0:
+				if not own:
+					list = list.duplicate()
+					own = true
 				list.append(g)
 	return list

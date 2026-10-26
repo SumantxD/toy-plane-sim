@@ -561,8 +561,8 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 	parts.trails = []
 	if banner > 0: # airshow smoke ribbons from both wingtips: true colour, thin, fading out behind
 		var puff := SphereMesh.new()
-		puff.radius = 0.6
-		puff.height = 1.2
+		puff.radius = 0.75
+		puff.height = 1.5
 		puff.radial_segments = 6
 		puff.rings = 3
 		var mat := StandardMaterial3D.new()
@@ -598,7 +598,7 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 		for side in [-1.0, 1.0]:
 			var smoke := CPUParticles3D.new()
 			smoke.mesh = puff
-			smoke.amount = 130 # dense enough to read as a ribbon at full speed
+			smoke.amount = 70 # ~one puff a frame at 60 fps: reads as a ribbon at full speed
 			smoke.lifetime = 1.0
 			smoke.local_coords = false
 			smoke.direction = Vector3(0, 0, 1)

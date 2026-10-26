@@ -72,6 +72,7 @@ func _process(dt: float) -> void:
 				var mark := Fx.smoke(1.4, 4.0, Color(0.95, 0.85, 0.2))
 				mark.initial_velocity_min = 5.0
 				mark.initial_velocity_max = 9.0
+				mark.fixed_fps = 30 # stands still: 30 Hz steps look the same
 				c.node.add_child(mark)
 				c.node.get_node("Chute").hide()
 		c.node.position = c.pos
@@ -317,6 +318,7 @@ class Turret extends Node3D:
 	var dish: Node3D
 	var cd := 0.0
 	var pick_t := 0.0
+	var radar := false # a friendly radar nearby (checked with each target pick)
 	var target: Node
 	var aim_point := Vector3.ZERO
 
@@ -405,11 +407,12 @@ class Turret extends Node3D:
 		pick_t -= dt
 		if pick_t <= 0.0:
 			pick_t = 0.5
-			target = _pick(spec.range * (1.25 if bf.radar_near(self) else 1.0))
+			radar = bf.radar_near(self)
+			target = _pick(spec.range * (1.25 if radar else 1.0))
 		if not is_instance_valid(target) or not target.alive:
 			target = null
 			return
-		var sharp: bool = bf.radar_near(self)
+		var sharp := radar
 		var d: float = global_position.distance_to(target.position)
 		match kind:
 			"flak":
@@ -489,5 +492,8 @@ class Turret extends Node3D:
 		main.boom(global_position + Vector3.UP * 4.0, 1.2)
 		var f := Fx.fire(1.5)
 		f.position.y = 3.0
+		f.fixed_fps = 30 # stands still: 30 Hz steps look the same
 		add_child(f)
-		add_child(Fx.smoke(1.6, 4.0))
+		var sm := Fx.smoke(1.6, 4.0)
+		sm.fixed_fps = 30
+		add_child(sm)

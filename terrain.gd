@@ -60,6 +60,9 @@ static func configure() -> void:
 	_bottom = Callable(Worlds.mod, "bottom") if Worlds.has("bottom") else Callable()
 	_noise = null
 	_river_cells = {}
+	_hs = PackedFloat32Array()
+	_us = PackedFloat32Array()
+	max_h = INF
 
 
 static func _n() -> FastNoiseLite:
@@ -115,17 +118,88 @@ static func bottom(x: float, z: float) -> float:
 
 # True when p is inside ground (or below a floating world's kill floor).
 static func solid(p: Vector3) -> bool:
-	var top := height(p.x, p.z)
-	return p.y < top + 1.0 and p.y > bottom(p.x, p.z)
+	var g := span(p.x, p.z)
+	return p.y < g.x + 1.0 and p.y > g.y
 
 
 # Height of the first surface below p (for floating worlds, flying under an island is fine).
-static func floor_below(p: Vector3) -> float:
-	var top := height(p.x, p.z)
+# `top`: span(p.x, p.z).x when the caller already has it.
+static func floor_below(p: Vector3, top := NAN) -> float:
+	if is_nan(top):
+		top = span(p.x, p.z).x
 	if not _floating:
 		return top
 	var kill: float = Worlds.cur.env.kill_y
 	return maxf(top, kill) if p.y >= top else maxf(kill, -50.0)
+
+
+# ---------- gameplay ground ----------
+# Crashes, AI and weapons test the ground as drawn: build()'s fine triangles over height() baked once
+# per world (plus the floating underside). Past the fine grid, and on floating rims (which sky.gd
+# reshapes after the build), it falls back to height() / bottom().
+static var _hs := PackedFloat32Array()
+static var _us := PackedFloat32Array() # floating worlds: underside per vertex, INF = open sky
+static var max_h := INF # highest baked ground: inside the fine grid nothing is solid above it
+
+
+static func _bake() -> void:
+	var n := int(FINE_EXTENT * 2.0 / FINE) + 1
+	_hs.resize(n * n)
+	_us.resize(n * n if _floating else 0)
+	for i in n:
+		for j in n:
+			var x := -FINE_EXTENT + j * FINE
+			var z := -FINE_EXTENT + i * FINE
+			_hs[i * n + j] = height(x, z)
+			if _floating:
+				_us[i * n + j] = bottom(x, z)
+	max_h = Array(_hs).max() + (5.0 if _floating else 0.0) # rims use height(): a little headroom
+
+
+# Ground top at (x, z) and the underside below it (-INF: solid to the core, INF: open sky).
+static func span(x: float, z: float) -> Vector2:
+	const N := int(FINE_EXTENT * 2.0 / FINE) # cells per side
+	if _hs.is_empty():
+		_bake()
+	var gx := (x + FINE_EXTENT) / FINE
+	var gz := (z + FINE_EXTENT) / FINE
+	if not (gx >= 0.0 and gz >= 0.0 and gx < N and gz < N):
+		return Vector2(height(x, z), bottom(x, z))
+	var j := int(gx)
+	var i := int(gz)
+	var fx := gx - j
+	var fz := gz - i
+	var k := i * (N + 1) + j
+	var a := _hs[k]
+	var b := _hs[k + 1]
+	var c := _hs[k + N + 1]
+	var d := _hs[k + N + 2]
+	var top: float
+	if (i + j) & 1: # same diagonals as build()
+		top = a + (b - a) * fx + (c - a) * fz if fx + fz <= 1.0 else d + (c - d) * (1.0 - fx) + (b - d) * (1.0 - fz)
+	else:
+		top = a + (b - a) * fx + (d - b) * fz if fx >= fz else a + (d - c) * fx + (c - a) * fz
+	if not _floating:
+		return Vector2(top, -INF)
+	var ua := _us[k]
+	var ub := _us[k + 1]
+	var uc := _us[k + N + 1]
+	var ud := _us[k + N + 2]
+	var open := int(ua == INF) + int(ub == INF) + int(uc == INF) + int(ud == INF)
+	if open == 4:
+		return Vector2(top, INF)
+	if open > 0:
+		return Vector2(height(x, z), bottom(x, z))
+	ua = minf(ua, a)
+	ub = minf(ub, b)
+	uc = minf(uc, c)
+	ud = minf(ud, d)
+	return Vector2(top, ua + (ub - ua) * fx + (ud - ub) * fz if fx >= fz else ua + (ud - uc) * fx + (uc - ua) * fz)
+
+
+# Gameplay ground height at (x, z): the surface you see (span(x, z).x).
+static func ground(x: float, z: float) -> float:
+	return span(x, z).x
 
 
 static func normal(x: float, z: float) -> Vector3:
@@ -183,11 +257,9 @@ static func build() -> Node3D:
 	var pos := PackedVector3Array()
 	var col := PackedColorArray()
 	var n := int(FINE_EXTENT * 2.0 / FINE) + 1
-	var hs := PackedFloat32Array()
-	hs.resize(n * n)
-	for i in n:
-		for j in n:
-			hs[i * n + j] = height(-FINE_EXTENT + j * FINE, -FINE_EXTENT + i * FINE)
+	if _hs.is_empty():
+		_bake()
+	var hs := _hs
 	for i in n - 1:
 		var z0 := -FINE_EXTENT + i * FINE
 		for j in n - 1:
@@ -205,10 +277,10 @@ static func build() -> Node3D:
 				_tri(pos, col, a, b, d)
 				_tri(pos, col, a, d, c)
 			if _floating: # rocky underside, wound to face down
-				var ua := Vector3(a.x, minf(bottom(a.x, a.z), a.y), a.z)
-				var ub := Vector3(b.x, minf(bottom(b.x, b.z), b.y), b.z)
-				var uc := Vector3(c.x, minf(bottom(c.x, c.z), c.y), c.z)
-				var ud := Vector3(d.x, minf(bottom(d.x, d.z), d.y), d.z)
+				var ua := Vector3(a.x, minf(_us[i * n + j], a.y), a.z)
+				var ub := Vector3(b.x, minf(_us[i * n + j + 1], b.y), b.z)
+				var uc := Vector3(c.x, minf(_us[(i + 1) * n + j], c.y), c.z)
+				var ud := Vector3(d.x, minf(_us[(i + 1) * n + j + 1], d.y), d.z)
 				_under(pos, col, ua, ub, ud)
 				_under(pos, col, ua, ud, uc)
 

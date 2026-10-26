@@ -60,7 +60,7 @@ func _process(dt: float) -> void:
 				if pl.alive and pl.position.distance_to(b.p) < 14.0 + pl.hit_radius:
 					main.env_hit(pl, 40, "a lava bomb")
 					b.t = 99.0
-		if b.p.y < Terrain.height(b.p.x, b.p.z) or b.t > 20.0:
+		if b.p.y < Terrain.ground(b.p.x, b.p.z) or b.t > 20.0:
 			main.boom(b.p, 0.8)
 			b.node.queue_free()
 	bombs = bombs.filter(func(b): return is_instance_valid(b.node) and not b.node.is_queued_for_deletion())

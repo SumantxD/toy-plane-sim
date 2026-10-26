@@ -117,6 +117,7 @@ var steer_t := 9.0 # seconds since the player last steered (auto-follow waits fo
 var chase_dir := Vector3.ZERO # target heading last frame: a hard jink breaks auto-follow
 var chase_off := 0.0
 var aim_pitch := 0.0
+var hud_t := 0.0
 
 
 func _ready() -> void:
@@ -270,19 +271,22 @@ func _process(dt: float) -> void:
 			shake = maxf(shake - dt * 2.5, 0.0)
 			cam.global_position += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 1.2
 		cam.fov = lerpf(cam.fov, lerpf(70.0, 90.0, clampf((velocity.length() - 40.0) / 110.0, 0.0, 1.0)), 1.0 - exp(-3.0 * dt))
-		var broken := []
-		for i in 4:
-			if comps[i] < 0.6:
-				broken.append("%s %d%%" % [Planes.COMPONENT_NAMES[i], comps[i] * 100])
-		var bank: Array = main.gs.get("bank", [0, 0])
-		var deploy := ("   Supplies %d  (BUY)" % bank[team] if TouchControls.on() else "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""]) if main.gs.mode != 2 else ""
-		if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
-			deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
-		var bonus := ""
-		for id in buffs:
-			bonus += "   %s %ds" % [{twin = "TWIN GUNS", shield = "SHIELD", swarm = "ROCKET SWARM"}[id], ceili(buffs[id])]
-		var thr := "" if TouchControls.on() else "   Throttle %d%%" % (throttle * 100) # touch: the throttle slider shows it
-		hud_text.text = "%s   HP %d   Speed %d   Alt %d%s   Rockets %d   Bombs %d   Flares %d%s%s%s" % [Planes.variant(kind).name, hp, velocity.length(), position.y, thr, rockets_left, bombs_left, flares_left, bonus, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
+		hud_t -= dt
+		if hud_t <= 0.0: # the readout at 10 Hz
+			hud_t = 0.1
+			var broken := []
+			for i in 4:
+				if comps[i] < 0.6:
+					broken.append("%s %d%%" % [Planes.COMPONENT_NAMES[i], comps[i] * 100])
+			var bank: Array = main.gs.get("bank", [0, 0])
+			var deploy := ("   Supplies %d  (BUY)" % bank[team] if TouchControls.on() else "   Supplies %d  [3 AA  4 SAM(2)  5 Radar%s]" % [bank[team], "  6 Repair HQ(2)" if main.gs.mode == 5 else ""]) if main.gs.mode != 2 else ""
+			if str(name) in main.gs.get("cargo", []) or main._carrying_flag(str(name)):
+				deploy += "\n>>> CARRYING %s - FLY HOME <<<" % ("THE FLAG" if main._carrying_flag(str(name)) else "SUPPLIES")
+			var bonus := ""
+			for id in buffs:
+				bonus += "   %s %ds" % [{twin = "TWIN GUNS", shield = "SHIELD", swarm = "ROCKET SWARM"}[id], ceili(buffs[id])]
+			var thr := "" if TouchControls.on() else "   Throttle %d%%" % (throttle * 100) # touch: the throttle slider shows it
+			hud_text.text = "%s   HP %d   Speed %d   Alt %d%s   Rockets %d   Bombs %d   Flares %d%s%s%s" % [Planes.variant(kind).name, hp, velocity.length(), position.y, thr, rockets_left, bombs_left, flares_left, bonus, deploy, ("\nDAMAGED: " + ", ".join(broken)) if broken else ""]
 		hud.queue_redraw()
 
 
@@ -821,6 +825,7 @@ func _trail_look() -> void:
 const RIBBON_MS := 300
 var ribbon: MeshInstance3D
 var ribbon_pts := [[], []]
+var ribbon_n := 0
 
 func _update_ribbons() -> void:
 	var cam := get_viewport().get_camera_3d()
@@ -828,6 +833,20 @@ func _update_ribbons() -> void:
 		if ribbon:
 			ribbon.hide()
 		ribbon_pts = [[], []]
+		return
+	var now := Time.get_ticks_msec()
+	for k in 2: # the path is recorded every frame...
+		var pts: Array = ribbon_pts[k]
+		pts.append([parts.trails[k].global_position, now])
+		while pts.size() > 2 and now - pts[0][1] > RIBBON_MS:
+			pts.pop_front()
+	# ...but drawn only near and on screen, and other planes' at 30 Hz.
+	var tail: Vector3 = ribbon_pts[0][0][0]
+	var shown := cam.global_position.distance_squared_to(position) < 160000.0 and (cam.is_position_in_frustum(position) or cam.is_position_in_frustum(tail))
+	ribbon_n += 1
+	if ribbon:
+		ribbon.visible = shown
+	if not shown or ribbon and not is_local() and ribbon_n % 2:
 		return
 	if not ribbon:
 		ribbon = MeshInstance3D.new()
@@ -845,15 +864,11 @@ func _update_ribbons() -> void:
 	ribbon.global_transform = Transform3D.IDENTITY
 	var im: ImmediateMesh = ribbon.mesh
 	im.clear_surfaces()
-	var now := Time.get_ticks_msec()
 	var col: Color = parts.get("trail_col", Color.WHITE).lightened(0.35)
 	var faint := lerpf(0.3, 1.0, trail_view)
 	var thin := lerpf(0.5, 1.0, trail_view)
 	for k in 2:
 		var pts: Array = ribbon_pts[k]
-		pts.append([parts.trails[k].global_position, now])
-		while pts.size() > 2 and now - pts[0][1] > RIBBON_MS:
-			pts.pop_front()
 		if pts.size() < 2:
 			continue
 		im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
@@ -1082,6 +1097,10 @@ func _axis(neg: Key, pos: Key) -> float:
 	return float(Input.is_key_pressed(pos)) - float(Input.is_key_pressed(neg))
 
 
+var bomb_off := Vector3.ZERO # bomb impact point relative to the plane
+var bomb_ms := 0
+var bomb_v := Vector3.ZERO
+
 func _draw_hud() -> void:
 	var c := hud.size / 2
 	hud.draw_arc(c, 14, 0, TAU, 32, Color(1, 1, 1, 0.8), 2) # where you're aiming
@@ -1117,7 +1136,12 @@ func _draw_hud() -> void:
 			if not cam.is_position_behind(q):
 				hud.draw_circle(cam.unproject_position(q), 2.5, Color(1, 1, 1, 0.6))
 	if bomb_aiming and bombs_left > 0:
-		var at: Vector3 = main.rockets.bomb_impact(position + Vector3.DOWN * 2.0, velocity)
+		# 15 Hz, or sooner once the velocity has changed: in between the marker rides along with the plane.
+		if Time.get_ticks_msec() >= bomb_ms or velocity.distance_squared_to(bomb_v) > velocity.length_squared() * 0.0004:
+			bomb_ms = Time.get_ticks_msec() + 66
+			bomb_v = velocity
+			bomb_off = main.rockets.bomb_impact(position + Vector3.DOWN * 2.0, velocity) - position
+		var at: Vector3 = position + bomb_off
 		if not cam.is_position_behind(at):
 			var q := cam.unproject_position(at)
 			hud.draw_arc(q, 16, 0, TAU, 24, Color(1, 0.6, 0.2), 2.5)
