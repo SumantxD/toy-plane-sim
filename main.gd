@@ -165,7 +165,7 @@ func _boot(frac: float, text: String) -> void:
 # not mid-fight: the first confetti, kill effect or shield used to hitch.
 func _warm_effects() -> void:
 	var cam := get_viewport().get_camera_3d()
-	if not cam or DisplayServer.get_name() == "headless":
+	if not cam:
 		return
 	AudioServer.set_bus_mute(0, true)
 	var before := get_children()
@@ -175,6 +175,7 @@ func _warm_effects() -> void:
 	Fx.flak(self, at)
 	for k in [1, 2, 3]:
 		Fx.kill_effect(self, at, k)
+	Fx.crash(self, at, Vector3.ZERO)
 	var temp: Array[Node3D] = [Fx.fire(), Fx.smoke()]
 	var shield := MeshInstance3D.new() # same material as plane.gd's prize shield
 	shield.mesh = SphereMesh.new()
@@ -185,9 +186,19 @@ func _warm_effects() -> void:
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	shield.material_override = m
 	temp.append(shield)
+	var b := Bullets.new() # tracers (instanced: their own shader variant)
+	temp.append(b)
+	var sky := Taunts.SkyText.new() # skywritten taunts and AI radio lines
+	sky.material_override = Taunts.SkyText.cloud(Color.WHITE)
+	temp.append(sky)
+	temp.append(rockets._missile())
 	for n in temp:
 		add_child(n)
 		n.global_position = at
+	b.set_process(false)
+	b.multimesh.visible_instance_count = 1
+	b.multimesh.set_instance_transform(0, Transform3D(Basis(), at))
+	sky.write("GG", at, cam.global_basis.x, sky.material_override)
 	for i in 3:
 		await get_tree().process_frame
 	for n in get_children():
@@ -3492,7 +3503,7 @@ func _show_intro() -> void:
 	Settings.values.matches = runs + 1
 	Settings.save()
 	intro_t = 5.0
-	keys_t = 14.0 if runs < 3 else 0.0 # first 3 matches only; HOW TO PLAY has it any time
+	keys_t = 0.0 # no instruction card over the fight; HOW TO PLAY has the controls
 	count_shown = -1
 
 

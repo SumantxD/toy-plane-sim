@@ -398,8 +398,15 @@ static func _blaze(main: Node, at: Vector3) -> void:
 	var f := fire(2.5)
 	main.add_child(f)
 	f.global_position = at
-	main.get_tree().create_timer(1.0).timeout.connect(func(): f.emitting = false)
-	main.get_tree().create_timer(3.5).timeout.connect(f.queue_free)
+	var fid := f.get_instance_id() # never capture the node: a scene change may free it first
+	main.get_tree().create_timer(1.0).timeout.connect(func():
+		var n = instance_from_id(fid)
+		if is_instance_valid(n):
+			n.emitting = false)
+	main.get_tree().create_timer(3.5).timeout.connect(func():
+		var n = instance_from_id(fid)
+		if is_instance_valid(n):
+			n.queue_free())
 	var tw := ring.create_tween()
 	tw.tween_property(ring, "scale", Vector3.ONE * 30.0, 0.7).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.7)
