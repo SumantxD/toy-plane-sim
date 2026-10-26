@@ -36,7 +36,9 @@ const STYLE := [
 ]
 const COMPONENT_NAMES := ["left wing", "right wing", "engine", "tail"]
 # Cosmetics only (no stat changes): a sticker on the wings / tail and coloured wingtip smoke trails.
-const STICKERS := ["None", "Star", "Lightning", "Flame", "Roundel", "Checkers", "Shark Mouth"]
+# Stickers 7+ and EARNED_TRAILS are earned on the pilot level track (Progress.REWARDS), never sold.
+const STICKERS := ["None", "Star", "Lightning", "Flame", "Roundel", "Checkers", "Shark Mouth", "Heart", "Bullseye", "Diamond", "Crown", "Spade"]
+const FREE_STICKERS := 7
 const BANNERS := ["None", "Gold", "Lime", "Violet", "White", "Black"]
 # Paid looks (shop.gd sells them). A livery repaints wings, tail, trim and stripes; the fuselage keeps
 # the team colour (and name tags stay team-coloured) so friend and foe still read at a glance.
@@ -54,11 +56,24 @@ const PREMIUM_TRAILS := [
 	{name = "Neon", colors = [Color(0.3, 1.7, 1.7), Color(1.6, 0.35, 1.5)]},
 	{name = "Fire", colors = [Color(1.7, 1.5, 0.7), Color(1.6, 0.7, 0.15), Color(1.0, 0.2, 0.06), Color(0.3, 0.27, 0.27)]},
 ]
+const EARNED_TRAILS := [
+	{name = "Sky Blue", colors = [Color(0.55, 0.85, 1.0), Color(0.3, 0.6, 1.0)]},
+	{name = "Bubblegum", colors = [Color(1.0, 0.6, 0.85), Color(1.0, 0.4, 0.7)]},
+	{name = "Tangerine", colors = [Color(1.0, 0.7, 0.3), Color(1.0, 0.45, 0.1)]},
+	{name = "Sunset", colors = [Color(1.0, 0.8, 0.3), Color(1.0, 0.45, 0.45), Color(0.65, 0.35, 0.85)]},
+	{name = "Aurora", colors = [Color(0.4, 1.3, 0.7), Color(0.3, 1.0, 1.3), Color(0.8, 0.5, 1.4)]},
+]
 const KILL_FX := ["None", "Fireworks", "Lightning", "Blaze"]
 
 
 static func trail_names() -> Array:
-	return Array(BANNERS) + PREMIUM_TRAILS.map(func(t): return t.name)
+	return Array(BANNERS) + (PREMIUM_TRAILS + EARNED_TRAILS).map(func(t): return t.name)
+
+
+# Colours of a multi-colour trail (premium or earned): trail index >= BANNERS.size().
+static func trail_colors(banner: int) -> Array:
+	var list := PREMIUM_TRAILS + EARNED_TRAILS
+	return list[clampi(banner - BANNERS.size(), 0, list.size() - 1)].colors
 
 
 const BANNER_COLORS := [Color(0, 0, 0, 0), Color(1.0, 0.78, 0.2), Color(0.55, 0.95, 0.3), Color(0.7, 0.45, 1.0), Color(0.95, 0.95, 0.95), Color(0.12, 0.12, 0.14)]
@@ -571,8 +586,8 @@ static func dress(kind: String, root: Node3D, parts: Dictionary, n_rockets: int,
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		puff.material = mat
 		var ramp := Gradient.new() # puffs take over where the line ends: colour, then gone
-		if banner >= BANNERS.size(): # premium: the puffs age through the colours (rainbow bands, fire to smoke)
-			var cols: Array = PREMIUM_TRAILS[mini(banner - BANNERS.size(), PREMIUM_TRAILS.size() - 1)].colors
+		if banner >= BANNERS.size(): # premium / earned: the puffs age through the colours (rainbow bands, fire to smoke)
+			var cols: Array = trail_colors(banner)
 			parts.trail_col = cols[0]
 			var offs := PackedFloat32Array()
 			var cs := PackedColorArray()
@@ -653,6 +668,28 @@ static func _sticker(i: int, root: Node3D, parts: Dictionary, w: Array, hull: Ar
 				_shape(root, _circle(0.5, 18), Color.WHITE, t, Vector2.ONE * sz, toon)
 				_shape(root, _circle(0.32, 18), Color(0.85, 0.2, 0.15), t.translated_local(Vector3(0, 0, 0.03)), Vector2.ONE * sz, toon)
 				_shape(root, _circle(0.14, 14), Color(0.2, 0.3, 0.75), t.translated_local(Vector3(0, 0, 0.06)), Vector2.ONE * sz, toon)
+			"Heart":
+				var heart := PackedVector2Array()
+				for k in 20:
+					var a := TAU * k / 20.0
+					heart.append(Vector2(16.0 * pow(sin(a), 3), -(13.0 * cos(a) - 5.0 * cos(2 * a) - 2.0 * cos(3 * a) - cos(4 * a))) / 34.0)
+				_shape(root, heart, Color(0.92, 0.2, 0.3), t, Vector2.ONE * sz, toon)
+			"Bullseye":
+				for k in 3:
+					_shape(root, _circle(0.5 - k * 0.17, 18), [Color(0.85, 0.2, 0.15), Color.WHITE, Color(0.85, 0.2, 0.15)][k], t.translated_local(Vector3(0, 0, 0.03 * k)), Vector2.ONE * sz, toon)
+			"Diamond":
+				_shape(root, PackedVector2Array([Vector2(0, -0.5), Vector2(0.38, 0), Vector2(0, 0.5), Vector2(-0.38, 0)]), Color(0.35, 0.8, 1.0), t, Vector2.ONE * sz, toon)
+				_shape(root, PackedVector2Array([Vector2(0, -0.3), Vector2(0.2, 0), Vector2(0, 0.3), Vector2(-0.2, 0)]), Color(0.85, 0.97, 1.0), t.translated_local(Vector3(0, 0, 0.03)), Vector2.ONE * sz, toon)
+			"Crown":
+				_shape(root, PackedVector2Array([Vector2(-0.45, 0.3), Vector2(-0.45, -0.3), Vector2(-0.22, 0.0), Vector2(0, -0.42), Vector2(0.22, 0.0),
+					Vector2(0.45, -0.3), Vector2(0.45, 0.3)]), Color(1.0, 0.8, 0.2), t, Vector2.ONE * sz, toon)
+			"Spade":
+				var spade := PackedVector2Array()
+				for k in 20:
+					var a := TAU * k / 20.0
+					spade.append(Vector2(16.0 * pow(sin(a), 3), 13.0 * cos(a) - 5.0 * cos(2 * a) - 2.0 * cos(3 * a) - cos(4 * a)) / 40.0 + Vector2(0, -0.08))
+				_shape(root, spade, Color(0.12, 0.12, 0.16), t, Vector2.ONE * sz, toon)
+				_shape(root, PackedVector2Array([Vector2(0, 0.1), Vector2(0.14, 0.48), Vector2(-0.14, 0.48)]), Color(0.12, 0.12, 0.16), t, Vector2.ONE * sz, toon)
 			"Checkers":
 				for cx in 4:
 					for cy in 4:

@@ -118,10 +118,13 @@ func bomb_impact(p: Vector3, v: Vector3) -> Vector3:
 
 
 # Flares: rockets chasing `plane` lose it and fly on dumb.
-func decoy(plane: Node) -> void:
+func decoy(plane: Node) -> int:
+	var n := 0
 	for r in rockets.values():
 		if r.target == plane:
 			r.target = null
+			n += 1
+	return n
 
 
 # Launch from an arbitrary point/velocity (SAM sites on the ground).

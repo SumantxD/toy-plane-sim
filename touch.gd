@@ -161,7 +161,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			if not _live():
+			if not _live() or (main.training and main.training.covers(event.position)):
 				return
 			if main.taunts and main.taunts.open: # a second finger flips the taunt wheel's page
 				main.taunts.flip()

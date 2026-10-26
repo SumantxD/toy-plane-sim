@@ -254,6 +254,14 @@ static func icon(ci: CanvasItem, kind: String, c: Vector2, r: float, col: Color)
 			for i in 16:
 				b.append(Vector2.from_angle(PI * i / 8.0) * (1.0 if i % 2 == 0 else 0.5))
 			ci.draw_colored_polygon(pts.call(b), col)
+		"home":
+			ci.draw_colored_polygon(pts.call([Vector2(0, -0.95), Vector2(0.95, -0.05), Vector2(0.65, -0.05), Vector2(0.65, 0.9), Vector2(-0.65, 0.9), Vector2(-0.65, -0.05), Vector2(-0.95, -0.05)]), col)
+			ci.draw_rect(Rect2(c + Vector2(-0.2, 0.3) * r, Vector2(0.4, 0.6) * r), hole)
+		"medal": # pilot / badges
+			ci.draw_colored_polygon(pts.call([Vector2(-0.6, -1), Vector2(-0.2, -1), Vector2(0.15, -0.2), Vector2(-0.25, -0.2)]), col)
+			ci.draw_colored_polygon(pts.call([Vector2(0.6, -1), Vector2(0.2, -1), Vector2(-0.15, -0.2), Vector2(0.25, -0.2)]), col)
+			ci.draw_circle(c + Vector2(0, 0.38) * r, r * 0.6, col)
+			ci.draw_circle(c + Vector2(0, 0.38) * r, r * 0.3, hole)
 		"gift": # sets
 			ci.draw_rect(Rect2(c + Vector2(-0.85, -0.3) * r, Vector2(1.7, 1.2) * r), col)
 			ci.draw_rect(Rect2(c + Vector2(-0.12, -0.3) * r, Vector2(0.24, 1.2) * r), hole)
@@ -275,6 +283,16 @@ static func card(box: Control, title: String, paint: Callable, cb: Callable, hos
 	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var longest := ""
+	for w in title.split(" "):
+		longest = w if w.length() > longest.length() else longest
+	if preload("res://assets/ui/kenney_future.ttf").get_string_size(longest, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x > min_size.x - 8.0:
+		var narrow: Font = preload("res://assets/ui/kenney_future_narrow.ttf") # narrow cards: whole words, never "SURVIVO R"
+		var fs := 12
+		while fs > 9 and narrow.get_string_size(longest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > min_size.x - 8.0:
+			fs -= 1
+		name.add_theme_font_override("font", narrow)
+		name.add_theme_font_size_override("font_size", fs)
 	name.anchor_top = 1.0
 	name.anchor_right = 1.0
 	name.anchor_bottom = 1.0

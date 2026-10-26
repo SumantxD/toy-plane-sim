@@ -70,7 +70,10 @@ func _process(dt: float) -> void:
 				if tt[i] != team and mid.distance_squared_to(tp[i]) < (half + r) * (half + r) and tn[i] != s.owner and tn[i].alive and _seg_hits(a, s.p, tp[i], r):
 					s.owner.report_hit(tn[i], 0, tn[i].component_at(_closest(a, s.p, tp[i])))
 					s.t = 0.0
+					s.hit = true
 					break
+		if s.t <= 0.0 and s.local and not s.has("hit") and is_instance_valid(s.owner) and s.owner.get("fb"):
+			Progress.note("miss") # your own round missed: the hit streak ends
 		if s.t > 0.0:
 			shots[n] = s
 			multimesh.set_instance_transform(n, Transform3D(s.b, s.p))

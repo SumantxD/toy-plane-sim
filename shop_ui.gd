@@ -58,7 +58,7 @@ func _init(m: Node, s: Shop) -> void:
 		row.add_theme_constant_override("separation", 6)
 		box.add_child(row)
 		for i in Shop.CATEGORIES.size():
-			var t := Menus.icon_tile(row, ["SETS", "PAINT", "TRAILS", "KILL FX"][i], ["gift", "paint", "trail", "burst"][i], func():
+			var t := Menus.icon_tile(row, ["SETS", "PAINT", "TRAILS", "EFFECTS"][i], ["gift", "paint", "trail", "burst"][i], func():
 				cat_sel.set_index(i)
 				cat_sel.changed.emit(i), main, 13, Vector2(0, 76))
 			t.size_flags_horizontal = Control.SIZE_EXPAND_FILL

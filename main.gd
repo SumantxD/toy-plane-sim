@@ -83,6 +83,8 @@ var mp_open := false
 var mission_root: Control # phone: solo mission setup over the home screen
 var mission_open := false
 var play_sub := Label.new()
+var pilot_card: Button # phone home: level + today's challenges (tap: the Hangar's PILOT tab)
+var pilot_line := Label.new() # desktop menu: the same, one line
 var home_pic := TextureRect.new()
 var home_world := Label.new()
 var home_mode := Label.new()
@@ -108,7 +110,7 @@ var settings_root: Control
 var howto_root: Control
 var credits_root: Control
 var results_root: Control
-var results_title := Label.new()
+var results_ui: ResultsUI
 var results_grid := GridContainer.new()
 var end_btn: Button
 var stats_label := Label.new()
@@ -213,6 +215,7 @@ func _ready() -> void:
 		f.call(false) # nothing ticks until the world and UI exist
 	await _boot(0.05, "Starting...")
 	Settings.load_saved()
+	Progress.on = not bot and not spectating
 	plane_choice = Settings.values.last_plane if Settings.values.last_plane in Planes.ORDER else "cub"
 	shop.name = "Shop"
 	add_child(shop)
@@ -525,10 +528,38 @@ func _open_mp() -> void:
 
 
 # PLAY / QUICK BATTLE / LAUNCH: straight into the last mission set up (solo_battle applies it).
+# The very first PLAY flies the short training first.
 func quick_battle() -> void:
 	mission_open = false
 	hangar_open = false
+	if not Settings.values.onboarded and int(Settings.values.matches) == 0 and not bot:
+		start_training()
+		return
+	if gs.phase != "menu": # from a running flight (training's SKIP)
+		training_battle(false)
+		return
 	solo_battle()
+	_start()
+
+
+func start_training() -> void:
+	howto_root.hide()
+	mission_open = false
+	hangar_open = false
+	free_flight()
+	training.begin()
+	intro_t = 0.0
+
+
+# Out of the training flight into a battle: Very Easy Team Battle when it was finished, else the last mission.
+func training_battle(easy := true) -> void:
+	_clear_planes()
+	gs.phase = "menu"
+	await get_tree().process_frame
+	solo_battle()
+	if easy:
+		request_mode(3)
+		gs.skill = 0
 	_start()
 
 
@@ -597,7 +628,7 @@ func _on_connected() -> void:
 	netlog("connected to %s v%s" % [last_target if last_target else "localhost:%d" % PORT, VERSION])
 	var fv := OS.get_cmdline_user_args().find("--fake-version") # test hook
 	register.rpc_id(1, {name = name_edit.text, token = _player_token(), version = OS.get_cmdline_user_args()[fv + 1] if fv >= 0 else VERSION, plane = Planes.ORDER.pick_random() if bot else plane_choice,
-		sticker = randi() % Planes.STICKERS.size() if bot else Settings.values.get("sticker", 0), banner = randi() % Planes.BANNERS.size() if bot else my_look()[1],
+		sticker = randi() % Planes.STICKERS.size() if bot else my_look()[0], banner = randi() % Planes.BANNERS.size() if bot else my_look()[1],
 		livery = 0 if bot else my_look()[2], killfx = 0 if bot else my_look()[3]})
 
 
@@ -792,7 +823,7 @@ func _add_player(id: int, pilot: String) -> void:
 	if not clean_name(pilot):
 		pilot = ""
 	var counts := _team_counts()
-	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in TEAM_MODES or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, plane = "cub"}
+	gs.players[id] = {name = pilot if pilot else "Pilot%d" % (id % 1000), team = 0 if not gs.mode in TEAM_MODES or counts[0] <= counts[1] else 1, kills = 0, deaths = 0, revives = 0, dmg = 0, assists = 0, plane = "cub"}
 
 
 # ---------- connection health: pings, stalls, reconnects, goodbyes ----------
@@ -1019,6 +1050,10 @@ func sync(state: Dictionary, full: bool) -> void:
 	elif gs.get("world", 0) != Worlds.index:
 		_build_world_content(gs.world)
 	if gs.phase != was and gs.phase == "playing":
+		if gs.players.has(multiplayer.get_unique_id()):
+			Progress.begin(gs.mode, gs.skill)
+		else:
+			Progress.cur = {}
 		Sfx.ui(self, Sfx.CONFIRM, -4.0)
 		if objectives:
 			objectives.on_match_start()
@@ -1027,6 +1062,8 @@ func sync(state: Dictionary, full: bool) -> void:
 			battlefield.reset_guns()
 			for id in battlefield.crates.keys():
 				battlefield.remove_crate(id)
+	if gs.phase != was and gs.phase == "ended":
+		_match_over()
 	if gs.phase != was and gs.phase != "playing":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		lobby_cam.make_current()
@@ -1195,7 +1232,8 @@ func request_look(sticker: int, banner: int, livery: int, killfx: int) -> void:
 # trying them on a solo flight). Peers can't check a purchase, so this is the honest client's word.
 func my_look() -> Array:
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
-	return [int(Settings.values.get("sticker", 0)), shop.wear("banner", solo), shop.wear("livery", solo), shop.wear("killfx", solo)]
+	var st := int(Settings.values.get("sticker", 0))
+	return [st if Progress.has("sticker:%d" % st) else 0, shop.wear("banner", solo), shop.wear("livery", solo), shop.wear("killfx", solo)]
 
 
 func send_look() -> void:
@@ -1279,6 +1317,9 @@ func _start() -> void:
 		gs.players[id].kills = 0
 		gs.players[id].deaths = 0
 		gs.players[id].revives = 0
+		gs.players[id].dmg = 0
+		gs.players[id].assists = 0
+	gs.rematch = []
 	gs.team_kills = [0, 0]
 	gs.ai_board = {}
 	if objectives:
@@ -1318,29 +1359,107 @@ func _start() -> void:
 	_push()
 
 
+const RESULTS_WAIT := 30.0 # online: the room drops back to its lobby on its own after this
+
 func _end(text: String) -> void:
 	if gs.phase != "playing":
 		return
 	gs.phase = "ended"
 	gs.msg = text
+	gs.rematch = []
 	print("END: ", text, "\n", _scoreboard())
 	netlog("end: " + text)
 	_push()
 	var id: int = gs.match_id
-	get_tree().create_timer(8.0).timeout.connect(func():
+	var auto := "--start" in OS.get_cmdline_user_args() # test servers loop matches
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer and not auto:
+		return # solo: the results screen waits for PLAY AGAIN / HANGAR / HOME
+	get_tree().create_timer(8.0 if auto else RESULTS_WAIT).timeout.connect(func():
 		if gs.match_id == id and gs.phase == "ended":
-			for c in players.get_children():
-				c.queue_free()
-			if TouchControls.phone() and multiplayer.multiplayer_peer is OfflineMultiplayerPeer: # phone solo: home, where PLAY goes again
-				gs.phase = "menu"
-				sync(gs.duplicate(true), true)
-				return
-			gs.phase = "lobby"
-			_push()
-			if "--start" in OS.get_cmdline_user_args():
+			_to_lobby()
+			if auto:
 				get_tree().create_timer(2.0).timeout.connect(func():
 					if gs.phase == "lobby" and gs.match_id == id: # nobody started one by hand meanwhile
 						_start()))
+
+
+func _clear_planes() -> void:
+	for c in players.get_children():
+		players.remove_child(c) # out of the tree now: the next match's planes reuse the names
+		c.queue_free()
+
+
+func _to_lobby() -> void:
+	_clear_planes()
+	gs.phase = "lobby"
+	_push()
+
+
+# The match just ended on this device: your progress, then the results screen.
+func _match_over() -> void:
+	var me: Dictionary = gs.players.get(multiplayer.get_unique_id(), {})
+	var title := _outcome()
+	var rep := Progress.finish(title == "VICTORY", int(me.get("dmg", 0))) if not me.is_empty() else {}
+	results_ui.voted = -1
+	results_ui.open(title, gs.msg, rep)
+
+
+func _outcome() -> String:
+	if gs.msg.begins_with("Draw"):
+		return "DRAW"
+	if gs.mode == 0:
+		return "VICTORY" if gs.msg.ends_with("Mission complete!") else "DEFEAT"
+	for t in 2:
+		if gs.mode != 2 and gs.msg.begins_with(TEAM_NAMES[t]):
+			return "VICTORY" if t == _my_team() else "DEFEAT"
+	return "MATCH OVER"
+
+
+# Results PLAY AGAIN: solo / host restart the same mission at once; a guest asks the host.
+func play_again() -> void:
+	if gs.phase != "ended":
+		return
+	if multiplayer.is_server():
+		if gs.mode == 1 and 0 in _team_counts():
+			_to_lobby() # a dogfight lost its other team: the lobby, not an empty sky
+			return
+		_clear_planes()
+		await get_tree().process_frame
+		if gs.phase == "ended":
+			_start()
+	elif results_ui.voted != gs.match_id:
+		results_ui.voted = gs.match_id
+		request_rematch.rpc_id(1, gs.match_id)
+		results_ui.refresh()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_rematch(mid: int) -> void:
+	if not multiplayer.is_server() or stale(mid) or gs.phase != "ended" or not _allow(_sender(), "rematch", 0.5, 2.0):
+		return
+	var id := _sender()
+	if gs.players.has(id) and not id in gs.rematch:
+		gs.rematch.append(id)
+		_feed("%s wants a rematch" % gs.players[id].name)
+		_push()
+
+
+func results_home() -> void:
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		_clear_planes()
+		gs.phase = "menu"
+		sync(gs.duplicate(true), true)
+	else:
+		_leave()
+
+
+# Solo: your plane and looks (the phone Hangar, the lobby on desktop); a host takes the room to its lobby.
+func results_hangar() -> void:
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer and TouchControls.phone():
+		results_home()
+		hangar_ui.open()
+	elif multiplayer.is_server():
+		_to_lobby()
 
 
 # Keyboard menus: whenever a panel is up and nothing has focus, focus its first control, so
@@ -1425,6 +1544,9 @@ func _process(dt: float) -> void:
 		minimap.queue_redraw()
 	_track_seen(dt)
 	_tick_intro(dt)
+	if gs.phase == "playing" and count_local <= 0.0 and not Progress.cur.is_empty():
+		var me := _plane(multiplayer.get_unique_id())
+		Progress.tick(dt, me != null and me.alive)
 	if netstats:
 		var pt := Performance.get_monitor(Performance.TIME_PROCESS)
 		netstats.proc = netstats.get("proc", 0.0) + pt
@@ -1737,6 +1859,7 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 			dmg = _off_guard(a, t, dmg)
 		if t.get("buffs") and t.buffs.has("shield"):
 			dmg = ceili(dmg * 0.5)
+		_tally_hit(a, t, dmg)
 		var c: PackedFloat32Array = t.comps.duplicate()
 		if comp >= 0:
 			c[comp] = maxf(c[comp] - dmg / (t.max_hp * 0.45), 0.0) # a part dies after ~45% of hp worth of hits
@@ -1744,6 +1867,62 @@ func apply_hit(a: Node, t: Node, weapon: int, comp := -1) -> void:
 		PilotAI.on_hit(t, a, self)
 		if t.hp <= 0:
 			kill(t, a)
+
+
+const PLANE_ROLES := ["pilot", "wing", "fighter", "bomber", "striker"]
+
+# Host: per-pilot damage (scoreboard, results), who hurt whom lately (assists), and the victim's HUD arrow.
+func _tally_hit(a: Node, t: Node, dmg: int) -> void:
+	var now := Time.get_ticks_msec()
+	var aid := int(str(a.name))
+	if a.role == "pilot" and gs.players.has(aid):
+		gs.players[aid].dmg = int(gs.players[aid].get("dmg", 0)) + mini(dmg, t.hp)
+		if t.role in PLANE_ROLES:
+			var hitters: Dictionary = t.get_meta("hitters", {})
+			hitters[str(a.name)] = now
+			t.set_meta("hitters", hitters)
+	if t.role == "pilot" and now > int(t.get_meta("hurt_ms", 0)):
+		t.set_meta("hurt_ms", now + 250)
+		var pid: int = t.get_multiplayer_authority()
+		if pid == multiplayer.get_unique_id():
+			t.hurt_from(a.global_position)
+		elif pid in multiplayer.get_peers():
+			t.hurt_from.rpc_id(pid, a.global_position)
+
+
+# Host: everyone who hit the victim in its last 10 s (and didn't finish it) gets an assist.
+func _assists(victim: Node, killer: Node) -> void:
+	if not victim.has_meta("hitters"):
+		return
+	var h: Dictionary = victim.get_meta("hitters")
+	victim.remove_meta("hitters")
+	var now := Time.get_ticks_msec()
+	for n in h:
+		var p := players.get_node_or_null(n)
+		if p and p != killer and now - h[n] < 10000 and gs.players.has(int(n)):
+			gs.players[int(n)].assists = int(gs.players[int(n)].get("assists", 0)) + 1
+			_credit(p, "assist", victim.pilot)
+
+
+# Host -> one pilot: what they just did, for their HUD and their own (on-device) progress.
+func _credit(p: Node, kind: String, what: String) -> void:
+	var id := int(str(p.name))
+	if p.role != "pilot" or not gs.players.has(id):
+		return
+	if id == multiplayer.get_unique_id():
+		credit(kind, what)
+	elif id in multiplayer.get_peers():
+		credit.rpc_id(id, kind, what)
+
+
+@rpc("authority", "call_local", "reliable")
+func credit(kind: String, what: String) -> void:
+	var stat: String = {kill = "kills", assist = "assists", balloon = "balloons", prize = "prizes"}.get(kind, "")
+	if stat:
+		Progress.note(stat)
+	var me := _plane(multiplayer.get_unique_id())
+	if me and me.fb:
+		me.fb.on_credit(kind, what.left(20))
 
 
 func kill(victim: Node, killer: Node, quiet := false) -> void:
@@ -1766,6 +1945,9 @@ func kill(victim: Node, killer: Node, quiet := false) -> void:
 	if killer and killer.role == "pilot" and gs.players.has(int(str(killer.name))):
 		gs.players[int(str(killer.name))].kills += 1
 		sfx_event.rpc("kill", killer.team, victim.position, str(killer.name))
+	if killer and killer.role == "pilot":
+		_credit(killer, "balloon" if victim.role == "balloon" else ("kill" if victim.role in PLANE_ROLES else "destroy"), victim.pilot)
+	_assists(victim, killer)
 	if killer and killer.team != victim.team:
 		gs.team_kills[killer.team] += 1
 	if killer and killer.role == "wing":
@@ -2020,6 +2202,7 @@ func _award_prize(killer: Node) -> void:
 		_:
 			killer.buff.rpc(pr.id, pr.secs)
 	_feed("%s popped the prize balloon: %s!" % [killer.pilot, pr.name])
+	_credit(killer, "prize", pr.name)
 	sfx_event.rpc("prize", killer.team, killer.position, str(killer.name))
 
 
@@ -2355,6 +2538,8 @@ func _refresh_ui() -> void:
 		status.offset_left = x
 		status.offset_right = x + status.custom_minimum_size.x
 	lobby_root.visible = gs.phase == "lobby" and not shopping
+	if gs.phase == "menu":
+		_refresh_pilot()
 	if gs.phase == "playing": # lobby widgets are hidden mid-match: they refresh once it's back
 		_refresh_preview()
 		$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu"
@@ -2414,24 +2599,44 @@ func _refresh_ui() -> void:
 	_refresh_preview()
 	$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu" # not hanging over the home-screen flyby
 	if gs.phase == "ended":
-		results_title.text = gs.msg
+		results_ui.refresh()
 		if offer_match != gs.match_id:
 			offer_match = gs.match_id
 			_fill_offer()
 		for c in results_grid.get_children():
 			c.queue_free()
-		for h in ["PILOT", "TEAM", "PLANE", "KILLS", "DEATHS", "REVIVES"]:
+		for h in ["PILOT", "TEAM", "PLANE", "KILLS", "DEATHS", "REVIVES", "DAMAGE"]:
 			_cell(h, Menus.AMBER)
 		for id in gs.players:
 			var p: Dictionary = gs.players[id]
-			for v in [p.name, TEAM_NAMES[p.team], Planes.variant(p.get("plane", "cub")).name, p.kills, p.deaths, p.get("revives", 0)]:
+			for v in [p.name, TEAM_NAMES[p.team], Planes.variant(p.get("plane", "cub")).name, p.kills, p.deaths, p.get("revives", 0), p.get("dmg", 0)]:
 				_cell(str(v), Color.WHITE)
 		var ai_rows: Array = gs.ai_board.keys()
 		ai_rows.sort_custom(func(a, b): return gs.ai_board[a].kills > gs.ai_board[b].kills)
 		for n in ai_rows.slice(0, maxi(8 - gs.players.size(), 0) if TouchControls.phone() else 6): # phones: the table fits the screen
 			var r: Dictionary = gs.ai_board[n]
-			for v in ["%s (AI)" % n, TEAM_NAMES[r.team], r.style, r.kills, "", ""]:
+			for v in ["%s (AI)" % n, TEAM_NAMES[r.team], r.style, r.kills, "", "", ""]:
 				_cell(str(v), Color(0.75, 0.85, 1.0))
+
+
+# Home: your level and today's three challenges (quiet: no timers, nothing to lose by skipping a day).
+func _refresh_pilot() -> void:
+	var lv := Progress.level()
+	var d := Progress.daily()
+	var done: int = d.done.size()
+	pilot_line.text = "PILOT LEVEL %d  %s   ·   TODAY'S CHALLENGES %d/3" % [lv, Progress.title(lv).to_upper(), done]
+	if not pilot_card:
+		return
+	pilot_card.visible = int(Settings.values.matches) > 0 # a first-time pilot sees only PLAY
+	pilot_card.find_child("Title", true, false).text = "LEVEL %d  ·  %s" % [lv, Progress.title(lv).to_upper()]
+	pilot_card.find_child("Bar", true, false).value = 100.0 * Progress.level_frac(int(Settings.values.xp))
+	pilot_card.find_child("Level", true, false).queue_redraw()
+	pilot_card.find_child("Daily0", true, false).text = "TODAY'S CHALLENGES" if done < 3 else "TODAY'S CHALLENGES: ALL DONE!"
+	for i in 3:
+		var ch := Progress.challenge(d.ids[i])
+		var l: Label = pilot_card.find_child("Daily%d" % (i + 1), true, false)
+		l.text = ("DONE  " + ch.text) if d.done.has(ch.id) else "%s   %d/%d" % [ch.text, d.prog.get(ch.id, 0), ch.goal]
+		l.modulate = Color(0.6, 1.0, 0.65) if d.done.has(ch.id) else Color.WHITE
 
 
 func _carrying_flag(n: String) -> bool:
@@ -2444,12 +2649,17 @@ func _carrying_flag(n: String) -> bool:
 func _fill_looks() -> void:
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
 	var tag := func(item: String) -> String:
-		if shop.owns(item):
+		var lv := Progress.reward_level(item)
+		if lv > 0:
+			return "" if Progress.has(item) else "Locked: reach pilot level %d" % lv
+		if item.begins_with("sticker:") or shop.owns(item):
 			return ""
 		return ("Locked: get it in the Shop" if TouchControls.phone() else "Locked: in the Hangar Shop") + ("  (try it free in Free Flight)" if solo else "")
 	livery_sel.set_items(range(Planes.LIVERIES.size()).map(func(i): return {title = Planes.LIVERIES[i].name.to_upper(), sub = tag.call("livery:%d" % i)}))
 	banner_sel.set_items(range(Planes.trail_names().size()).map(func(i): return {title = Planes.trail_names()[i].to_upper(), sub = tag.call("trail:%d" % i)}))
 	killfx_sel.set_items(range(Planes.KILL_FX.size()).map(func(i): return {title = Planes.KILL_FX[i].to_upper(), sub = tag.call("killfx:%d" % i)}))
+	sticker_sel.set_items(range(Planes.STICKERS.size()).map(func(i): return {title = Planes.STICKERS[i].to_upper(), sub = tag.call("sticker:%d" % i)}))
+	sticker_sel.set_index(Settings.values.sticker)
 	livery_sel.set_index(Settings.values.livery)
 	banner_sel.set_index(Settings.values.banner)
 	killfx_sel.set_index(Settings.values.killfx)
@@ -2470,6 +2680,9 @@ func _fill_offer() -> void:
 		var l := Label.new()
 		l.text = "Spotted: %s flew %s" % [p.name, ", ".join(items.map(func(it): return Shop.PRODUCTS[shop.product_for(it)].title))]
 		l.modulate = Color(1, 1, 1, 0.8)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 300
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
 		var it0: String = items[0]
 		_button_in(row, "SEE IT", func(): shop_ui.open(shop.product_for(it0)))
@@ -2487,6 +2700,9 @@ func _fill_offer() -> void:
 	var l := Label.new()
 	l.text = "Win in style: %s (%s)" % [Shop.PRODUCTS[p].title, shop.price(p)]
 	l.modulate = Menus.AMBER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 300
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	_button_in(row, "PREVIEW", func(): shop_ui.open(p))
 	_button_in(row, "NOT NOW", func():
@@ -2507,7 +2723,8 @@ func _cell(text: String, color: Color) -> void:
 	var l := Label.new()
 	l.text = text
 	l.modulate = color
-	l.custom_minimum_size.x = 110
+	l.custom_minimum_size.x = 160 if results_grid.get_child_count() % results_grid.columns == 0 else 100
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS # long callsigns can't push the board off a phone
 	results_grid.add_child(l)
 
 
@@ -2874,6 +3091,8 @@ func _build_ui() -> void:
 	else:
 		Menus.big_title(box, "TOY PLANE", 60)
 		Menus.big_title(box, "ARCADE", 60).add_theme_color_override("font_color", Menus.AMBER)
+		pilot_line.add_theme_color_override("font_color", Menus.AMBER)
+		box.add_child(pilot_line)
 		var gap := Control.new()
 		gap.custom_minimum_size.y = 16
 		box.add_child(gap)
@@ -3096,21 +3315,14 @@ func _build_ui() -> void:
 	if TouchControls.phone(): # under the HUD's readout lines
 		pause_root.get_theme_stylebox("panel").content_margin_top = 96
 
-	box = VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	results_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	results_title.add_theme_font_size_override("font_size", 32)
-	results_title.modulate = Menus.AMBER
-	box.add_child(results_title)
-	results_grid.columns = 6
-	box.add_child(results_grid)
+	results_ui = ResultsUI.new(self)
+	results_grid.columns = 7
+	results_ui.scores.add_child(results_grid)
 	offer_box.add_theme_constant_override("separation", 4)
-	box.add_child(offer_box)
-	var back := Label.new()
-	back.text = "Back in a few seconds..." if TouchControls.phone() else "Back to the lobby in a few seconds..."
-	back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(back)
-	results_root = _panel(ui, box)
+	results_ui.scores.add_child(offer_box)
+	ui.add_child(results_ui)
+	results_root = results_ui
+	Menus.thumbs(results_ui)
 
 	box = VBoxContainer.new()
 	_title(box, "SETTINGS")
@@ -3148,6 +3360,7 @@ func _build_ui() -> void:
 		var pg := Menus.Pager.new(PAGE_TEXT, self)
 		pg.set_pages(Array(Menus.howto_text().split("\n\n")))
 		box.add_child(pg)
+		Menus.tile(pg.row, "TRAINING", start_training, self).name = "Training"
 		Menus.tile(pg.row, "GOT IT", func(): howto_root.hide(), self)
 	else:
 		var how := RichTextLabel.new()
@@ -3155,8 +3368,11 @@ func _build_ui() -> void:
 		how.custom_minimum_size = Vector2(760, 420 if TouchControls.on() else 620) # scrolls, so "Got it" stays on screen
 		how.text = Menus.howto_text()
 		box.add_child(how)
+		_button(box, "Training flight", start_training).name = "Training"
 		_button(box, "Got it", func(): howto_root.hide())
 	howto_root = _panel(ui, box)
+	var tb: Control = howto_root.find_child("Training", true, false)
+	howto_root.visibility_changed.connect(func(): tb.visible = gs.phase == "menu") # replay the first flight from home only
 
 	box = VBoxContainer.new()
 	_title(box, "CREDITS")
@@ -3183,6 +3399,13 @@ func _build_ui() -> void:
 		hangar_ui = HangarUI.new(self, shop)
 		ui.add_child(hangar_ui)
 	ui.add_child(shop_ui)
+	var tl := CanvasLayer.new() # over the plane HUD and the touch buttons: SKIP is always on top
+	tl.layer = 3
+	add_child(tl)
+	training = Training.new(self)
+	training.theme = ui_theme
+	tl.add_child(training)
+	_refresh_pilot()
 	for r in [pause_root, results_root, settings_root, touch_root, howto_root, credits_root, lobby_root]:
 		r.hide()
 	for r in [settings_root, touch_root, howto_root, credits_root]:
@@ -3242,6 +3465,47 @@ func _build_home(ui: Control) -> void:
 	for it in [["HOW TO PLAY", "help", "howto_root"], ["SETTINGS", "gear", "settings_root"]]: # built after this
 		var small := Menus.icon_tile(bar, it[0], it[1], func(): get(it[2]).show(), self, 13, Vector2(124, 84))
 		small.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	pilot_card = Menus.tile(menu_root, "", func(): hangar_ui.open("PILOT"), self, 14, Vector2(360, 146))
+	pilot_card.name = "PilotCard"
+	pilot_card.position = Vector2(l, maxf(inset.y, 12.0) + 96.0)
+	pilot_card.add_theme_stylebox_override("normal", Menus._box(Color(0.03, 0.05, 0.1, 0.72), Color(1, 1, 1, 0.25), 2, 8))
+	pilot_card.add_theme_stylebox_override("hover", pilot_card.get_theme_stylebox("normal"))
+	var pcol := VBoxContainer.new()
+	pcol.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 10)
+	pcol.add_theme_constant_override("separation", 2)
+	pilot_card.add_child(pcol)
+	var ph := HBoxContainer.new()
+	ph.add_theme_constant_override("separation", 10)
+	pcol.add_child(ph)
+	var lvb := Control.new()
+	lvb.name = "Level"
+	lvb.custom_minimum_size = Vector2(42, 42)
+	lvb.draw.connect(func(): ResultsUI.draw_level(lvb, Progress.level()))
+	ph.add_child(lvb)
+	var pt := VBoxContainer.new()
+	pt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pt.alignment = BoxContainer.ALIGNMENT_CENTER
+	ph.add_child(pt)
+	var pn := Label.new()
+	pn.name = "Title"
+	pn.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	pn.add_theme_font_size_override("font_size", 16)
+	pt.add_child(pn)
+	var pb := ProgressBar.new()
+	pb.name = "Bar"
+	pb.show_percentage = false
+	pb.custom_minimum_size.y = 10
+	pt.add_child(pb)
+	for i in 4:
+		var dl := Label.new()
+		dl.name = "Daily%d" % i
+		dl.add_theme_font_size_override("font_size", 11 if i == 0 else 13)
+		dl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		dl.custom_minimum_size.x = 200
+		if i == 0:
+			dl.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+			dl.modulate = Color(1, 1, 1, 0.6)
+		pcol.add_child(dl)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	_corner(col, Vector2(-r - 340, -b - 100), Vector2(340, 100), true)
@@ -3781,6 +4045,7 @@ var shop := Shop.new()
 var shop_ui: ShopUI
 var hangar_ui: HangarUI # phone: your plane and looks
 var hangar_open := false
+var training: Training
 var offer_match := -1 # results offer worked out once per match
 var offer_box := VBoxContainer.new()
 var livery_sel: Menus.Selector
@@ -3878,7 +4143,12 @@ func sfx_event(kind: String, team: int, at: Vector3, who: String) -> void:
 			Sfx.ui(self, Sfx.RETURN, -6.0)
 		"capture":
 			Sfx.ui(self, Sfx.FANFARE, -4.0 if mine else -10.0, 1.0 if mine else 0.7)
+			if me:
+				Progress.note("captures")
+				Progress.note("objectives")
 		"deliver":
+			if me:
+				Progress.note("objectives")
 			if mine:
 				Sfx.ui(self, Sfx.BELL, -6.0 if not me else -2.0)
 		"crate":

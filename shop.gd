@@ -102,6 +102,8 @@ func owns_product(p: String) -> bool: # bought, or every piece of it came in a s
 
 
 func owns(item: String) -> bool:
+	if Progress.reward_level(item) > 0: # earned on the pilot level track, never sold
+		return Progress.has(item)
 	if _free(item) or backend == "desktop":
 		return true
 	for p in owned:

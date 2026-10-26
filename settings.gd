@@ -5,9 +5,10 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const DEFAULTS := {volume = 0.8, sensitivity = 1.0, invert_y = false, fullscreen = false, quality = 1, name = "", cam = 1, matches = 0, player_id = "", turn_urls = "", turn_username = "", turn_credential = "", sticker = 0, banner = 0, taunts = true, trails = true, last_world = 0, last_mode = 3, last_size = 1, last_skill = 0, last_plane = "cub",
 	touch_layout = {}, touch_opacity = 0.8, touch_lefty = false, touch_fixed = false, tilt = false, autofire = false, vibrate = true,
-	livery = 0, killfx = 0, offer_dismiss = {}, review_at = 0, show_fps = false}
+	livery = 0, killfx = 0, offer_dismiss = {}, review_at = 0, show_fps = false,
+	xp = 0, best = {}, last = {}, badges = {}, daily = {}, onboarded = false} # progression: progress.gd, this device only
 
-static var values := DEFAULTS.duplicate()
+static var values := DEFAULTS.duplicate(true)
 
 
 static func load_saved() -> void:

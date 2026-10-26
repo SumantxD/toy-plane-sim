@@ -110,8 +110,7 @@ var cam: Camera3D
 var hud: Control
 var hud_text: Label # local plane only: a never-parented Label leaked once per freed plane
 var aim_yaw := 0.0
-var tail_flash := 0.0 # AMBUSH! / TAIL SHOT text after an off-guard hit (the host decides)
-var tail_tag := ""
+var fb: Feedback # local plane only: hit markers, banners, damage arrows (feedback.gd)
 var born_ms := Time.get_ticks_msec() # no off-guard bonus against a fresh spawn
 var steer_t := 9.0 # seconds since the player last steered (auto-follow waits for hands off)
 var chase_dir := Vector3.ZERO # target heading last frame: a hard jink breaks auto-follow
@@ -187,6 +186,7 @@ func _ready() -> void:
 		hide() # until its first snapshot: by then the spawn position is stale
 	if is_local():
 		tag.hide()
+		fb = Feedback.new(self)
 		cam = Camera3D.new()
 		cam.doppler_tracking = Camera3D.DOPPLER_TRACKING_IDLE_STEP
 		if Sfx.enabled:
@@ -271,6 +271,7 @@ func _process(dt: float) -> void:
 			shake = maxf(shake - dt * 2.5, 0.0)
 			cam.global_position += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 1.2
 		cam.fov = lerpf(cam.fov, lerpf(70.0, 90.0, clampf((velocity.length() - 40.0) / 110.0, 0.0, 1.0)), 1.0 - exp(-3.0 * dt))
+		hud.visible = main.gs.phase == "playing" # not over the results screen
 		hud_t -= dt
 		if hud_t <= 0.0: # the readout at 10 Hz
 			hud_t = 0.1
@@ -309,7 +310,7 @@ func _audio(dt: float) -> void:
 		gain *= engine_snd.get_meta("gate", 1.0)
 	var k := 1.0 - exp(-6.0 * dt)
 	engine_snd.pitch_scale = lerpf(engine_snd.pitch_scale, pitch, k)
-	engine_snd.volume_linear = lerpf(engine_snd.volume_linear, gain * (0.12 if is_local() else 0.45), k * 2.0)
+	engine_snd.volume_linear = lerpf(engine_snd.volume_linear, gain * (0.12 if is_local() else 0.45), minf(k * 2.0, 1.0)) # a long frame must not overshoot below 0 (NaN dB)
 	if wind_snd:
 		wind_snd.volume_linear = lerpf(wind_snd.volume_linear, clampf((spd - 30.0) / 130.0, 0.0, 1.0) * 0.3 * gain, k)
 		wind_snd.pitch_scale = 0.8 + 0.4 * f
@@ -458,6 +459,7 @@ func _shoot(dt: float) -> void:
 		shots_out += 1
 		if is_local():
 			Sfx.ui(main, Sfx.GUNS.get(kind, Sfx.GUN), -3.0, randf_range(0.93, 1.07)) # your own guns: loud and close
+			Progress.note("shots")
 		else:
 			Sfx.at(main, position, Sfx.GUNS.get(kind, Sfx.GUN), 2.0, 1000.0)
 	_track_lock(dt)
@@ -483,6 +485,8 @@ func _shoot(dt: float) -> void:
 	if wants_rocket and rocket_cd <= 0.0 and rockets_left > 0:
 		rockets_left -= 1
 		rocket_cd = 1.0 if not is_ai else 8.0
+		if is_local():
+			Progress.note("shots")
 		main.rockets.launch(self, lock if lock or is_ai else (lock_on if lock_on else find_lock(0.6))) # players: a quick tap still homes on what's ahead
 
 
@@ -516,7 +520,10 @@ func flare() -> void:
 			main.tally("flare_empty")
 			return
 		flares_left -= 1
-	main.rockets.decoy(self)
+	var shaken: int = main.rockets.decoy(self)
+	if fb and shaken > 0:
+		Progress.note("dodges", shaken)
+		fb.on_credit("dodge", "")
 	Sfx.at(main, position, Sfx.FLARE, 2.0, 1500.0)
 	Fx.flare_burst(self)
 
@@ -563,17 +570,26 @@ func sees(other: Node) -> bool:
 
 @rpc("any_peer", "call_local", "reliable")
 func hit_tag(tag: String) -> void:
-	if multiplayer.get_remote_sender_id() in [0, 1]:
-		tail_tag = tag
-		tail_flash = 0.9
-		if tag == "AMBUSH!":
-			Sfx.ui(main, Sfx.HEAVY_HITS.pick_random(), -2.0, 1.3)
+	if multiplayer.get_remote_sender_id() in [0, 1] and fb:
+		fb.on_tag(tag)
+
+
+# Host: you were hit from `at` (throttled), so the HUD can point at the attacker.
+@rpc("any_peer", "call_local", "unreliable")
+func hurt_from(at: Vector3) -> void:
+	if multiplayer.get_remote_sender_id() in [0, 1] and fb and at.is_finite():
+		fb.on_hurt(at)
 
 
 func report_hit(target: Node, weapon := 0, comp := -1) -> void:
 	if is_local():
 		Sfx.ui(main, (Sfx.HEAVY_HITS if weapon > 0 else Sfx.HITS).pick_random(), -10.0 if weapon == 0 else -4.0) # hit marker
 		TouchControls.buzz(8 if weapon == 0 else 40)
+		if weapon < 2:
+			fb.on_hit(weapon)
+			Progress.note("hits")
+			if weapon == 1:
+				Progress.note("rhits")
 	if multiplayer.is_server():
 		main.apply_hit(self, target, weapon, comp)
 	else:
@@ -785,7 +801,7 @@ func _look() -> Array:
 		return [clampi(int(info.get("sticker", 0)), 0, Planes.STICKERS.size() - 1), clampi(int(info.get("banner", 0)), 0, Planes.trail_names().size() - 1),
 			clampi(int(info.get("livery", 0)), 0, Planes.LIVERIES.size() - 1)]
 	var h := absi(hash(pilot)) # AI pilots wear free looks only: no fake social proof for the shop
-	return [h % Planes.STICKERS.size(), 0 if h % 3 else (h / 7) % Planes.BANNERS.size(), 0]
+	return [h % Planes.FREE_STICKERS, 0 if h % 3 else (h / 7) % Planes.BANNERS.size(), 0]
 
 
 # Smoke trails on this screen: off when the setting says so. Your own trail fades with how straight
@@ -967,6 +983,8 @@ func die(fx: bool) -> void:
 		return
 	alive = false
 	died_ms = Time.get_ticks_msec()
+	if fb:
+		Progress.on_death()
 	body.hide()
 	tag.hide()
 	_show_damage()
@@ -1109,9 +1127,7 @@ func _draw_hud() -> void:
 		var p := cam.unproject_position(nose) # where your guns point
 		hud.draw_line(p - Vector2(10, 0), p + Vector2(10, 0), Color.YELLOW, 2)
 		hud.draw_line(p - Vector2(0, 10), p + Vector2(0, 10), Color.YELLOW, 2)
-	if tail_flash > 0.0:
-		tail_flash -= get_process_delta_time()
-		hud.draw_string(ThemeDB.fallback_font, c + Vector2(-90, -40), tail_tag, HORIZONTAL_ALIGNMENT_CENTER, 180, 24 if tail_tag == "AMBUSH!" else 18, (Color(1.0, 0.75, 0.2) if tail_tag == "AMBUSH!" else Color.WHITE) * Color(1, 1, 1, minf(tail_flash / 0.3, 1.0)))
+	fb.draw(hud, cam, get_process_delta_time())
 	var x := maxf(20.0, main.touch._pad()) if main.touch else 20.0 # clear of the notch / Dynamic Island
 	hud_text.position.x = x
 	hud.draw_rect(Rect2(x, 40, 200, 10), Color(0, 0, 0, 0.5))

@@ -2,8 +2,9 @@ class_name HangarUI
 extends Control
 
 # Phone Hangar: your plane and every look as picture cards. Tap one you own to wear it (saved at once,
-# flown next match); a locked one opens the shop on it. The turntable shows what you'll fly.
-const TABS := [["PLANE", "plane"], ["PAINT", "paint"], ["TRAIL", "trail"], ["STICKER", "sticker"], ["KILL FX", "burst"]]
+# flown next match); a paid one opens the shop on it, an earned one says the pilot level that unlocks it.
+# PILOT: your level, title, next reward and the badge wall. The turntable shows what you'll fly.
+const TABS := [["PLANE", "plane"], ["PAINT", "paint"], ["TRAIL", "trail"], ["STICKER", "sticker"], ["EFFECT", "burst"], ["PILOT", "medal"]]
 const FX_COLORS := [Color(0.6, 0.6, 0.65), Color(1.0, 0.45, 0.8), Color(0.55, 0.85, 1.0), Color(1.0, 0.5, 0.12)]
 var main: Node
 var shop: Shop
@@ -13,6 +14,10 @@ var grid := GridContainer.new()
 var cards: Array = []
 var note := Label.new()
 var fly_btn: Button
+var pilot := HBoxContainer.new()
+var pilot_title := Label.new()
+var pilot_bar := ProgressBar.new()
+var pilot_next := Label.new()
 
 
 func _init(m: Node, s: Shop) -> void:
@@ -41,7 +46,27 @@ func _init(m: Node, s: Shop) -> void:
 		var b := Menus.icon_tile(row, t[0], t[1], pick_tab.bind(t[0]), main, 12, Vector2(0, 80))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tabs[t[0]] = b
-	grid.columns = 5
+	pilot.add_theme_constant_override("separation", 10)
+	box.add_child(pilot)
+	var lvb := Control.new()
+	lvb.custom_minimum_size = Vector2(48, 48)
+	lvb.draw.connect(func(): ResultsUI.draw_level(lvb, Progress.level()))
+	pilot.add_child(lvb)
+	var pv := VBoxContainer.new()
+	pv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pv.add_theme_constant_override("separation", 2)
+	pilot.add_child(pv)
+	pilot_title.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	pilot_title.add_theme_font_size_override("font_size", 16)
+	pv.add_child(pilot_title)
+	pilot_bar.show_percentage = false
+	pilot_bar.custom_minimum_size.y = 10
+	pv.add_child(pilot_bar)
+	pilot_next.add_theme_font_size_override("font_size", 13)
+	pilot_next.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	pilot_next.custom_minimum_size.x = 200
+	pv.add_child(pilot_next)
+	grid.columns = 6
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
 	box.add_child(grid)
@@ -88,6 +113,17 @@ func pick_tab(t: String) -> void:
 	if tab == "PLANE":
 		var v := Planes.variant(main.plane_choice)
 		note.text = "%s: %s" % [v.name, v.desc]
+	elif tab == "PILOT":
+		note.text = "Badges: %d of %d earned. Tap one to see how." % [Settings.values.badges.size(), Progress.BADGES.size()]
+	pilot.visible = tab == "PILOT"
+	if pilot.visible:
+		var lv := Progress.level()
+		var xp := int(Settings.values.xp)
+		pilot_title.text = "LEVEL %d  ·  %s" % [lv, Progress.title(lv).to_upper()]
+		pilot_bar.value = 100.0 * Progress.level_frac(xp)
+		var nx := Progress.next_reward(lv)
+		pilot_next.text = "Every reward unlocked. Sky Legend!" if nx.is_empty() else "Next: level %d unlocks the %s (%d XP to go)" % [nx.lv, Progress.reward_name(nx.item), Progress.floor_xp(nx.lv) - xp]
+		pilot.get_child(0).queue_redraw()
 
 
 # [title, item key ("livery:1"), swatch painter] for the open tab.
@@ -105,6 +141,9 @@ func _entries() -> Array:
 					_none(b, r)
 				else:
 					Menus.icon(b, "sticker", r.get_center(), minf(r.size.x, r.size.y) * 0.42, Color.from_hsv(i / 7.0, 0.6, 1.0))])
+		"PILOT":
+			return Progress.BADGES.map(func(bd): return [bd.name, "badge:" + bd.id, func(b: Control, r: Rect2):
+				Menus.icon(b, "medal", r.get_center(), minf(r.size.x, r.size.y) * 0.45, Menus.AMBER if Settings.values.badges.has(bd.id) else Color(1, 1, 1, 0.3))])
 	return range(Planes.KILL_FX.size()).map(func(i): return [Planes.KILL_FX[i], "killfx:%d" % i, func(b: Control, r: Rect2):
 		if i == 0:
 			_none(b, r)
@@ -126,8 +165,10 @@ func _fill() -> void:
 		grid.remove_child(c)
 		c.queue_free()
 	cards.clear()
-	for e in _entries():
-		var c := Menus.card(grid, e[0].to_upper(), e[2], _tap.bind(e[1]), main)
+	var list := _entries()
+	var tall := 84.0 if tab == "PILOT" else (96.0 if list.size() <= 2 * grid.columns else 76.0) # three rows still fit a phone
+	for e in list:
+		var c := Menus.card(grid, e[0].to_upper(), e[2], _tap.bind(e[1]), main, Vector2(76, tall))
 		c.name = "Card_" + e[1].replace(":", "_")
 		c.set_meta("item", e[1])
 		cards.append(c)
@@ -137,10 +178,15 @@ func _fill() -> void:
 func _states() -> void:
 	for c: Button in cards:
 		var item: String = c.get_meta("item")
-		var free: bool = item.begins_with("plane:") or item.begins_with("sticker:") or Shop._free(item)
+		if item.begins_with("badge:"):
+			var got: bool = Settings.values.badges.has(item.get_slice(":", 1))
+			Menus.card_state(c, "", got, not got)
+			continue
+		var lv := Progress.reward_level(item)
+		var free: bool = item.begins_with("plane:") or (item.begins_with("sticker:") and lv == 0) or Shop._free(item) or (lv > 0 and Progress.has(item))
 		var own: bool = free or shop.owns(item)
 		var on := own and _worn(item)
-		var badge := "EQUIPPED" if on else ("" if free else ("OWNED" if own else shop.price(shop.product_for(item))))
+		var badge := "EQUIPPED" if on else ("" if free else ("OWNED" if own else ("LV %d" % lv if lv > 0 else shop.price(shop.product_for(item)))))
 		Menus.card_state(c, badge if own or badge != "" else "SHOP", on, not own)
 	main.preview_key = ""
 	main._refresh_preview()
@@ -156,7 +202,17 @@ func _tap(item: String) -> void:
 		note.text = "%s: %s" % [Planes.variant(val).name, Planes.variant(val).desc]
 		_states()
 		return
-	if not (slot == "sticker" or shop.owns(item)):
+	if slot == "badge":
+		var bd := Progress.badge(val)
+		var at: int = Settings.values.badges.get(val, 0)
+		note.text = "%s: %s.%s" % [bd.name, bd.desc, ("  Earned %s." % Time.get_date_string_from_unix_time(at)) if at else "  Not earned yet."]
+		return
+	var lv := Progress.reward_level(item)
+	if lv > 0 and not Progress.has(item):
+		note.text = "Reach pilot level %d to unlock the %s. You're level %d." % [lv, Progress.reward_name(item), Progress.level()]
+		TouchControls.buzz(15)
+		return
+	if lv == 0 and not (slot == "sticker" or shop.owns(item)):
 		main.shop_ui.open(shop.product_for(item))
 		return
 	Settings.values["banner" if slot == "trail" else slot] = int(val)
@@ -188,7 +244,7 @@ static func _trail_swatch(b: Control, r: Rect2, i: int) -> void:
 	if i == 0:
 		_none(b, r)
 		return
-	var cols: Array = [Planes.BANNER_COLORS[i]] if i < Planes.BANNERS.size() else Planes.PREMIUM_TRAILS[i - Planes.BANNERS.size()].colors
+	var cols: Array = [Planes.BANNER_COLORS[i]] if i < Planes.BANNERS.size() else Planes.trail_colors(i)
 	var w := r.size.x / cols.size()
 	for k in cols.size():
 		var c: Color = cols[k]

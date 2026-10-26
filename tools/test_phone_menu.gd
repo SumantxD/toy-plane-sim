@@ -167,7 +167,8 @@ func _initialize() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://fake_store.cfg"))
 	Settings.load_saved()
 	var keep := Settings.values.duplicate(true)
-	Settings.values.merge({last_world = 2, last_mode = 4, last_size = 0, last_skill = 2, matches = 5, offer_dismiss = {}}, true)
+	Settings.values.merge({last_world = 2, last_mode = 4, last_size = 0, last_skill = 2, matches = 5, offer_dismiss = {}, onboarded = true,
+		xp = 0, best = {}, last = {}, badges = {}, daily = {}, sticker = 0}, true)
 	Settings.save()
 	for scr in SCREENS:
 		for i in 2: # headless ignores --resolution; the first resize after start doesn't stick
@@ -259,16 +260,30 @@ func _initialize() -> void:
 		main.pause_root.show()
 		await _layout("pause " + tag, main.pause_root)
 		main.pause_root.hide()
+		Settings.values.xp = Progress.floor_xp(2) - 10 # this match levels you up: the reveal line shows
+		Progress.cur.time = 200.0
+		Progress.cur.shots = 120
+		Progress.cur.hits = 45
 		main._end("%s team wins!" % main.TEAM_NAMES[main._my_team()])
+		await create_timer(1.8).timeout
+		await _layout("results YOU (level up) " + tag, main.results_root)
+		_ok("results: VICTORY, level-up reveal, observation, 3 challenges " + tag, main.results_ui.outcome.text == "VICTORY" and main.results_ui.up_label.visible and main.results_ui.up_label.text.begins_with("LEVEL UP!")
+			and main.results_ui.observation.text != "" and main.results_ui.daily_rows.all(func(r): return r[0].text != ""), "%s / %s" % [main.results_ui.up_label.text, main.results_ui.observation.text])
+		await _tap(main.results_ui.tabs.SCORES)
 		for i in 7: # a full room: 8 pilots on the board
-			main.gs.players[100 + i] = {name = "WWWWWWWWWWWWWWWW", team = i % 2, kills = 99, deaths = 99, revives = 9, plane = "cub"}
+			main.gs.players[100 + i] = {name = "WWWWWWWWWWWWWWWW", team = i % 2, kills = 99, deaths = 99, revives = 9, dmg = 9999, plane = "cub"}
 		main._refresh_ui()
-		await _layout("results (8 pilots + offer) " + tag, main.results_root)
+		await _layout("results SCORES (8 pilots + offer) " + tag, main.results_root)
 		for i in 7:
 			main.gs.players.erase(100 + i)
-		await create_timer(8.5).timeout
-		_ok("solo match over -> home screen, not the lobby " + tag, main.gs.phase == "menu" and main.menu_root.visible and not main.lobby_root.visible and not main.results_root.visible,
+		await _tap(main.results_ui.tabs.YOU)
+		await _tap(_button(main.results_root, "HOME"))
+		_ok("results HOME -> home screen, not the lobby " + tag, main.gs.phase == "menu" and main.menu_root.visible and not main.lobby_root.visible and not main.results_root.visible,
 			"phase %s home %s" % [main.gs.phase, main.menu_root.visible])
+		await _layout("home with pilot card " + tag, main.menu_root)
+		_ok("home pilot card: level 2, 3 challenges " + tag, main.pilot_card.visible and "LEVEL 2" in main.pilot_card.find_child("Title", true, false).text and main.pilot_card.find_child("Daily3", true, false).text != "")
+		Settings.values.xp = 0
+		Settings.save() # the next screen reloads the scene, which reads the file
 		await _tap(_button(main.menu_root, "FRIENDS"))
 		await _tap(_button(main.mp_root, "HOST ON LAN"))
 		main.gs.mode = 1 # team mode: SWITCH TEAM shows
@@ -403,6 +418,89 @@ func _initialize() -> void:
 	_ok("lobby PLANE tab", main.gs.phase == "lobby" and main.lobby_root.visible and main.plane_sel.is_visible_in_tree() and main.gs.world == 3)
 	await _tap(main.lobby_pages.LOOKS[0])
 	_ok("LOOKS tab -> paint, trail, sticker, kill effect", main.livery_sel.is_visible_in_tree() and main.sticker_sel.is_visible_in_tree() and not main.plane_sel.is_visible_in_tree())
+	# results: solo waits for the pick; PLAY AGAIN replays the mission, HANGAR opens it
+	await _fresh()
+	await _tap(main.find_child("Play", true, false))
+	var mid: int = main.gs.match_id
+	Progress.cur.time = 200.0
+	main._end("Red team wins!")
+	await create_timer(9.0).timeout
+	_ok("solo results wait for the player (no timer)", main.gs.phase == "ended" and main.results_root.visible and main.results_ui.outcome.text == "DEFEAT", main.results_ui.outcome.text)
+	await _tap(main.find_child("PlayAgain", true, false))
+	await _frames(6)
+	_ok("PLAY AGAIN -> same mission again", main.gs.phase == "playing" and main.gs.match_id == mid + 1 and main.gs.mode == 5 and main._plane(1) != null and not main.results_root.visible,
+		"phase %s match %d mode %d" % [main.gs.phase, main.gs.match_id, main.gs.mode])
+	main._end("Blue team wins!")
+	await _frames()
+	await _tap(_button(main.results_root, "HANGAR"))
+	_ok("results HANGAR -> hangar", main.gs.phase == "menu" and main.hangar_ui.visible and main.players.get_child_count() == 0)
+	# progression: an earned sticker is level-locked in the Hangar, then unlocked by a level-up
+	Settings.values.xp = 0
+	await _tap(main.hangar_ui.tabs.STICKER)
+	var heart: Button = main.hangar_ui.grid.get_node("Card_sticker_7")
+	var lock_ok: bool = heart.get_meta("badge") == "LV 2" and heart.get_meta("locked")
+	await _tap(heart)
+	_ok("earned sticker: 'LV 2' lock (not a price), tap explains, not worn", lock_ok and "Reach pilot level 2" in main.hangar_ui.note.text and Settings.values.sticker == 0 and not main.shop_ui.visible, main.hangar_ui.note.text)
+	await _tap(main.hangar_ui.fly_btn)
+	Settings.values.xp = Progress.floor_xp(2) - 5
+	Progress.cur.time = 200.0
+	main._end("Blue team wins!")
+	await create_timer(1.8).timeout
+	_ok("level-up on results names the reward", "Heart sticker" in main.results_ui.up_label.text, main.results_ui.up_label.text)
+	await _tap(_button(main.results_root, "HANGAR"))
+	await _tap(main.hangar_ui.tabs.STICKER)
+	heart = main.hangar_ui.grid.get_node("Card_sticker_7")
+	var open_ok: bool = not heart.get_meta("locked")
+	await _tap(heart)
+	_ok("level-up reward in the Hangar: unlocked, one tap wears it", open_ok and Settings.values.sticker == 7 and main.my_look()[0] == 7 and heart.get_meta("badge") == "EQUIPPED", "badge %s sticker %d" % [heart.get_meta("badge"), Settings.values.sticker])
+	await _tap(main.hangar_ui.tabs.PILOT)
+	await _layout("hangar PILOT", main.hangar_ui)
+	_ok("PILOT tab: level header + %d badge cards" % Progress.BADGES.size(), main.hangar_ui.pilot.visible and main.hangar_ui.cards.size() == Progress.BADGES.size() and "LEVEL 2" in main.hangar_ui.pilot_title.text, main.hangar_ui.pilot_title.text)
+	await _tap(main.hangar_ui.cards[1])
+	_ok("tap a badge -> how to earn it", "10 hits in a row" in main.hangar_ui.note.text, main.hangar_ui.note.text)
+	await _tap(_button(main.hangar_ui, "BACK"))
+	await _tap(main.pilot_card)
+	_ok("home pilot card opens the PILOT tab", main.hangar_ui.visible and main.hangar_ui.tab == "PILOT")
+	await _tap(_button(main.hangar_ui, "BACK"))
+	# onboarding: the first PLAY flies the training; SKIP goes straight to the battle
+	Settings.values.merge({onboarded = false, matches = 0}, true)
+	Settings.save()
+	await _fresh()
+	await _tap(main.find_child("Play", true, false))
+	await _frames(6)
+	_ok("first PLAY -> training flight, step 1 'DRAG TO STEER'", main.training.active and main.gs.mode == 2 and main.training.prompt.text == "DRAG TO STEER" and not main.intro_root.visible, main.training.prompt.text)
+	await _layout("training", main.training)
+	await _tap(main.training.skip_btn)
+	await _frames(6)
+	_ok("SKIP -> a real battle, marked done", not main.training.active and Settings.values.onboarded and main.gs.phase == "playing" and main.gs.mode != 2,
+		"active %s onboarded %s phase %s mode %d" % [main.training.active, Settings.values.onboarded, main.gs.phase, main.gs.mode])
+	Settings.values.merge({onboarded = false, matches = 0}, true)
+	Settings.save()
+	await _fresh()
+	await _tap(main.find_child("Play", true, false))
+	await _frames(6)
+	var me: Node = main._plane(1)
+	for i in 20: # steer: the finger moves the aim
+		me.steer_t = 0.0
+		me.aim_yaw += 0.12
+		await process_frame
+	var steps := [main.training.step]
+	for n in main.training.targets.slice(0, 3):
+		main.kill(n, me)
+	await _frames(4)
+	steps.append(main.training.step)
+	var tgt: Node = main.training.targets[-1]
+	me.report_hit(tgt, 1, -1)
+	await _frames(4)
+	steps.append(main.training.step)
+	await create_timer(3.2).timeout
+	_ok("training: steer -> 3 balloons -> rocket -> 'Great flying' -> Very Easy battle", steps == [1, 2, 3] and Settings.values.onboarded and main.gs.phase == "playing" and main.gs.mode == 3 and main.gs.skill == 0,
+		"steps %s phase %s mode %d skill %d" % [steps, main.gs.phase, main.gs.mode, main.gs.skill])
+	await _fresh()
+	await _tap(_button(main.menu_root, "HOW TO PLAY"))
+	await _tap(main.howto_root.find_child("Training", true, false))
+	await _frames(6)
+	_ok("HOW TO PLAY > TRAINING replays it", main.training.active and main.gs.mode == 2 and not main.howto_root.visible)
 	var fails := rows.filter(func(r): return not r[1]).size()
 	print("\n%-78s %s" % ["CHECK", "RESULT"])
 	for r in rows:
