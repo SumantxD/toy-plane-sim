@@ -28,6 +28,8 @@ fi
 SIGNED=$(codesign -dv "$ARCHIVE"/Products/Applications/*.app 2>&1 | sed -n 's/^TeamIdentifier=//p')
 echo "Archive signed by team: $SIGNED"
 [ "$SIGNED" = "$TEAM" ] || { echo "STOP: the archive is signed by '$SIGNED', not $TEAM. Nothing uploaded."; exit 1; }
+# Home-screen label: "Toy Plane Arcade" truncates under the icon. The export below re-signs the app.
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Toy Plane" "$ARCHIVE"/Products/Applications/*.app/Info.plist
 DEST=upload
 [ "$1" = "--no-upload" ] && DEST=export
 cat > $OUT/options.plist <<EOF
