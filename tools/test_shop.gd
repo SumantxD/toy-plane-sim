@@ -44,7 +44,7 @@ func _initialize() -> void:
 	var shop: Shop = main.shop
 	var ui: ShopUI = main.shop_ui
 	print("backend: ", shop.backend, "   sells: ", shop.sells(), "   owns golden paint: ", shop.owns("livery:1"))
-	await _press("HANGAR SHOP")
+	await _press("SHOP") # phone home: SHOP tile (desktop: HANGAR SHOP)
 	print("main menu -> shop open: ", ui.visible, "   preview shown: ", main.preview.visible)
 	await _shot("sets")
 	print("  SETS: ", ui.item_sel.items.map(func(i): return "%s %s" % [i.title, i.sub]))
@@ -75,10 +75,11 @@ func _initialize() -> void:
 	print("tap BUY -> button: ", ui.buy_btn.text, "  busy: ", shop.busy)
 	await _wait(1.0)
 	print("after the store answers -> owns set: ", shop.owns_product("bundle.golden"), "  owns its paint/trail/kill: ", shop.owns("livery:1"), shop.owns("trail:7"), shop.owns("killfx:1"), "   notice: ", ui.status.text)
+	print("auto-equipped on purchase -> livery %d trail %d killfx %d (want 1 7 1)   FLY WITH IT shown: %s   paint alone now owned too: %s" % [Settings.values.livery, Settings.values.banner, Settings.values.killfx, ui.fly_btn.is_visible_in_tree(), shop.owns_product("livery.golden")])
 	await _press("RESTORE PURCHASES")
 	print("RESTORE after buying the set -> ", ui.status.text)
-	await _press("EQUIP")
-	print("EQUIP -> livery %d trail %d killfx %d   saved: %s" % [Settings.values.livery, Settings.values.banner, Settings.values.killfx, ConfigFile.new().load(Settings.PATH) == OK])
+	await _press("EQUIPPED")
+	print("EQUIPPED (already worn) -> livery %d trail %d killfx %d   saved: %s" % [Settings.values.livery, Settings.values.banner, Settings.values.killfx, ConfigFile.new().load(Settings.PATH) == OK])
 	await _shot("owned")
 	# a locked item can't be worn online, only tried solo
 	print("Neon paint picked but not owned: online wears -> ", _wear_with(shop, "livery", 3, false), "   solo try -> ", _try_wear(shop, "livery", 3))

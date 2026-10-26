@@ -141,7 +141,7 @@ func _spin(screen: String) -> void:
 	var cam: Camera3D = main.lobby_cam
 	var at := cam.unproject_position(main.preview.global_position)
 	var shown := root.get_visible_rect().has_point(at)
-	var beside: Control = (main.shop_ui if main.shop_ui.visible else main.lobby_root).get_child(0)
+	var beside: Control = (main.shop_ui if main.shop_ui.visible else (main.hangar_ui if main.hangar_ui.visible else main.lobby_root)).get_child(0)
 	var clear := at.x > beside.get_global_rect().end.x + 40.0 and at.x < root.get_visible_rect().end.x - INSETS.z
 	var phase: String = main.gs.phase
 	var shop_was: Array = [main.shop_ui.visible, main.shop_ui.cat_sel.index, main.shop_ui.item_sel.index]
@@ -179,13 +179,24 @@ func _initialize() -> void:
 		main.status.text = main.PHONE_NET_TIP # the longest note the home screen shows
 		await process_frame
 		var sr: Rect2 = main.status.get_global_rect()
-		_ok("home status note clear of buttons " + tag, not sr.intersects(main.menu_root.get_node("HangarShop").get_global_rect()) and sr.position.y >= 0.0, str(sr))
+		_ok("home status note clear of buttons " + tag, not sr.intersects(main.menu_root.get_node("Nav").get_global_rect()) and sr.position.y >= 0.0, str(sr))
+		Settings.values.matches = 0 # first launch: PLAY's hint ring and coach line
+		Settings.save()
+		await _fresh()
+		await _layout("home first launch " + tag, main.menu_root)
+		var coach: Control = main.menu_root.get_node("Coach")
+		var clash: Array = main.menu_root.find_children("*", "BaseButton", true, false).filter(func(b): return b.is_visible_in_tree() and b.get_global_rect().intersects(coach.get_global_rect()))
+		_ok("first launch: coach line beside PLAY, clear of buttons " + tag, clash.is_empty() and _safe().encloses(coach.get_global_rect()), "%s over %s" % [coach.get_global_rect(), clash.map(func(b): return b.text)])
+		Settings.values.matches = 5
+		Settings.save()
+		await _fresh()
+		_ok("returning player: no coach " + tag, main.menu_root.get_node_or_null("Coach") == null)
 		await _tap(main.find_child("MissionCard", true, false))
 		await _layout("mission select " + tag, main.mission_root)
 		var cards_in: bool = main.world_cards.all(func(c): return c.is_visible_in_tree() and _safe().encloses(c.get_global_rect()))
 		_ok("mission select: all 6 worlds on screen, no scroller " + tag, cards_in and main.mission_root.find_children("*", "ScrollContainer", true, false).is_empty())
-		await _tap(_button(main.mission_root, "<  BACK"))
-		await _tap(_button(main.menu_root, "MULTIPLAYER"))
+		await _tap(_button(main.mission_root, "BACK"))
+		await _tap(_button(main.menu_root, "FRIENDS"))
 		await _layout("multiplayer " + tag, main.mp_root)
 		var high: bool = main.address.get_global_rect().end.y < root.get_visible_rect().size.y * 0.48 and main.name_edit.get_global_rect().end.y < root.get_visible_rect().size.y * 0.48
 		await _frames()
@@ -210,7 +221,8 @@ func _initialize() -> void:
 		await _layout("how to play " + tag, main.howto_root)
 		await _pages("how to play " + tag, _pager(main.howto_root))
 		main.howto_root.hide()
-		await _tap(_button(main.menu_root, "CREDITS"))
+		await _tap(_button(main.menu_root, "SETTINGS"))
+		await _tap(_button(main.settings_root, "Credits"))
 		await _layout("credits " + tag, main.credits_root)
 		await _pages("credits " + tag, _pager(main.credits_root))
 		await _tap(_button(main.credits_root, "LICENSES"))
@@ -218,7 +230,13 @@ func _initialize() -> void:
 		await _pages("licenses " + tag, _pager(main.credits_root))
 		await _tap(_button(main.credits_root, "CREDITS"))
 		main.credits_root.hide()
-		await _tap(_button(main.menu_root, "HANGAR SHOP"))
+		await _tap(_button(main.menu_root, "HANGAR"))
+		for t in main.hangar_ui.tabs:
+			await _tap(main.hangar_ui.tabs[t])
+			await _layout("hangar %s %s" % [t, tag], main.hangar_ui)
+		await _spin("hangar " + tag)
+		await _tap(_button(main.hangar_ui, "BACK"))
+		await _tap(_button(main.menu_root, "SHOP"))
 		await _layout("hangar shop " + tag, main.shop_ui)
 		main.shop_ui.status.text = "The App Store couldn't verify this purchase. Tap Restore Purchases to try again." # the longest notice
 		await _layout("hangar shop + notice " + tag, main.shop_ui)
@@ -226,9 +244,12 @@ func _initialize() -> void:
 		main.shop_ui.cat_sel.changed.emit(0) # SETS: the longest detail text
 		await _layout("hangar shop sets " + tag, main.shop_ui)
 		await _spin("hangar shop " + tag)
+		main.shop_ui.open("livery.neon")
+		main.shop_ui._bought("livery.neon") # what a purchase leaves on screen: EQUIPPED + FLY WITH IT
+		await _layout("shop after a purchase " + tag, main.shop_ui)
 		main.shop_ui.close()
-		await _tap(main.find_child("MissionCard", true, false))
-		await _tap(_button(main.mission_root, "PLANE + LOOKS"))
+		main.solo_battle()
+		await _frames(10)
 		for k in main.lobby_pages:
 			if main.lobby_pages[k][0].visible:
 				main._lobby_tab(k)
@@ -248,7 +269,7 @@ func _initialize() -> void:
 		await create_timer(8.5).timeout
 		_ok("solo match over -> home screen, not the lobby " + tag, main.gs.phase == "menu" and main.menu_root.visible and not main.lobby_root.visible and not main.results_root.visible,
 			"phase %s home %s" % [main.gs.phase, main.menu_root.visible])
-		await _tap(_button(main.menu_root, "MULTIPLAYER"))
+		await _tap(_button(main.menu_root, "FRIENDS"))
 		await _tap(_button(main.mp_root, "HOST ON LAN"))
 		main.gs.mode = 1 # team mode: SWITCH TEAM shows
 		main.gs.room = "KNHXC" # COPY ROOM CODE shows
@@ -290,33 +311,78 @@ func _initialize() -> void:
 	var v := Settings.values
 	_ok("pick mode / size / skill", main.gs.mode == 5 and main.gs.size == 2 and main.gs.skill == 3 and v.last_mode == 5 and v.last_size == 2 and v.last_skill == 3,
 		"gs %d/%d/%d last %d/%d/%d" % [main.gs.mode, main.gs.size, main.gs.skill, v.last_mode, v.last_size, v.last_skill])
-	await _tap(_button(main.mission_root, "<  BACK"))
+	await _tap(_button(main.mission_root, "BACK"))
 	_ok("BACK -> home", main.menu_root.visible and not main.mission_root.visible and "DESERT WASTELAND" in main.play_sub.text, main.play_sub.text)
 	await _tap(main.find_child("MissionCard", true, false))
 	await _tap(main.find_child("Launch", true, false))
 	_ok("LAUNCH -> match", main.gs.phase == "playing" and main.gs.world == 3 and main.gs.mode == 5 and main.gs.size == 2 and main.gs.skill == 3 and Worlds.index == 3,
 		"phase %s world %d built %d mode %d" % [main.gs.phase, main.gs.world, Worlds.index, main.gs.mode])
 	await _fresh()
-	await _tap(_button(main.menu_root, "MULTIPLAYER"))
+	await _tap(_button(main.menu_root, "FRIENDS"))
 	_ok("MULTIPLAYER -> host/join screen", main.mp_root.visible and not main.menu_root.visible)
 	await _tap(_button(main.mp_root, "HOST ON LAN"))
 	await _frames(10)
 	_ok("HOST ON LAN -> lobby, MISSION tab", main.gs.phase == "lobby" and main.lobby_root.visible and main.world_sel.is_visible_in_tree() and not main.mission_root.visible and not main.multiplayer.multiplayer_peer is OfflineMultiplayerPeer)
 	await _fresh()
-	await _tap(_button(main.menu_root, "MULTIPLAYER"))
+	await _tap(_button(main.menu_root, "FRIENDS"))
 	await _tap(_button(main.mp_root, "BACK"))
 	_ok("MULTIPLAYER BACK -> home", main.menu_root.visible)
 	await _tap(_button(main.menu_root, "FREE FLIGHT"))
 	_ok("FREE FLIGHT -> flying", main.gs.phase == "playing" and main.gs.mode == 2)
 	await _fresh()
-	await _tap(_button(main.menu_root, "HANGAR SHOP"))
-	_ok("HANGAR SHOP -> shop", main.shop_ui.visible and not main.menu_root.visible)
-	await _tap(_button(main.shop_ui, "<  BACK"))
-	_ok("shop <  BACK -> home", not main.shop_ui.visible and main.menu_root.visible)
-	for it in [["SETTINGS", "settings_root"], ["HOW TO PLAY", "howto_root"], ["CREDITS", "credits_root"]]:
+	await _tap(_button(main.menu_root, "SHOP"))
+	_ok("SHOP -> shop", main.shop_ui.visible and not main.menu_root.visible)
+	await _tap(main.shop_ui.tabs[2])
+	await _tap(main.shop_ui.cards[1])
+	_ok("shop: TRAILS tab + 2nd card -> Gold Sparkle trail picked", main.shop_ui._product() == "trail.gold" and main.shop_ui.buy_btn.visible, main.shop_ui._product())
+	await _tap(_button(main.shop_ui, "BACK"))
+	_ok("shop BACK -> home", not main.shop_ui.visible and main.menu_root.visible)
+	for it in [["SETTINGS", "settings_root"], ["HOW TO PLAY", "howto_root"]]:
 		await _tap(_button(main.menu_root, it[0]))
 		_ok(it[0] + " -> panel", main.get(it[1]).visible)
 		main.get(it[1]).hide()
+	await _tap(_button(main.menu_root, "SETTINGS"))
+	await _tap(_button(main.settings_root, "Credits"))
+	_ok("SETTINGS > Credits -> credits", main.credits_root.visible and not main.settings_root.visible)
+	main.credits_root.hide()
+	# the hangar: wear what you own in one tap; a locked look opens the shop on it; buying wears it
+	var cfg := ConfigFile.new()
+	cfg.set_value("store", "owned", {"bundle.golden": true})
+	cfg.save("user://fake_store.cfg")
+	main.shop.owned = {"bundle.golden": true}
+	Settings.values.merge({livery = 0, banner = 0, killfx = 0}, true)
+	await _tap(_button(main.menu_root, "HANGAR"))
+	_ok("HANGAR -> hangar, plane on the turntable", main.hangar_ui.visible and not main.menu_root.visible and main.preview.visible)
+	await _tap(main.hangar_ui.tabs.PAINT)
+	await _tap(main.hangar_ui.grid.get_node("Card_livery_1"))
+	saved = ConfigFile.new()
+	saved.load(Settings.PATH)
+	_ok("tap an owned paint -> worn + saved + EQUIPPED badge + note", Settings.values.livery == 1 and saved.get_value("prefs", "livery") == 1 and main.hangar_ui.grid.get_node("Card_livery_1").get_meta("badge") == "EQUIPPED" and "Equipped" in main.hangar_ui.note.text,
+		"livery %d badge %s note %s" % [Settings.values.livery, main.hangar_ui.grid.get_node("Card_livery_1").get_meta("badge"), main.hangar_ui.note.text])
+	_ok("locked paint shows its price", main.hangar_ui.grid.get_node("Card_livery_3").get_meta("badge").begins_with("₹"), main.hangar_ui.grid.get_node("Card_livery_3").get_meta("badge"))
+	await _tap(main.hangar_ui.grid.get_node("Card_livery_3"))
+	_ok("tap a locked paint -> shop on that paint", main.shop_ui.visible and main.shop_ui._product() == "livery.neon" and not main.hangar_ui.visible, main.shop_ui._product())
+	await _tap(main.shop_ui.buy_btn)
+	await create_timer(1.0).timeout
+	await _frames()
+	_ok("buy -> worn at once, says so, FLY WITH IT offered", Settings.values.livery == 3 and "equipped" in main.shop_ui.status.text and main.shop_ui.fly_btn.is_visible_in_tree(), "livery %d status %s" % [Settings.values.livery, main.shop_ui.status.text])
+	await _tap(_button(main.shop_ui, "BACK"))
+	_ok("shop BACK -> back in the hangar, new paint EQUIPPED", main.hangar_ui.visible and main.hangar_ui.grid.get_node("Card_livery_3").get_meta("badge") == "EQUIPPED")
+	await _tap(main.hangar_ui.tabs.PLANE)
+	await _tap(main.hangar_ui.grid.get_node("Card_plane_racer"))
+	_ok("tap a plane -> picked + remembered", main.plane_choice == "racer" and Settings.values.last_plane == "racer")
+	await _tap(_button(main.hangar_ui, "BACK"))
+	_ok("hangar BACK -> home", main.menu_root.visible and not main.hangar_ui.visible)
+	await _tap(_button(main.menu_root, "SHOP"))
+	main.shop_ui.open("trail.fire")
+	await _tap(main.shop_ui.buy_btn)
+	await create_timer(1.0).timeout
+	await _frames()
+	await _tap(main.shop_ui.fly_btn)
+	await _frames(10)
+	_ok("FLY WITH IT -> a match wearing it", main.gs.phase == "playing" and main.gs.players[1].banner == 9 and main.gs.players[1].livery == 3 and main.gs.players[1].plane == "racer",
+		"phase %s look %s" % [main.gs.phase, main.gs.players.get(1)])
+	await _fresh()
 	await _tap(_button(main.menu_root, "HOW TO PLAY"))
 	var pg := _pager(main.howto_root)
 	await _tap(_button(main.howto_root, ">"))
@@ -327,8 +393,14 @@ func _initialize() -> void:
 	await _tap(_button(main.howto_root, "GOT IT"))
 	_ok("GOT IT closes", not main.howto_root.visible)
 	await _tap(main.find_child("MissionCard", true, false))
-	await _tap(_button(main.mission_root, "PLANE + LOOKS"))
-	_ok("PLANE + LOOKS -> lobby on the PLANE tab", main.gs.phase == "lobby" and main.lobby_root.visible and main.plane_sel.is_visible_in_tree() and main.gs.world == 3)
+	await _tap(_button(main.mission_root, "HANGAR"))
+	_ok("Mission Select HANGAR -> hangar", main.hangar_ui.visible and not main.mission_root.visible)
+	await _tap(_button(main.hangar_ui, "BACK"))
+	_ok("hangar BACK -> back in Mission Select", main.mission_root.visible and not main.hangar_ui.visible)
+	main.solo_battle()
+	await _frames(10)
+	main._lobby_tab("PLANE")
+	_ok("lobby PLANE tab", main.gs.phase == "lobby" and main.lobby_root.visible and main.plane_sel.is_visible_in_tree() and main.gs.world == 3)
 	await _tap(main.lobby_pages.LOOKS[0])
 	_ok("LOOKS tab -> paint, trail, sticker, kill effect", main.livery_sel.is_visible_in_tree() and main.sticker_sel.is_visible_in_tree() and not main.plane_sel.is_visible_in_tree())
 	var fails := rows.filter(func(r): return not r[1]).size()

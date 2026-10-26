@@ -14,6 +14,11 @@ var equip_btn: Button
 var try_btn: Button
 var status := Label.new()
 var restore_btn: Button
+var fly_btn: Button # after a purchase: straight into a match wearing it
+var hangar_btn: Button # phone, the everything bundle: pick looks in the hangar
+var tabs: Array = [] # phone: category tiles
+var cards: Array = [] # phone: this category's products
+var cards_box := HBoxContainer.new()
 var fx_t := 0.0
 
 
@@ -25,15 +30,16 @@ func _init(m: Node, s: Shop) -> void:
 	var phone := TouchControls.phone()
 	var box := VBoxContainer.new()
 	var head := box
-	if phone: # nothing scrolls: BACK beside the title, notes in small print under it, the buttons two by two
+	if phone: # nothing scrolls: BACK beside the title, picture tabs and cards, the buttons two by two
 		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 14)
 		box.add_child(top)
-		Menus.tile(top, "<  BACK", close, main, 18, Vector2(120, 68))
+		Menus.icon_tile(top, "BACK", "back", close, main, 16, Vector2(132, 68), true)
 		head = VBoxContainer.new()
 		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_theme_constant_override("separation", 0)
 		top.add_child(head)
-	Menus.big_title(head, "HANGAR SHOP", 26 if phone else 36)
+	Menus.big_title(head, "SHOP" if phone else "HANGAR SHOP", 28 if phone else 36)
 	var note := Label.new()
 	note.text = "Looks only: nothing here changes speed, damage or armour." if shop.sells() else "Desktop build: every look is unlocked. Equip what you like."
 	note.modulate = Color(1, 1, 1, 0.7)
@@ -45,6 +51,20 @@ func _init(m: Node, s: Shop) -> void:
 	item_sel = Menus.Selector.new("ITEM", [{title = ""}])
 	item_sel.changed.connect(func(_i): _pick())
 	box.add_child(item_sel)
+	if phone: # the selectors stay as the model; picture tabs and cards drive them
+		cat_sel.hide()
+		item_sel.hide()
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		box.add_child(row)
+		for i in Shop.CATEGORIES.size():
+			var t := Menus.icon_tile(row, ["SETS", "PAINT", "TRAILS", "KILL FX"][i], ["gift", "paint", "trail", "burst"][i], func():
+				cat_sel.set_index(i)
+				cat_sel.changed.emit(i), main, 13, Vector2(0, 76))
+			t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			tabs.append(t)
+		cards_box.add_theme_constant_override("separation", 6)
+		box.add_child(cards_box)
 	detail.bbcode_enabled = true
 	detail.fit_content = true
 	detail.custom_minimum_size = Vector2(440, 64)
@@ -53,6 +73,9 @@ func _init(m: Node, s: Shop) -> void:
 	buy_btn = Menus.menu_item(acts, "BUY", _buy, main, 22 if phone else 26)
 	equip_btn = Menus.menu_item(acts, "EQUIP", _equip, main, 22)
 	try_btn = Menus.menu_item(acts, "TRY IT FREE" if phone else "TRY IT FREE IN FREE FLIGHT", _try, main, 18)
+	fly_btn = Menus.menu_item(acts, "FLY WITH IT", func(): close(); main.quick_battle(), main, 22)
+	if phone:
+		hangar_btn = Menus.menu_item(acts, "OPEN HANGAR", func(): close(); main.hangar_ui.open("PAINT"), main, 20)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
 	status.modulate = Menus.AMBER
 	head.add_child(status)
@@ -63,6 +86,9 @@ func _init(m: Node, s: Shop) -> void:
 			c.add_theme_font_size_override("font_size", 13)
 		for b: Control in acts.get_children():
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for b: Button in [buy_btn, fly_btn]: # the next step is the amber one
+			b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			Menus.lit(b, true)
 		for f in ["normal_font_size", "bold_font_size"]:
 			detail.add_theme_font_size_override(f, 15)
 	else:
@@ -71,6 +97,7 @@ func _init(m: Node, s: Shop) -> void:
 	box.add_theme_constant_override("separation", 6)
 	shop.changed.connect(_refresh)
 	shop.notice.connect(func(t): status.text = t)
+	shop.bought.connect(_bought)
 	hide()
 
 
@@ -109,8 +136,50 @@ func _product() -> String:
 
 func _fill() -> void:
 	item_sel.set_items(_products().map(func(p):
-		var tag := "EQUIPPED" if _equipped(p) else ("OWNED" if shop.owns_product(p) else shop.price(p))
-		return {title = Shop.PRODUCTS[p].title.to_upper(), sub = tag}))
+		return {title = Shop.PRODUCTS[p].title.to_upper(), sub = _tag(p)}))
+	if not TouchControls.phone():
+		return
+	if cards.size() != item_sel.items.size() or cards.is_empty() or cards[0].get_meta("cat") != cat_sel.index:
+		for c in cards:
+			cards_box.remove_child(c)
+			c.queue_free()
+		cards.clear()
+		for i in _products().size():
+			var p: String = _products()[i]
+			var c := Menus.card(cards_box, Shop.PRODUCTS[p].title.to_upper().trim_suffix(" KILL EFFECT").trim_suffix(" PAINT").trim_suffix(" TRAIL"), _swatch.bind(p), func():
+				item_sel.set_index(i)
+				_pick(), main, Vector2(0, 100))
+			c.set_meta("cat", cat_sel.index)
+			c.name = "Card_" + p
+			cards.append(c)
+	for i in cards.size():
+		var p: String = _products()[i]
+		Menus.card_state(cards[i], _tag(p), i == item_sel.index, not shop.owns_product(p))
+	for i in tabs.size():
+		Menus.lit(tabs[i], i == cat_sel.index)
+
+
+func _tag(p: String) -> String:
+	return "EQUIPPED" if _equipped(p) else ("OWNED" if shop.owns_product(p) else shop.price(p))
+
+
+# A product's picture: its paint, trail colours and kill effect side by side.
+static func _swatch(b: Control, r: Rect2, p: String) -> void:
+	var items: Array = Shop.PRODUCTS[p].items
+	if items.size() > 3:
+		Menus.icon(b, "gift", r.get_center(), minf(r.size.x, r.size.y) * 0.45, Menus.AMBER)
+		return
+	var w := r.size.x / items.size()
+	for k in items.size():
+		var cell := Rect2(r.position + Vector2(w * k, 0), Vector2(w - (3 if k < items.size() - 1 else 0), r.size.y))
+		var n := int(items[k].get_slice(":", 1))
+		match items[k].get_slice(":", 0):
+			"livery":
+				HangarUI._paint_swatch(b, cell, n)
+			"trail":
+				HangarUI._trail_swatch(b, cell, n)
+			"killfx":
+				Menus.icon(b, "burst", cell.get_center(), minf(cell.size.x, cell.size.y) * 0.45, HangarUI.FX_COLORS[n])
 
 
 func _equipped(p: String) -> bool:
@@ -129,7 +198,7 @@ func _pick() -> void:
 	if save > 0 and shop.sells():
 		text += "\n[color=#ffd34d]About %d%% less than buying these one by one.[/color]" % save
 	if shop.sells():
-		text += "\n[font_size=12]One-time purchase. Yours on every device with your Apple ID; Restore Purchases brings it back.[/font_size]"
+		text += "\n[font_size=12]%s[/font_size]" % ("One-time purchase, yours on all your devices." if TouchControls.phone() else "One-time purchase. Yours on every device with your Apple ID; Restore Purchases brings it back.")
 	detail.text = text
 	_refresh()
 	main.preview_key = ""
@@ -150,6 +219,20 @@ func _refresh() -> void:
 	equip_btn.visible = own and Shop.PRODUCTS[p].items.size() <= 3
 	equip_btn.text = "EQUIPPED" if _equipped(p) else "EQUIP"
 	try_btn.visible = shop.sells() and not own and main.gs.phase == "menu"
+	fly_btn.visible = own and _equipped(p) and main.gs.phase == "menu" and shop.sells()
+	if hangar_btn:
+		hangar_btn.visible = own and Shop.PRODUCTS[p].items.size() > 3 and main.gs.phase == "menu"
+
+
+# Bought it: wear it at once (the everything bundle points to the hangar instead), say so, offer the flight.
+func _bought(p: String) -> void:
+	if Shop.PRODUCTS[p].items.size() <= 3:
+		_equip(p)
+		status.text = "Unlocked and equipped! You'll fly it next match."
+	else:
+		status.text = "Everything unlocked! Pick your looks in the Hangar."
+	TouchControls.buzz(30)
+	_refresh()
 
 
 # No price yet means the App Store didn't answer: the button asks again instead.
@@ -160,8 +243,8 @@ func _buy() -> void:
 		shop.buy(_product())
 
 
-func _equip() -> void:
-	for item in Shop.PRODUCTS[_product()].items:
+func _equip(p := "") -> void:
+	for item in Shop.PRODUCTS[p if p else _product()].items:
 		var slot: String = item.get_slice(":", 0)
 		Settings.values["banner" if slot == "trail" else slot] = int(item.get_slice(":", 1))
 	Settings.save()

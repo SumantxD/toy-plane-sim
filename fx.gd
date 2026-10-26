@@ -380,8 +380,8 @@ static func kill_effect(main: Node, at: Vector3, kind: int) -> void:
 	match kind:
 		1:
 			for i in 3 if near else 0: # fireworks: three staggered gold/red/blue starbursts
-				main.get_tree().create_timer(i * 0.25).timeout.connect(func():
-					_burst(main, at + Vector3(randf_range(-12, 12), 8.0 + i * 6.0, randf_range(-12, 12)), [Color(1.8, 1.4, 0.4), Color(1.7, 0.4, 0.35), Color(0.5, 0.9, 1.8)][i]))
+				main.create_tween().tween_callback(func(): # dies with main (a menu reload mid-show)
+					_burst(main, at + Vector3(randf_range(-12, 12), 8.0 + i * 6.0, randf_range(-12, 12)), [Color(1.8, 1.4, 0.4), Color(1.7, 0.4, 0.35), Color(0.5, 0.9, 1.8)][i])).set_delay(i * 0.25)
 			Sfx.at(main, at, Sfx.POP, 6.0, 2400.0)
 		2:
 			if near:

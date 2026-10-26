@@ -10,6 +10,7 @@ extends Node
 # makes every price fetch fail).
 signal changed # ownership, prices or a busy purchase moved
 signal notice(text: String) # one line for the player
+signal bought(p: String) # a purchase this player just made went through
 
 const PREFIX := "com.toyplanesim.game."
 # Items: "livery:N" (Planes.LIVERIES), "trail:N" (index into Planes.trail_names(); 6+ are premium),
@@ -96,8 +97,8 @@ func sells() -> bool:
 	return backend != "desktop"
 
 
-func owns_product(p: String) -> bool:
-	return backend == "desktop" or owned.has(p)
+func owns_product(p: String) -> bool: # bought, or every piece of it came in a set
+	return backend == "desktop" or owned.has(p) or PRODUCTS[p].items.all(owns)
 
 
 func owns(item: String) -> bool:
@@ -183,8 +184,9 @@ func _on_purchase(purchase: Dictionary) -> void:
 		changed.emit()
 		return
 	var fresh := not owned.has(p)
+	var mine := busy == p
 	owned[p] = true
-	if busy == p:
+	if mine:
 		busy = ""
 	if backend == "storekit":
 		native.call("finishTransaction", JSON.stringify({purchase = purchase}))
@@ -192,6 +194,8 @@ func _on_purchase(purchase: Dictionary) -> void:
 		_save_fake()
 	if fresh:
 		notice.emit("Unlocked: %s. Thanks for supporting the game!" % PRODUCTS[p].title)
+		if mine:
+			bought.emit(p)
 	changed.emit()
 
 

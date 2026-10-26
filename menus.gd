@@ -116,7 +116,7 @@ static func menu_item(box: Container, text: String, cb: Callable, host: Node, si
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
 	b.add_theme_font_size_override("font_size", size)
-	var idle := StyleBoxEmpty.new()
+	var idle: StyleBox = _box(Color(0.05, 0.08, 0.16, 0.72), Color(1, 1, 1, 0.18), 2, 8) if TouchControls.phone() else StyleBoxEmpty.new() # phones: it looks tappable
 	idle.content_margin_left = 20
 	idle.content_margin_top = 6
 	idle.content_margin_bottom = 6
@@ -158,10 +158,159 @@ static func tile(box: Control, text: String, cb: Callable, host: Node, size := 1
 
 # The picked tile of a row (and PLAY / LAUNCH) is solid amber; the rest dark glass.
 static func lit(b: Button, on: bool) -> void:
-	for st in ["normal", "hover"]:
-		b.add_theme_stylebox_override(st, _box(AMBER if on else Color(0.05, 0.08, 0.16, 0.72), AMBER.lightened(0.3) if on else Color(1, 1, 1, 0.18), 2, 8))
+	for st in ["normal", "hover", "pressed"] if b.has_meta("pad") else ["normal", "hover"]:
+		var sb := _box(AMBER.darkened(0.2) if st == "pressed" else (AMBER if on else Color(0.05, 0.08, 0.16, 0.72)), AMBER.lightened(0.3) if on else Color(1, 1, 1, 0.18), 2, 8)
+		if b.has_meta("pad"): # icon tiles: room for the picture
+			var p: Vector2 = b.get_meta("pad")
+			sb.content_margin_top = p.y
+			sb.content_margin_left = p.x
+		b.add_theme_stylebox_override(st, sb)
 	for st in ["font_color", "font_hover_color"]:
 		b.add_theme_color_override(st, NAVY if on else Color(0.92, 0.94, 1.0))
+	b.set_meta("on", on)
+	b.queue_redraw()
+
+
+# A tile with a drawn picture: above the label, or left of it (side).
+static func icon_tile(box: Control, text: String, kind: String, cb: Callable, host: Node, size := 15, min_size := Vector2(68, 68), side := false) -> Button:
+	var b := tile(box, text, cb, host, size, min_size)
+	var r := 15.0 if side else minf(min_size.y * 0.24, 20.0)
+	b.set_meta("pad", Vector2(r * 2.0 + 22.0, 8.0) if side else Vector2(8.0, r * 2.0 + 10.0))
+	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+	if side:
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lit(b, false)
+	b.draw.connect(func():
+		var c := Vector2(r + 14.0, b.size.y / 2.0) if side else Vector2(b.size.x / 2.0, (r * 2.0 + 10.0 + b.size.y - 8.0) / 2.0 - size * 0.6 - 4.0 - r)
+		icon(b, kind, c, r, NAVY if b.get_meta("on", false) else AMBER))
+	return b
+
+
+# Simple drawn pictures (the display font has no symbols): r = half size.
+static func icon(ci: CanvasItem, kind: String, c: Vector2, r: float, col: Color) -> void:
+	var pts := func(list: Array) -> PackedVector2Array:
+		var out := PackedVector2Array()
+		for p in list:
+			out.append(c + p * r)
+		return out
+	var w := maxf(r * 0.18, 2.0)
+	var hole := AMBER if col == NAVY else NAVY # cut-outs (palette wells, ribbon)
+	match kind:
+		"plane": # top-down
+			ci.draw_colored_polygon(pts.call([Vector2(0, -1), Vector2(0.16, -0.7), Vector2(0.16, -0.25), Vector2(1, 0.05), Vector2(1, 0.25), Vector2(0.16, 0.18),
+				Vector2(0.12, 0.65), Vector2(0.45, 0.82), Vector2(0.45, 0.98), Vector2(0, 0.9), Vector2(-0.45, 0.98), Vector2(-0.45, 0.82), Vector2(-0.12, 0.65),
+				Vector2(-0.16, 0.18), Vector2(-1, 0.25), Vector2(-1, 0.05), Vector2(-0.16, -0.25), Vector2(-0.16, -0.7)]), col)
+		"shop": # bag
+			ci.draw_colored_polygon(pts.call([Vector2(-0.8, -0.3), Vector2(0.8, -0.3), Vector2(0.9, 0.95), Vector2(-0.9, 0.95)]), col)
+			ci.draw_arc(c + Vector2(0, -0.3) * r, r * 0.42, PI, TAU, 12, col, w)
+		"friends":
+			for s: Array in [[Vector2(-0.38, -0.35), 0.3, Vector2(-0.38, 0.85), 0.55], [Vector2(0.42, -0.45), 0.34, Vector2(0.42, 0.85), 0.62]]:
+				ci.draw_circle(c + s[0] * r, r * s[1], col)
+				var arc := PackedVector2Array()
+				for i in 13:
+					arc.append(c + s[2] * r + Vector2.from_angle(PI + PI * i / 12.0) * r * s[3])
+				ci.draw_colored_polygon(arc, col)
+		"gear":
+			for i in 8:
+				var a := TAU * i / 8.0
+				ci.draw_line(c + Vector2.from_angle(a) * r * 0.5, c + Vector2.from_angle(a) * r * 0.98, col, r * 0.36)
+			ci.draw_arc(c, r * 0.5, 0, TAU, 20, col, r * 0.36)
+		"help":
+			ci.draw_arc(c, r * 0.9, 0, TAU, 24, col, w)
+			ci.draw_arc(c + Vector2(0, -0.25) * r, r * 0.3, PI * 1.05, PI * 2.45, 10, col, w)
+			ci.draw_line(c + Vector2(0.05, 0.05) * r, c + Vector2(0, 0.3) * r, col, w)
+			ci.draw_circle(c + Vector2(0, 0.55) * r, w * 0.7, col)
+		"play":
+			ci.draw_colored_polygon(pts.call([Vector2(-0.6, -0.85), Vector2(0.9, 0), Vector2(-0.6, 0.85)]), col)
+		"back":
+			ci.draw_colored_polygon(pts.call([Vector2(-0.9, 0), Vector2(-0.1, -0.75), Vector2(-0.1, -0.3), Vector2(0.85, -0.3), Vector2(0.85, 0.3), Vector2(-0.1, 0.3), Vector2(-0.1, 0.75)]), col)
+		"check":
+			ci.draw_polyline(pts.call([Vector2(-0.8, 0), Vector2(-0.25, 0.6), Vector2(0.85, -0.6)]), col, w * 1.6)
+		"lock":
+			ci.draw_rect(Rect2(c + Vector2(-0.7, -0.15) * r, Vector2(1.4, 1.1) * r), col)
+			ci.draw_arc(c + Vector2(0, -0.15) * r, r * 0.45, PI, TAU, 12, col, w * 1.3)
+		"cloud": # free flight
+			for s in [[Vector2(-0.45, 0.2), 0.42], [Vector2(0.1, -0.15), 0.55], [Vector2(0.55, 0.25), 0.4]]:
+				ci.draw_circle(c + s[0] * r, r * s[1], col)
+			ci.draw_rect(Rect2(c + Vector2(-0.45, 0.2) * r, Vector2(1.0, 0.42) * r), col)
+		"paint": # palette
+			ci.draw_circle(c, r * 0.95, col)
+			for p in [Vector2(-0.4, -0.35), Vector2(0.15, -0.55), Vector2(0.5, -0.1), Vector2(-0.45, 0.3)]:
+				ci.draw_circle(c + p * r, r * 0.17, hole)
+			ci.draw_circle(c + Vector2(0.2, 0.45) * r, r * 0.25, hole)
+		"trail":
+			for k in 3:
+				var line := PackedVector2Array()
+				for i in 9:
+					line.append(c + Vector2(-1 + i / 4.0, (k - 1) * 0.55 + sin(i * 0.9 + k) * 0.18) * r)
+				ci.draw_polyline(line, col, w)
+		"sticker": # star
+			var star := []
+			for i in 10:
+				star.append(Vector2.from_angle(-PI / 2 + PI * i / 5.0) * (1.0 if i % 2 == 0 else 0.45))
+			ci.draw_colored_polygon(pts.call(star), col)
+		"burst": # kill effect
+			var b := []
+			for i in 16:
+				b.append(Vector2.from_angle(PI * i / 8.0) * (1.0 if i % 2 == 0 else 0.5))
+			ci.draw_colored_polygon(pts.call(b), col)
+		"gift": # sets
+			ci.draw_rect(Rect2(c + Vector2(-0.85, -0.3) * r, Vector2(1.7, 1.2) * r), col)
+			ci.draw_rect(Rect2(c + Vector2(-0.12, -0.3) * r, Vector2(0.24, 1.2) * r), hole)
+			ci.draw_rect(Rect2(c + Vector2(-0.85, 0.1) * r, Vector2(1.7, 0.18) * r), hole)
+			ci.draw_arc(c + Vector2(-0.3, -0.5) * r, r * 0.25, 0, TAU, 10, col, w)
+			ci.draw_arc(c + Vector2(0.3, -0.5) * r, r * 0.25, 0, TAU, 10, col, w)
+
+
+# Picture card (looks, shop items): swatch drawn by `paint(card)`, name under it, a corner badge
+# (EQUIPPED tick / OWNED / price with a lock), amber frame when picked.
+static func card(box: Control, title: String, paint: Callable, cb: Callable, host: Node, min_size := Vector2(92, 96)) -> Button:
+	var b := tile(box, "", cb, host, 12, min_size)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.clip_contents = true
+	var name := Label.new()
+	name.text = title
+	name.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	name.add_theme_font_size_override("font_size", 12)
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name.anchor_top = 1.0
+	name.anchor_right = 1.0
+	name.anchor_bottom = 1.0
+	name.offset_left = 3
+	name.offset_right = -3
+	name.offset_top = -38
+	name.offset_bottom = -3
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(name)
+	b.draw.connect(func():
+		var sw := Rect2(Vector2(8, 8), Vector2(b.size.x - 16, b.size.y - 50))
+		paint.call(b, sw)
+		var badge: String = b.get_meta("badge", "")
+		if badge == "":
+			return
+		var f: Font = preload("res://assets/ui/kenney_future.ttf")
+		var on := badge == "EQUIPPED"
+		var tw := f.get_string_size(badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + (24 if on or b.get_meta("locked", false) else 10)
+		var at := Rect2(Vector2(b.size.x - tw - 4, 4), Vector2(tw, 20))
+		b.draw_rect(at, AMBER if on else Color(0.02, 0.04, 0.1, 0.88))
+		var x := at.position.x + 5
+		if on or b.get_meta("locked", false):
+			icon(b, "check" if on else "lock", at.position + Vector2(11, 10), 6.0, NAVY if on else AMBER)
+			x += 14
+		b.draw_string(f, Vector2(x, at.position.y + 15), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, NAVY if on else Color.WHITE))
+	return b
+
+
+static func card_state(b: Button, badge: String, picked: bool, locked := false) -> void:
+	b.set_meta("badge", badge)
+	b.set_meta("locked", locked)
+	var sb := _box(Color(0.05, 0.08, 0.16, 0.85), AMBER if picked else Color(1, 1, 1, 0.16), 4 if picked else 1, 4)
+	for st in ["normal", "hover", "pressed"]:
+		b.add_theme_stylebox_override(st, sb)
+	b.modulate = Color(1, 1, 1, 0.78) if locked and not picked else Color.WHITE
+	b.queue_redraw()
 
 
 # Notch, rounded corners and home bar in UI units (x left, y top, z right, w bottom). Tests fake it with meta "test_insets".
@@ -311,7 +460,7 @@ static func _box(bg: Color, border: Color, bw: int, pad: int) -> StyleBoxFlat:
 const PRIVACY_URL := "https://github.com/SumantxD/toy-plane-sim/blob/main/PRIVACY.md"
 
 
-static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Callable()) -> VBoxContainer:
+static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Callable(), on_credits := Callable()) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	var v := Settings.values
 	_slider(box, "Volume", 0.0, 1.0, v.volume, func(x): v.volume = x; Settings.apply(tree))
@@ -330,6 +479,11 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 		tb.text = "Touch controls..."
 		tb.pressed.connect(on_touch)
 		grid.add_child(tb)
+	if on_credits.is_valid():
+		var cb := Button.new()
+		cb.text = "Credits"
+		cb.pressed.connect(on_credits)
+		grid.add_child(cb)
 	var privacy := Button.new()
 	privacy.text = "Privacy policy"
 	privacy.pressed.connect(func(): OS.shell_open(PRIVACY_URL))
@@ -340,6 +494,8 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	box.add_child(report)
 	var done := Button.new()
 	done.text = "Done"
+	if TouchControls.phone(): # the way out stands out
+		lit(done, true)
 	done.pressed.connect(func():
 		Settings.save()
 		on_close.call())
@@ -549,6 +705,8 @@ static func _check(box: Container, label: String, on: bool, cb: Callable) -> voi
 	c.text = label
 	if box is GridContainer:
 		c.custom_minimum_size = Vector2(420, 68)
+		c.add_theme_font_override("font", ThemeDB.fallback_font) # phones: plain text reads better than the display caps
+		c.add_theme_font_size_override("font_size", 17)
 		c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	c.button_pressed = on
 	c.toggled.connect(cb)

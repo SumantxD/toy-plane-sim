@@ -399,6 +399,7 @@ func solo_battle() -> void:
 
 # Solo practice runs offline: no port, no firewall prompt, same game code (offline peer = server).
 func free_flight() -> void:
+	hangar_open = false
 	room = ""
 	_drop_join()
 	_start_hosting()
@@ -526,6 +527,7 @@ func _open_mp() -> void:
 # PLAY / QUICK BATTLE / LAUNCH: straight into the last mission set up (solo_battle applies it).
 func quick_battle() -> void:
 	mission_open = false
+	hangar_open = false
 	solo_battle()
 	_start()
 
@@ -1384,7 +1386,7 @@ var orbiting := false
 
 
 func _orbit_menu(dt: float) -> void:
-	if gs.phase == "menu" and not spectating and not (shop_ui and shop_ui.visible):
+	if gs.phase == "menu" and not spectating and not (shop_ui and shop_ui.visible) and not hangar_open:
 		orbit += dt * TAU / ORBIT_LAP
 		var at := func(a: float) -> Vector3: return Vector3(sin(a) * ORBIT_R, 0.0, cos(a) * ORBIT_R)
 		var eye: Vector3 = at.call(orbit)
@@ -2291,6 +2293,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.keycode == KEY_ESCAPE and mp_open and gs.phase == "menu":
 		_close_mp()
 		return
+	if event.keycode == KEY_ESCAPE and hangar_open and gs.phase == "menu":
+		hangar_ui.close()
+		return
 	if event.keycode == KEY_ESCAPE and mission_open and gs.phase == "menu":
 		_close_mission()
 		return
@@ -2337,13 +2342,15 @@ func menu_open() -> bool:
 
 func _refresh_ui() -> void:
 	var shopping := shop_ui != null and shop_ui.visible # the shop takes the left side on its own
-	menu_root.visible = gs.phase == "menu" and not mp_open and not shopping and not mission_open
+	menu_root.visible = gs.phase == "menu" and not mp_open and not shopping and not mission_open and not hangar_open
 	if mission_root:
-		mission_root.visible = gs.phase == "menu" and mission_open and not shopping
+		mission_root.visible = gs.phase == "menu" and mission_open and not shopping and not hangar_open
+	if hangar_ui:
+		hangar_ui.visible = gs.phase == "menu" and hangar_open and not shopping
 	mp_root.visible = gs.phase == "menu" and mp_open and not shopping
 	status.visible = gs.phase == "menu"
 	if TouchControls.phone(): # the note sits beside the Multiplayer strip, else above HANGAR SHOP
-		var x: float = mp_root.custom_minimum_size.x + 20.0 if mp_open else menu_root.get_node("HangarShop").offset_left
+		var x: float = mp_root.custom_minimum_size.x + 20.0 if mp_open else menu_root.get_node("Nav").offset_left
 		status.custom_minimum_size.x = minf(470.0, get_viewport().get_visible_rect().size.x - Menus.insets(status).z - x)
 		status.offset_left = x
 		status.offset_right = x + status.custom_minimum_size.x
@@ -2439,7 +2446,7 @@ func _fill_looks() -> void:
 	var tag := func(item: String) -> String:
 		if shop.owns(item):
 			return ""
-		return "Locked: in the Hangar Shop" + ("  (try it free in Free Flight)" if solo else "")
+		return ("Locked: get it in the Shop" if TouchControls.phone() else "Locked: in the Hangar Shop") + ("  (try it free in Free Flight)" if solo else "")
 	livery_sel.set_items(range(Planes.LIVERIES.size()).map(func(i): return {title = Planes.LIVERIES[i].name.to_upper(), sub = tag.call("livery:%d" % i)}))
 	banner_sel.set_items(range(Planes.trail_names().size()).map(func(i): return {title = Planes.trail_names()[i].to_upper(), sub = tag.call("trail:%d" % i)}))
 	killfx_sel.set_items(range(Planes.KILL_FX.size()).map(func(i): return {title = Planes.KILL_FX[i].to_upper(), sub = tag.call("killfx:%d" % i)}))
@@ -2532,7 +2539,7 @@ func _turntable(dt: float) -> void:
 		spin.y = lerpf(spin.y, 0.0, 1.0 - exp(-1.5 * dt))
 	preview.basis = Basis(lobby_cam.global_basis.x, spin.y) * Basis(Vector3.UP, spin.x)
 	if TouchControls.phone(): # in the middle of the open space beside the panel, whatever the screen's shape
-		var panel: Control = (shop_ui if shop_ui.visible else lobby_root).get_child(0)
+		var panel: Control = (shop_ui if shop_ui.visible else (hangar_ui if hangar_open else lobby_root)).get_child(0)
 		var vis := get_viewport().get_visible_rect().size
 		var x := (panel.get_global_rect().end.x + vis.x - Menus.insets(panel).z) / 2.0
 		preview.global_position = lobby_cam.project_position(Vector2(x, vis.y * 0.45), 20.0)
@@ -2541,8 +2548,8 @@ func _turntable(dt: float) -> void:
 # Spinning model of the chosen plane next to the lobby panel, plus its stat bars.
 func _refresh_preview() -> void:
 	var in_shop := shop_ui != null and shop_ui.visible
-	preview.visible = gs.phase == "lobby" or in_shop
-	var look: Array = shop_ui.preview_look() if in_shop else [my_look()[0], 0, my_look()[2]] # lobby turntable: no trail
+	preview.visible = gs.phase == "lobby" or in_shop or (hangar_open and gs.phase == "menu")
+	var look: Array = shop_ui.preview_look() if in_shop else (my_look().slice(0, 3) if hangar_open else [my_look()[0], 0, my_look()[2]]) # lobby turntable: no trail
 	var key := "%s/%d/%d/%s" % [plane_choice, _my_team(), Worlds.shown, look]
 	if not preview.visible or key == preview_key:
 		return
@@ -2901,8 +2908,7 @@ func _build_ui() -> void:
 		status.text = "" if clean_name(t) else "That callsign isn't allowed: others will see you as Pilot plus a number."
 		Settings.save())
 	box.add_child(name_edit)
-	Menus.menu_item(box, "HOST ONLINE", host_online, self)
-	Menus.menu_item(box, "HOST ON LAN", host, self)
+	var hosts := [Menus.menu_item(box, "HOST ONLINE", host_online, self), Menus.menu_item(box, "HOST ON LAN", host, self)]
 	var jl := Label.new()
 	jl.text = "JOIN A FRIEND - room code or LAN address"
 	jl.modulate = Color(1, 1, 1, 0.55)
@@ -2915,17 +2921,36 @@ func _build_ui() -> void:
 	join_row.add_child(address)
 	Menus.menu_item(join_row, "JOIN", join, self, 26)
 	box.add_child(join_row)
-	Menus.menu_item(box, "BACK", _close_mp, self)
-	if TouchControls.phone(): # the iOS keyboard covers the lower half: both text fields sit high, the hint goes last
+	var mp_back := Menus.menu_item(box, "BACK", _close_mp, self)
+	if TouchControls.phone(): # BACK top-left; the iOS keyboard covers the lower half: both text fields sit high, hosting below
+		mp_back.free()
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 14)
+		box.add_child(top)
+		Menus.icon_tile(top, "BACK", "back", _close_mp, self, 16, Vector2(132, 68), true)
+		var head: Label = box.get_child(0)
+		head.text = "FRIENDS"
+		head.add_theme_font_size_override("font_size", 34)
+		head.reparent(top)
 		var crow := HBoxContainer.new()
 		box.add_child(crow)
 		cl.reparent(crow)
 		name_edit.reparent(crow)
 		name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		box.move_child(jl, 1)
-		box.move_child(join_row, 2)
-		box.move_child(crow, 3)
-		box.move_child(hint, -1)
+		jl.text = "JOIN A FRIEND: type their room code"
+		var hl := Label.new()
+		hl.text = "OR HOST A ROOM AND SEND THEM THE CODE"
+		hl.modulate = jl.modulate
+		box.add_child(hl)
+		var hrow := HBoxContainer.new()
+		box.add_child(hrow)
+		for b: Button in hosts:
+			b.reparent(hrow)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.add_theme_font_size_override("font_size", 20)
+		for c: Control in [top, jl, join_row, crow, hl, hrow]:
+			box.move_child(c, -1)
+		hint.free()
 	mp_root = Menus.side_panel(ui, box)
 	mp_root.hide()
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2934,7 +2959,7 @@ func _build_ui() -> void:
 	status.position = Vector2(48, -110)
 	status.add_theme_color_override("font_color", Menus.AMBER)
 	if TouchControls.phone(): # grows upward from just above HANGAR SHOP
-		var hs: Control = menu_root.get_node("HangarShop")
+		var hs: Control = menu_root.get_node("Nav")
 		status.grow_vertical = Control.GROW_DIRECTION_BEGIN
 		status.offset_left = hs.offset_left
 		status.offset_bottom = hs.offset_top - 10.0
@@ -3021,7 +3046,7 @@ func _build_ui() -> void:
 		sbox.add_child(sel)
 	_fill_looks()
 	shop.changed.connect(_fill_looks)
-	Menus.menu_item(sbox, "HANGAR SHOP", func(): shop_ui.open(), self, 18)
+	Menus.menu_item(sbox, "SHOP" if TouchControls.phone() else "HANGAR SHOP", func(): shop_ui.open(), self, 18)
 	sbox.add_child(stats_label)
 	stats_label.hide() # the plane row already names and describes it
 	for s in ["Speed", "Agility", "Armor", "Rockets"]:
@@ -3068,6 +3093,8 @@ func _build_ui() -> void:
 		request_end.rpc_id(1), self)
 	Menus.menu_item(box, "LEAVE GAME", _leave, self)
 	pause_root = Menus.side_panel(ui, box, 480)
+	if TouchControls.phone(): # under the HUD's readout lines
+		pause_root.get_theme_stylebox("panel").content_margin_top = 96
 
 	box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
@@ -3090,7 +3117,8 @@ func _build_ui() -> void:
 	var to_touch := Callable()
 	if TouchControls.on():
 		to_touch = func(): settings_root.hide(); touch_root.show()
-	box.add_child(Menus.settings_panel(get_tree(), func(): settings_root.hide(), to_touch))
+	var to_credits := (func(): settings_root.hide(); credits_root.show()) if TouchControls.phone() else Callable() # phones: off the home screen
+	box.add_child(Menus.settings_panel(get_tree(), func(): settings_root.hide(), to_touch, to_credits))
 	settings_root = _panel(ui, box)
 
 	box = VBoxContainer.new()
@@ -3106,10 +3134,12 @@ func _build_ui() -> void:
 	_button(grid, "Customize layout", func():
 		touch_root.hide()
 		touch.edit(touch_root.show))
-	_button(grid, "Done", func():
+	var tdone := _button(grid, "Done", func():
 		Settings.save()
 		touch_root.hide()
 		settings_root.show())
+	if TouchControls.phone():
+		Menus.lit(tdone, true)
 	touch_root = _panel(ui, box)
 
 	box = VBoxContainer.new()
@@ -3149,6 +3179,9 @@ func _build_ui() -> void:
 	credits_root = _panel(ui, box)
 
 	shop_ui = ShopUI.new(self, shop)
+	if TouchControls.phone():
+		hangar_ui = HangarUI.new(self, shop)
+		ui.add_child(hangar_ui)
 	ui.add_child(shop_ui)
 	for r in [pause_root, results_root, settings_root, touch_root, howto_root, credits_root, lobby_root]:
 		r.hide()
@@ -3179,8 +3212,9 @@ func _phone_credits(box: VBoxContainer) -> void:
 	Menus.tile(pg.row, "CLOSE", func(): credits_root.hide(), self)
 
 
-# Phone home: title and small buttons up top, the big PLAY under the right thumb with the mission it
-# plays just above it (tap to change), hangar bottom-left. Nothing scrolls; the live world shows through.
+# Phone home: title with SETTINGS / HOW TO PLAY up top, the big PLAY under the right thumb with the
+# mission it plays just above it (tap to change), picture tiles for HANGAR / SHOP / FRIENDS bottom-left.
+# Nothing scrolls; the live world shows through. First launch: PLAY pulses with a one-line hint.
 func _build_home(ui: Control) -> void:
 	var inset := Menus.insets(ui)
 	var l := maxf(inset.x, 20.0)
@@ -3205,20 +3239,15 @@ func _build_home(ui: Control) -> void:
 	arcade.add_theme_color_override("font_color", Menus.AMBER)
 	arcade.add_theme_constant_override("outline_size", 10)
 	bar.add_child(title)
-	for it in [["SETTINGS", "settings_root"], ["HOW TO PLAY", "howto_root"], ["CREDITS", "credits_root"]]: # built after this
-		var small := Menus.tile(bar, it[0], func(): get(it[1]).show(), self, 16, Vector2(96, 68))
+	for it in [["HOW TO PLAY", "help", "howto_root"], ["SETTINGS", "gear", "settings_root"]]: # built after this
+		var small := Menus.icon_tile(bar, it[0], it[1], func(): get(it[2]).show(), self, 13, Vector2(124, 84))
 		small.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	_corner(col, Vector2(-r - 340, -b - 100), Vector2(340, 100), true)
 	col.grow_vertical = Control.GROW_DIRECTION_BEGIN # PLAY sits on the corner, the rest stacks up from it
 	menu_root.add_child(col)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	col.add_child(row)
-	for it in [["MULTIPLAYER", _open_mp], ["FREE FLIGHT", free_flight]]:
-		var half := Menus.tile(row, it[0], it[1], self, 17, Vector2(0, 72))
-		half.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	Menus.icon_tile(col, "FREE FLIGHT", "cloud", free_flight, self, 16, Vector2(340, 68), true)
 	var card := Menus.tile(col, "", _open_mission, self, 18, Vector2(340, 86))
 	card.name = "MissionCard"
 	card.add_theme_stylebox_override("normal", Menus._box(Color(0.03, 0.05, 0.1, 0.72), Color(1, 1, 1, 0.25), 2, 8))
@@ -3244,16 +3273,19 @@ func _build_home(ui: Control) -> void:
 	home_mode.add_theme_font_size_override("font_size", 14)
 	home_mode.add_theme_color_override("font_color", Menus.AMBER)
 	var change := Label.new()
-	change.text = "CHANGE"
-	change.add_theme_font_size_override("font_size", 14)
-	change.modulate = Color(1, 1, 1, 0.75)
-	h.add_child(change)
+	change.text = "TAP TO CHANGE  >"
+	change.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+	change.add_theme_font_size_override("font_size", 11)
+	change.modulate = Color(1, 1, 1, 0.7)
+	v.add_child(change)
 	var play := _big_button(col, "PLAY", quick_battle)
 	play.name = "Play"
 	var pv := VBoxContainer.new()
 	pv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
+	pv.offset_left = 52 # the play triangle
 	pv.alignment = BoxContainer.ALIGNMENT_CENTER
 	play.add_child(pv)
+	play.draw.connect(func(): Menus.icon(play, "play", Vector2(44, 50), 20, Menus.NAVY))
 	var word := Label.new()
 	word.text = play.text
 	play.text = ""
@@ -3266,9 +3298,41 @@ func _build_home(ui: Control) -> void:
 		lab.add_theme_color_override("font_color", Menus.NAVY)
 		lab.add_theme_constant_override("outline_size", 0)
 		pv.add_child(lab)
-	var shop_btn := Menus.tile(menu_root, "HANGAR SHOP", func(): shop_ui.open(), self, 17, Vector2(200, 72))
-	shop_btn.name = "HangarShop"
-	_corner(shop_btn, Vector2(l, -b - 72), Vector2(200, 72), false)
+	var nav := HBoxContainer.new()
+	nav.name = "Nav"
+	nav.add_theme_constant_override("separation", 10)
+	_corner(nav, Vector2(l, -b - 104), Vector2(3 * 118 + 20, 104), false)
+	menu_root.add_child(nav)
+	Menus.icon_tile(nav, "HANGAR", "plane", func(): hangar_ui.open(), self, 15, Vector2(118, 104))
+	Menus.icon_tile(nav, "SHOP", "shop", func(): shop_ui.open(), self, 15, Vector2(118, 104))
+	Menus.icon_tile(nav, "FRIENDS", "friends", _open_mp, self, 15, Vector2(118, 104))
+	if int(Settings.values.get("matches", 0)) == 0: # first launch: one pulsing hint, gone after the first match
+		var coach := Label.new()
+		coach.text = "NEW PILOT?\nTAP PLAY!"
+		coach.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
+		coach.add_theme_font_size_override("font_size", 16)
+		coach.add_theme_color_override("font_color", Menus.AMBER)
+		coach.add_theme_constant_override("outline_size", 8)
+		coach.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		coach.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_corner(coach, Vector2(-r - 340 - 190, -b - 100), Vector2(150, 100), true)
+		coach.name = "Coach"
+		menu_root.add_child(coach)
+		var ring := Control.new()
+		ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+		menu_root.add_child(ring)
+		menu_root.move_child(ring, 0)
+		ring.draw.connect(func():
+			var k: float = ring.get_meta("t", 0.0)
+			var pr := Rect2(play.global_position - ring.global_position, play.size).grow(4.0 + 10.0 * k)
+			var sb := Menus._box(Color(0, 0, 0, 0), Color(Menus.AMBER, 0.9 * (1.0 - k)), 4, 0)
+			sb.set_corner_radius_all(int(12 + 10 * k))
+			sb.draw_center = false
+			ring.draw_style_box(sb, pr)
+			var tip := Vector2(play.global_position.x - ring.global_position.x - 12.0 - 8.0 * k, pr.get_center().y)
+			ring.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-22, -16), tip + Vector2(-22, 16)]), Menus.AMBER))
+		var tw := ring.create_tween().set_loops()
+		tw.tween_method(func(k): ring.set_meta("t", k); ring.queue_redraw(), 0.0, 1.0, 1.1)
 	for c in [menu_root] + menu_root.find_children("*", "Control", true, false): # taps land on the buttons, not their insides
 		if not c is BaseButton:
 			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3297,16 +3361,13 @@ func _build_mission(ui: Control, inset: Vector4, l: float, r: float, b: float) -
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 16)
 	v.add_child(bar)
-	Menus.tile(bar, "<  BACK", _close_mission, self, 18, Vector2(120, 68))
+	Menus.icon_tile(bar, "BACK", "back", _close_mission, self, 16, Vector2(132, 68), true)
 	var tv := VBoxContainer.new()
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	Menus.big_title(tv, "MISSION", 34).add_theme_constant_override("outline_size", 10)
 	bar.add_child(tv)
-	Menus.tile(bar, "PLANE + LOOKS", func():
-		mission_open = false
-		solo_battle()
-		_lobby_tab("PLANE"), self, 16, Vector2(0, 68)) # the full lobby: plane picker with stats, stickers, paint
+	Menus.icon_tile(bar, "HANGAR", "plane", func(): hangar_ui.open(), self, 16, Vector2(160, 68), true) # your plane and looks
 	var cards := GridContainer.new()
 	cards.columns = 3
 	cards.add_theme_constant_override("h_separation", 10)
@@ -3622,6 +3683,12 @@ func _panel(ui: Control, box: VBoxContainer, at := Control.PRESET_CENTER, margin
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var pc := PanelContainer.new()
+	if TouchControls.phone(): # dims what's behind, so the panel reads as the only thing to tap
+		var dim := ColorRect.new()
+		dim.color = Color(0, 0, 0, 0.5)
+		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(dim)
 	box.custom_minimum_size.x = 400
 	box.add_theme_constant_override("separation", 10)
 	pc.add_child(box)
@@ -3712,6 +3779,8 @@ var taunts: Taunts
 var touch: TouchControls
 var shop := Shop.new()
 var shop_ui: ShopUI
+var hangar_ui: HangarUI # phone: your plane and looks
+var hangar_open := false
 var offer_match := -1 # results offer worked out once per match
 var offer_box := VBoxContainer.new()
 var livery_sel: Menus.Selector
