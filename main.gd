@@ -77,7 +77,7 @@ var sticker_sel: Menus.Selector
 var banner_sel: Menus.Selector
 var prize: Node # the current prize balloon (server)
 var prize_t := 35.0
-var battle_row := VBoxContainer.new()
+var battle_row: BoxContainer = HBoxContainer.new() if TouchControls.phone() else VBoxContainer.new() # phones: size and skill side by side
 var mp_root: Control # Multiplayer screen (host / join), part of the main menu
 var mp_open := false
 var mission_root: Control # phone: solo mission setup over the home screen
@@ -98,7 +98,7 @@ var copy_btn: Button
 var room_label := Label.new()
 var net_label := Label.new()
 var leave_btn: Button
-var kick_box := VBoxContainer.new() # host: a KICK per joined pilot
+var kick_box: Container = HFlowContainer.new() if TouchControls.phone() else VBoxContainer.new() # host: a KICK per joined pilot
 var switch_btn: Button
 var overlay := Control.new()
 var top := Label.new()
@@ -161,6 +161,41 @@ func _boot(frac: float, text: String) -> void:
 	await get_tree().process_frame # let it draw before the next blocking step
 
 
+# Draw every effect once behind the loading screen (muted) so a phone compiles their shaders now,
+# not mid-fight: the first confetti, kill effect or shield used to hitch.
+func _warm_effects() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if not cam or DisplayServer.get_name() == "headless":
+		return
+	AudioServer.set_bus_mute(0, true)
+	var before := get_children()
+	var at := cam.global_position - cam.global_basis.z * 40.0
+	Fx.pop(self, at, true)
+	Fx.pop(self, at, false)
+	Fx.flak(self, at)
+	for k in [1, 2, 3]:
+		Fx.kill_effect(self, at, k)
+	var temp: Array[Node3D] = [Fx.fire(), Fx.smoke()]
+	var shield := MeshInstance3D.new() # same material as plane.gd's prize shield
+	shield.mesh = SphereMesh.new()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.4, 0.85, 1.0, 0.18)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	shield.material_override = m
+	temp.append(shield)
+	for n in temp:
+		add_child(n)
+		n.global_position = at
+	for i in 3:
+		await get_tree().process_frame
+	for n in get_children():
+		if not n in before: # the warm-up's own bits, so none drift past the menu
+			n.queue_free()
+	AudioServer.set_bus_mute(0, false)
+
+
 func _ready() -> void:
 	for f in [set_process, set_physics_process, set_process_input, set_process_unhandled_input]:
 		f.call(false) # nothing ticks until the world and UI exist
@@ -175,6 +210,8 @@ func _ready() -> void:
 			Input.emulate_touch_from_mouse = true # --touch on a desktop: the mouse is a finger
 	await _boot(0.2, "Building the world...")
 	_build_world()
+	await _boot(0.6, "Warming up effects...")
+	await _warm_effects()
 	await _boot(0.8, "Getting the hangar ready...")
 	_build_ui()
 	Settings.apply(get_tree())
@@ -1284,6 +1321,10 @@ func _end(text: String) -> void:
 		if gs.match_id == id and gs.phase == "ended":
 			for c in players.get_children():
 				c.queue_free()
+			if TouchControls.phone() and multiplayer.multiplayer_peer is OfflineMultiplayerPeer: # phone solo: home, where PLAY goes again
+				gs.phase = "menu"
+				sync(gs.duplicate(true), true)
+				return
 			gs.phase = "lobby"
 			_push()
 			if "--start" in OS.get_cmdline_user_args():
@@ -1371,7 +1412,7 @@ func _process(dt: float) -> void:
 		_bake_map()
 	_refresh_hud()
 	if preview.visible:
-		preview.rotate_y(0.6 * dt)
+		_turntable(dt)
 	if spectating and gs.phase in ["playing", "ended"]:
 		_spectate(dt)
 	_tick_network(dt)
@@ -2188,6 +2229,8 @@ func say_bubble(plane_name: String, text: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if preview.visible and _spin_input(event):
+		return
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 	if event.keycode == KEY_ESCAPE and (settings_root.visible or touch_root.visible or howto_root.visible or credits_root.visible):
@@ -2254,6 +2297,11 @@ func _refresh_ui() -> void:
 		mission_root.visible = gs.phase == "menu" and mission_open and not shopping
 	mp_root.visible = gs.phase == "menu" and mp_open and not shopping
 	status.visible = gs.phase == "menu"
+	if TouchControls.phone(): # the note sits beside the Multiplayer strip, else above HANGAR SHOP
+		var x: float = mp_root.custom_minimum_size.x + 20.0 if mp_open else menu_root.get_node("HangarShop").offset_left
+		status.custom_minimum_size.x = minf(470.0, get_viewport().get_visible_rect().size.x - Menus.insets(status).z - x)
+		status.offset_left = x
+		status.offset_right = x + status.custom_minimum_size.x
 	lobby_root.visible = gs.phase == "lobby" and not shopping
 	var leader: bool = gs.leader == multiplayer.get_unique_id()
 	for sel: Menus.Selector in [mode_sel, world_sel, size_sel, skill_sel]:
@@ -2298,7 +2346,15 @@ func _refresh_ui() -> void:
 		for c in kick_box.get_children():
 			c.queue_free()
 		for id in kick:
-			Menus.menu_item(kick_box, "KICK %s" % gs.players[id].name, _kick.bind(id), self, 16)
+			var kb := Menus.menu_item(kick_box, "KICK %s" % gs.players[id].name, _kick.bind(id), self, 16)
+			if lobby_pages: # phones: two to a row
+				kb.custom_minimum_size.x = 248
+				kb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		Menus.thumbs(kick_box)
+	if lobby_pages:
+		lobby_pages.KICK[0].visible = not kick.is_empty()
+		if kick.is_empty() and kick_box.visible:
+			_lobby_tab("PILOTS")
 	_refresh_preview()
 	$EscortGoal.visible = gs.mode == 0 and gs.phase != "menu" # not hanging over the home-screen flyby
 	if gs.phase == "ended":
@@ -2316,7 +2372,7 @@ func _refresh_ui() -> void:
 				_cell(str(v), Color.WHITE)
 		var ai_rows: Array = gs.ai_board.keys()
 		ai_rows.sort_custom(func(a, b): return gs.ai_board[a].kills > gs.ai_board[b].kills)
-		for n in ai_rows.slice(0, 6):
+		for n in ai_rows.slice(0, maxi(8 - gs.players.size(), 0) if TouchControls.phone() else 6): # phones: the table fits the screen
 			var r: Dictionary = gs.ai_board[n]
 			for v in ["%s (AI)" % n, TEAM_NAMES[r.team], r.style, r.kills, "", ""]:
 				_cell(str(v), Color(0.75, 0.85, 1.0))
@@ -2362,6 +2418,7 @@ func _fill_offer() -> void:
 		var it0: String = items[0]
 		_button_in(row, "SEE IT", func(): shop_ui.open(shop.product_for(it0)))
 		offer_box.add_child(row)
+		Menus.thumbs(row)
 		break
 	var won: bool = gs.msg.begins_with(TEAM_NAMES[_my_team()]) or gs.msg.ends_with("Mission complete!")
 	if not won:
@@ -2380,6 +2437,7 @@ func _fill_offer() -> void:
 		shop.dismiss(p)
 		row.queue_free())
 	offer_box.add_child(row)
+	Menus.thumbs(row)
 
 
 func _button_in(row: Container, text: String, cb: Callable) -> void:
@@ -2395,6 +2453,40 @@ func _cell(text: String, color: Color) -> void:
 	l.modulate = color
 	l.custom_minimum_size.x = 110
 	results_grid.add_child(l)
+
+
+# Turntable: drag the open space around the plane to turn it any way (top and bottom too), double-tap
+# levels it; after a drag it holds still for a moment, then slowly turns on its own again.
+var spin := Vector2.ZERO # yaw, pitch
+var spin_drag := false
+var spin_hold := 0.0
+
+func _spin_input(e: InputEvent) -> bool:
+	var touch := TouchControls.on() # a finger also sends an emulated mouse: only one of the two counts
+	if (e is InputEventScreenTouch and touch) or (e is InputEventMouseButton and not touch and e.button_index == MOUSE_BUTTON_LEFT):
+		spin_drag = e.pressed
+		if e.pressed and (e.double_tap if e is InputEventScreenTouch else e.double_click):
+			spin = Vector2.ZERO
+		return true
+	if spin_drag and ((e is InputEventScreenDrag and touch) or (e is InputEventMouseMotion and not touch and e.button_mask & MOUSE_BUTTON_MASK_LEFT)):
+		spin += e.relative * 0.01
+		spin.y = clampf(spin.y, -1.5, 1.5)
+		spin_hold = 3.0
+		return true
+	return false
+
+
+func _turntable(dt: float) -> void:
+	spin_hold -= dt
+	if spin_hold <= 0.0 and not spin_drag:
+		spin.x += 0.6 * dt
+		spin.y = lerpf(spin.y, 0.0, 1.0 - exp(-1.5 * dt))
+	preview.basis = Basis(lobby_cam.global_basis.x, spin.y) * Basis(Vector3.UP, spin.x)
+	if TouchControls.phone(): # in the middle of the open space beside the panel, whatever the screen's shape
+		var panel: Control = (shop_ui if shop_ui.visible else lobby_root).get_child(0)
+		var vis := get_viewport().get_visible_rect().size
+		var x := (panel.get_global_rect().end.x + vis.x - Menus.insets(panel).z) / 2.0
+		preview.global_position = lobby_cam.project_position(Vector2(x, vis.y * 0.45), 20.0)
 
 
 # Spinning model of the chosen plane next to the lobby panel, plus its stat bars.
@@ -2736,6 +2828,16 @@ func _build_ui() -> void:
 	Menus.menu_item(join_row, "JOIN", join, self, 26)
 	box.add_child(join_row)
 	Menus.menu_item(box, "BACK", _close_mp, self)
+	if TouchControls.phone(): # the iOS keyboard covers the lower half: both text fields sit high, the hint goes last
+		var crow := HBoxContainer.new()
+		box.add_child(crow)
+		cl.reparent(crow)
+		name_edit.reparent(crow)
+		name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box.move_child(jl, 1)
+		box.move_child(join_row, 2)
+		box.move_child(crow, 3)
+		box.move_child(hint, -1)
 	mp_root = Menus.side_panel(ui, box)
 	mp_root.hide()
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2794,8 +2896,6 @@ func _build_ui() -> void:
 	lobby_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(lobby_root)
 	box.remove_child(start_btn)
-	Menus.side_panel(lobby_root, box, 520, false, start_btn).get_theme_stylebox("panel").content_margin_top = 30
-	box.add_theme_constant_override("separation", 7)
 	var rbox := VBoxContainer.new()
 	var sq := Label.new()
 	sq.text = "SQUADRONS"
@@ -2856,7 +2956,13 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size.y = 18
 	right.add_child(spacer)
 	right.add_child(sbox)
-	Menus.side_panel(lobby_root, right, 420, true).get_theme_stylebox("panel").content_margin_top = 30
+	if TouchControls.phone():
+		_lobby_tabs(box, rbox, sbox)
+		right.free()
+	else:
+		Menus.side_panel(lobby_root, box, 520, false, start_btn).get_theme_stylebox("panel").content_margin_top = 30
+		box.add_theme_constant_override("separation", 7)
+		Menus.side_panel(lobby_root, right, 420, true).get_theme_stylebox("panel").content_margin_top = 30
 
 	box = VBoxContainer.new()
 	Menus.big_title(box, "PAUSED", 48)
@@ -2886,7 +2992,7 @@ func _build_ui() -> void:
 	offer_box.add_theme_constant_override("separation", 4)
 	box.add_child(offer_box)
 	var back := Label.new()
-	back.text = "Back to the lobby in a few seconds..."
+	back.text = "Back in a few seconds..." if TouchControls.phone() else "Back to the lobby in a few seconds..."
 	back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(back)
 	results_root = _panel(ui, box)
@@ -2902,16 +3008,17 @@ func _build_ui() -> void:
 	box = VBoxContainer.new()
 	_title(box, "TOUCH CONTROLS")
 	var v := Settings.values
-	Menus._check(box, "Tilt to steer (hold the phone how you like, it's level)", v.tilt, func(on): v.tilt = on)
-	Menus._check(box, "Auto-fire when the lead ring is in your sights", v.autofire, func(on): v.autofire = on)
-	Menus._check(box, "Vibration", v.vibrate, func(on): v.vibrate = on)
-	Menus._check(box, "Left-handed (mirror the layout)", v.touch_lefty, func(on): v.touch_lefty = on)
-	Menus._check(box, "Fixed stick (it stays put instead of following your thumb)", v.touch_fixed, func(on): v.touch_fixed = on)
+	var grid := Menus.columns(box)
+	Menus._check(grid, "Tilt to steer (hold the phone how you like, it's level)", v.tilt, func(on): v.tilt = on)
+	Menus._check(grid, "Auto-fire when the lead ring is in your sights", v.autofire, func(on): v.autofire = on)
+	Menus._check(grid, "Vibration", v.vibrate, func(on): v.vibrate = on)
+	Menus._check(grid, "Left-handed (mirror the layout)", v.touch_lefty, func(on): v.touch_lefty = on)
+	Menus._check(grid, "Fixed stick (it stays put instead of following your thumb)", v.touch_fixed, func(on): v.touch_fixed = on)
 	Menus._slider(box, "Button opacity", 0.25, 1.0, v.touch_opacity, func(x): v.touch_opacity = x)
-	_button(box, "Customize layout", func():
+	_button(grid, "Customize layout", func():
 		touch_root.hide()
 		touch.edit(touch_root.show))
-	_button(box, "Done", func():
+	_button(grid, "Done", func():
 		Settings.save()
 		touch_root.hide()
 		settings_root.show())
@@ -2919,29 +3026,38 @@ func _build_ui() -> void:
 
 	box = VBoxContainer.new()
 	_title(box, "HOW TO PLAY")
-	var how := RichTextLabel.new()
-	how.bbcode_enabled = true
-	how.custom_minimum_size = Vector2(760, 420 if TouchControls.on() else 620) # scrolls, so "Got it" stays on screen
-	how.text = Menus.howto_text()
-	box.add_child(how)
-	_button(box, "Got it", func(): howto_root.hide())
+	if TouchControls.phone(): # a topic per page
+		var pg := Menus.Pager.new(PAGE_TEXT, self)
+		pg.set_pages(Array(Menus.howto_text().split("\n\n")))
+		box.add_child(pg)
+		Menus.tile(pg.row, "GOT IT", func(): howto_root.hide(), self)
+	else:
+		var how := RichTextLabel.new()
+		how.bbcode_enabled = true
+		how.custom_minimum_size = Vector2(760, 420 if TouchControls.on() else 620) # scrolls, so "Got it" stays on screen
+		how.text = Menus.howto_text()
+		box.add_child(how)
+		_button(box, "Got it", func(): howto_root.hide())
 	howto_root = _panel(ui, box)
 
 	box = VBoxContainer.new()
 	_title(box, "CREDITS")
-	var cr := RichTextLabel.new()
-	cr.bbcode_enabled = true
-	cr.custom_minimum_size = Vector2(760, 420)
-	cr.text = Menus.credits_text()
-	box.add_child(cr)
-	var lic := Button.new()
-	lic.text = "Licenses"
-	lic.pressed.connect(func(): # the credits box doubles as the license viewer
-		cr.bbcode_enabled = not cr.bbcode_enabled
-		cr.text = Menus.credits_text() if cr.bbcode_enabled else FileAccess.get_file_as_string("res://THIRD_PARTY_LICENSES.txt")
-		lic.text = "Licenses" if cr.bbcode_enabled else "Back to credits")
-	box.add_child(lic)
-	_button(box, "Close", func(): credits_root.hide())
+	if TouchControls.phone():
+		_phone_credits(box)
+	else:
+		var cr := RichTextLabel.new()
+		cr.bbcode_enabled = true
+		cr.custom_minimum_size = Vector2(760, 420)
+		cr.text = Menus.credits_text()
+		box.add_child(cr)
+		var lic := Button.new()
+		lic.text = "Licenses"
+		lic.pressed.connect(func(): # the credits box doubles as the license viewer
+			cr.bbcode_enabled = not cr.bbcode_enabled
+			cr.text = Menus.credits_text() if cr.bbcode_enabled else FileAccess.get_file_as_string("res://THIRD_PARTY_LICENSES.txt")
+			lic.text = "Licenses" if cr.bbcode_enabled else "Back to credits")
+		box.add_child(lic)
+		_button(box, "Close", func(): credits_root.hide())
 	credits_root = _panel(ui, box)
 
 	shop_ui = ShopUI.new(self, shop)
@@ -2950,6 +3066,29 @@ func _build_ui() -> void:
 		r.hide()
 	for r in [settings_root, touch_root, howto_root, credits_root]:
 		r.mouse_filter = Control.MOUSE_FILTER_STOP # the menu underneath can't be tapped through these
+
+
+# Phone credits, doubling as the license viewer: fixed lines per page, so every page fits.
+const PAGE_TEXT := Vector2(860, 400)
+
+func _phone_credits(box: VBoxContainer) -> void:
+	var pg := Menus.Pager.new(PAGE_TEXT, self)
+	for f in ["normal_font_size", "bold_font_size"]:
+		pg.label.add_theme_font_size_override(f, 16)
+	pg.set_pages([Menus.credits_text()])
+	box.add_child(pg)
+	var lic := Menus.tile(pg.row, "LICENSES", func(): pass, self)
+	lic.pressed.connect(func():
+		var on := lic.text == "LICENSES"
+		lic.text = "CREDITS" if on else "LICENSES"
+		if not on:
+			pg.set_pages([Menus.credits_text()])
+			return
+		var font := pg.label.get_theme_font("normal_font")
+		var fs := pg.label.get_theme_font_size("normal_font_size")
+		var lines := int(PAGE_TEXT.y / (font.get_height(fs) + pg.label.get_theme_constant("line_separation")))
+		pg.set_pages(Menus.text_pages(FileAccess.get_file_as_string("res://THIRD_PARTY_LICENSES.txt"), font, fs, PAGE_TEXT.x - 16.0, lines), false))
+	Menus.tile(pg.row, "CLOSE", func(): credits_root.hide(), self)
 
 
 # Phone home: title and small buttons up top, the big PLAY under the right thumb with the mission it
@@ -3048,8 +3187,8 @@ func _build_home(ui: Control) -> void:
 	_build_mission(ui, inset, l, r, b)
 
 
-# Phone Mission Select: worlds scroll sideways (one card cut off at the edge says so), mode chips,
-# size and skill segments; LAUNCH is where PLAY was. No vertical scroll on a 620-unit screen.
+# Phone Mission Select: all six worlds as picture cards (3 x 2), mode chips, size and skill segments;
+# LAUNCH is where PLAY was. Nothing scrolls on a 620-unit screen.
 func _build_mission(ui: Control, inset: Vector4, l: float, r: float, b: float) -> void:
 	mission_root = Control.new()
 	mission_root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -3078,40 +3217,43 @@ func _build_mission(ui: Control, inset: Vector4, l: float, r: float, b: float) -
 	bar.add_child(tv)
 	Menus.tile(bar, "PLANE + LOOKS", func():
 		mission_open = false
-		solo_battle(), self, 16, Vector2(0, 68)) # the full lobby: plane picker with stats, stickers, paint
-	var scroll := ScrollContainer.new()
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	scroll.scroll_deadzone = 8 # a tap that wobbles a little is still a tap
-	scroll.custom_minimum_size.y = 170
-	v.add_child(scroll)
-	var cards := HBoxContainer.new()
-	cards.add_theme_constant_override("separation", 12)
-	scroll.add_child(cards)
+		solo_battle()
+		_lobby_tab("PLANE"), self, 16, Vector2(0, 68)) # the full lobby: plane picker with stats, stickers, paint
+	var cards := GridContainer.new()
+	cards.columns = 3
+	cards.add_theme_constant_override("h_separation", 10)
+	cards.add_theme_constant_override("v_separation", 10)
+	v.add_child(cards)
 	for i in Worlds.LIST.size():
-		var c := Menus.tile(cards, "", _pick_mission.bind("world", i), self, 18, Vector2(230, 170))
-		c.mouse_filter = Control.MOUSE_FILTER_PASS # a drag across the cards still scrolls them
-		var cv := VBoxContainer.new()
+		var c := Menus.tile(cards, "", _pick_mission.bind("world", i), self, 18, Vector2(0, 84))
+		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cv := HBoxContainer.new()
 		cv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 6)
-		cv.add_theme_constant_override("separation", 2)
+		cv.add_theme_constant_override("separation", 8)
 		c.add_child(cv)
 		var pic := TextureRect.new()
 		pic.texture = load("res://assets/ui/worlds/%s.png" % Worlds.LIST[i])
-		pic.custom_minimum_size.y = 100
+		pic.custom_minimum_size.x = 100
 		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		cv.add_child(pic)
+		var txt := VBoxContainer.new()
+		txt.alignment = BoxContainer.ALIGNMENT_CENTER
+		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		txt.add_theme_constant_override("separation", 2)
+		cv.add_child(txt)
 		var n := Label.new()
 		n.text = Worlds.NAMES[i].to_upper()
 		n.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
-		n.add_theme_font_size_override("font_size", 16)
-		cv.add_child(n)
+		n.add_theme_font_size_override("font_size", 14)
+		n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		txt.add_child(n)
 		var tag := Label.new()
 		tag.text = Worlds.TAGLINES[i]
 		tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tag.add_theme_font_size_override("font_size", 12)
 		tag.modulate = Color(1, 1, 1, 0.75)
-		cv.add_child(tag)
+		txt.add_child(tag)
 		world_cards.append(c)
 	var chips := HFlowContainer.new()
 	chips.add_theme_constant_override("h_separation", 10)
@@ -3150,7 +3292,7 @@ func _build_mission(ui: Control, inset: Vector4, l: float, r: float, b: float) -
 	launch.name = "Launch"
 	_corner(launch, Vector2(-r - 340, -b - 100), Vector2(340, 100), true)
 	for c in [mission_root] + mission_root.find_children("*", "Control", true, false):
-		if not c is BaseButton and not c is ScrollContainer:
+		if not c is BaseButton:
 			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP # nothing behind it takes a stray tap
 	_refresh_mission()
@@ -3160,6 +3302,53 @@ func _big_button(parent: Control, text: String, cb: Callable) -> Button:
 	var btn := Menus.tile(parent, text, cb, self, 34, Vector2(340, 100))
 	Menus.lit(btn, true)
 	return btn
+
+
+# Phone lobby: one strip with tabs on top (nothing scrolls on a 620-unit screen), LEAVE and LAUNCH at its foot.
+var lobby_pages := {} # tab name -> [tab, page]
+
+func _lobby_tabs(box: VBoxContainer, rbox: VBoxContainer, sbox: VBoxContainer) -> void:
+	box.get_child(0).free() # MISSION SETUP / HANGAR: the tabs name them
+	sbox.get_child(0).free()
+	world_sel.pic.custom_minimum_size = Vector2(300, 56)
+	for sel: Control in [size_sel, skill_sel]:
+		sel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var looks := VBoxContainer.new()
+	for sel: Control in [sticker_sel, livery_sel, banner_sel, killfx_sel]:
+		sel.reparent(looks)
+	lobby_list.add_theme_font_size_override("font_size", 15)
+	var acts := HFlowContainer.new()
+	rbox.add_child(acts)
+	copy_btn.text = "COPY CODE"
+	for b: Control in [copy_btn, switch_btn, rbox.get_child(5)]: # ..., HOW TO PLAY: one row
+		b.reparent(acts)
+		b.add_theme_font_size_override("font_size", 16)
+	var col := VBoxContainer.new()
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	col.add_child(tabs)
+	for it in [["MISSION", box], ["PLANE", sbox], ["LOOKS", looks], ["PILOTS", rbox], ["KICK", kick_box]]:
+		var page: Control = it[1]
+		if page.get_parent():
+			page.reparent(col)
+		else:
+			col.add_child(page)
+		var t := Menus.tile(tabs, it[0], _lobby_tab.bind(it[0]), self, 15)
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lobby_pages[it[0]] = [t, page]
+	var foot := HBoxContainer.new()
+	leave_btn.reparent(foot)
+	foot.add_child(start_btn)
+	for b: Control in [leave_btn, start_btn]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	Menus.side_panel(lobby_root, col, 560, false, foot)
+	_lobby_tab("MISSION")
+
+
+func _lobby_tab(k: String) -> void:
+	for n in lobby_pages:
+		lobby_pages[n][1].visible = n == k
+		Menus.lit(lobby_pages[n][0], n == k)
 
 
 # Pin a control to the bottom-right (right = true) or bottom-left corner: at = offset from that corner's anchor.
@@ -3351,6 +3540,7 @@ func _panel(ui: Control, box: VBoxContainer, at := Control.PRESET_CENTER, margin
 	root.add_child(pc)
 	pc.resized.connect(func(): pc.set_anchors_and_offsets_preset(at, Control.PRESET_MODE_MINSIZE, margin))
 	ui.add_child(root)
+	Menus.thumbs(box)
 	return root
 
 
@@ -3363,7 +3553,7 @@ func _title(box: VBoxContainer, text: String) -> void:
 	box.add_child(l)
 
 
-func _button(box: VBoxContainer, text: String, cb: Callable) -> Button:
+func _button(box: Container, text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.pressed.connect(func(): Sfx.ui(self, Sfx.CLICK, -6.0))

@@ -48,14 +48,16 @@ static func bind_wasd() -> void:
 
 # Dark full-height strip the big menus sit on, so text reads over the live 3D world behind.
 static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right := false, footer: Control = null) -> Control:
+	var phone := TouchControls.phone()
 	var root := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.05, 0.1, 0.72)
-	sb.set_content_margin_all(28 if TouchControls.phone() else 48)
-	sb.content_margin_top = 20 if TouchControls.phone() else 32
-	var safe := DisplayServer.get_display_safe_area() # keep text clear of the notch / Dynamic Island
-	var scr := DisplayServer.screen_get_size()
-	var inset := maxf(safe.position.x, scr.x - safe.end.x) * (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size.x / maxf(scr.x, 1.0)
+	sb.set_content_margin_all(28 if phone else 48)
+	sb.content_margin_top = 20 if phone else 32
+	var ins := insets(ui) # keep text clear of the notch / Dynamic Island (and the home bar)
+	var inset := maxf(ins.x, ins.z)
+	if phone:
+		sb.content_margin_bottom = maxf(28.0, ins.w + 8.0)
 	if right:
 		sb.content_margin_right += inset
 	else:
@@ -65,22 +67,34 @@ static func side_panel(ui: Control, box: VBoxContainer, width := 560.0, right :=
 	root.custom_minimum_size.x = width + inset
 	if right:
 		root.offset_left = -width - inset
-	box.add_theme_constant_override("separation", 4 if TouchControls.phone() else 10)
-	var scroll := ScrollContainer.new() # scrolls only when it doesn't fit (a phone's short screen)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true
+	box.add_theme_constant_override("separation", 4 if phone else 10)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(box)
+	var body: Control = box
+	if not phone: # scrolls only when it doesn't fit; phone screens are laid out to fit
+		var scroll := ScrollContainer.new()
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.follow_focus = true
+		scroll.add_child(box)
+		body = scroll
 	if footer: # stays put under the scrolling part (the lobby's LAUNCH)
 		var col := VBoxContainer.new()
-		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		col.add_child(scroll)
+		body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		col.add_child(body)
 		col.add_child(footer)
 		root.add_child(col)
 	else:
-		root.add_child(scroll)
+		root.add_child(body)
 	ui.add_child(root)
+	thumbs(root)
 	return root
+
+
+# Phones: every button and text field at least 44 pt (68 units) square.
+static func thumbs(n: Node) -> void:
+	if TouchControls.phone():
+		for c in n.find_children("*", "", true, false):
+			if c is BaseButton or c is LineEdit:
+				c.custom_minimum_size = c.custom_minimum_size.max(Vector2(68, 68))
 
 
 static func big_title(box: VBoxContainer, text: String, size := 64) -> Label:
@@ -151,14 +165,14 @@ static func lit(b: Button, on: bool) -> void:
 
 
 # Notch, rounded corners and home bar in UI units (x left, y top, z right, w bottom). Tests fake it with meta "test_insets".
-static func insets(ui: Control) -> Vector4:
+static func insets(_ui: Control) -> Vector4:
 	if Engine.has_meta("test_insets"):
 		return Engine.get_meta("test_insets")
 	var safe := DisplayServer.get_display_safe_area()
 	var scr := DisplayServer.screen_get_size()
 	if safe.size.x <= 0 or scr.x <= 0:
 		return Vector4.ZERO
-	return Vector4(safe.position.x, safe.position.y, scr.x - safe.end.x, scr.y - safe.end.y) * ui.get_viewport_rect().size.x / scr.x
+	return Vector4(safe.position.x, safe.position.y, scr.x - safe.end.x, scr.y - safe.end.y) * (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size.x / scr.x
 
 
 # Game-menu row: small header, < value >, optional picture. W/S (or up/down) moves between rows,
@@ -200,7 +214,7 @@ class Selector extends PanelContainer:
 		for b: Button in [prev, next]:
 			b.focus_mode = Control.FOCUS_NONE
 			b.flat = true
-			b.custom_minimum_size = Vector2(34, 34)
+			b.custom_minimum_size = Vector2(68, 68) if TouchControls.phone() else Vector2(34, 34)
 			b.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
 			b.add_theme_font_size_override("font_size", 28)
 			b.add_theme_color_override("font_color", Menus.AMBER)
@@ -220,7 +234,7 @@ class Selector extends PanelContainer:
 			mid.add_child(pic)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		title.add_theme_font_override("font", preload("res://assets/ui/kenney_future.ttf"))
-		title.add_theme_font_size_override("font_size", 22)
+		title.add_theme_font_size_override("font_size", 18 if TouchControls.phone() else 22)
 		mid.add_child(title)
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -240,7 +254,7 @@ class Selector extends PanelContainer:
 
 	func _style(on: bool) -> void:
 		add_theme_stylebox_override("panel", Menus._box(Color(0.12, 0.18, 0.32, 0.92) if on else Color(0.05, 0.08, 0.16, 0.7),
-			Menus.AMBER if on else Color(1, 1, 1, 0.1), 3 if on else 1, 10))
+			Menus.AMBER if on else Color(1, 1, 1, 0.1), 3 if on else 1, 4 if TouchControls.phone() else 10))
 
 	func set_index(i: int) -> void:
 		if i != index:
@@ -303,21 +317,22 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	_slider(box, "Volume", 0.0, 1.0, v.volume, func(x): v.volume = x; Settings.apply(tree))
 	var touch := TouchControls.on()
 	_slider(box, "Steering sensitivity" if touch else "Mouse sensitivity", 0.2, 3.0, v.sensitivity, func(x): v.sensitivity = x)
-	_check(box, "Invert steering up/down" if touch else "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
+	var grid := columns(box)
+	_check(grid, "Invert steering up/down" if touch else "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
 	if not TouchControls.phone():
-		_check(box, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
-	_check(box, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
-	_check(box, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
-	_check(box, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)
+		_check(grid, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
+	_check(grid, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
+	_check(grid, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
+	_check(grid, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)
 	if on_touch.is_valid():
 		var tb := Button.new()
 		tb.text = "Touch controls..."
 		tb.pressed.connect(on_touch)
-		box.add_child(tb)
+		grid.add_child(tb)
 	var privacy := Button.new()
 	privacy.text = "Privacy policy"
 	privacy.pressed.connect(func(): OS.shell_open(PRIVACY_URL))
-	box.add_child(privacy)
+	grid.add_child(privacy)
 	var report := Label.new()
 	report.text = "Report a player: st72365@gmail.com"
 	report.modulate = Color(1, 1, 1, 0.6)
@@ -327,8 +342,18 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	done.pressed.connect(func():
 		Settings.save()
 		on_close.call())
-	box.add_child(done)
+	grid.add_child(done)
 	return box
+
+
+# Phones: switches and buttons two to a row, so a settings screen fits without scrolling (else the box itself).
+static func columns(box: VBoxContainer) -> Container:
+	if not TouchControls.phone():
+		return box
+	var grid := GridContainer.new()
+	grid.columns = 2
+	box.add_child(grid)
+	return grid
 
 
 static func howto_text() -> String:
@@ -444,6 +469,63 @@ Made with Claude Code and the Godot Engine.
 Full license texts: press Licenses below.""" % Engine.get_main_loop().current_scene.VERSION
 
 
+# Phones: long text a page at a time, every page sized to fit (nothing scrolls); < PAGE x / N > turns them.
+class Pager extends VBoxContainer:
+	var label := RichTextLabel.new()
+	var row := HBoxContainer.new()
+	var count := Label.new()
+	var nav: Array = [] # << < > >>
+	var pages: Array = []
+	var page := 0
+
+	func _init(sz: Vector2, host: Node) -> void:
+		label.custom_minimum_size = sz
+		label.scroll_active = false
+		add_child(label)
+		row.add_theme_constant_override("separation", 8)
+		add_child(row)
+		for it in [["<<", -10], ["<", -1], ["", 0], [">", 1], [">>", 10]]:
+			if it[1] == 0:
+				count.custom_minimum_size.x = 150
+				count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				row.add_child(count)
+				nav.append(count)
+			else:
+				nav.append(Menus.tile(row, it[0], turn.bind(it[1]), host, 20))
+
+	func set_pages(list: Array, bbcode := true) -> void:
+		pages = list
+		label.bbcode_enabled = bbcode
+		page = 0
+		turn(0)
+
+	func turn(d: int) -> void:
+		page = clampi(page + d, 0, pages.size() - 1)
+		label.text = pages[page]
+		count.text = "PAGE %d / %d" % [page + 1, pages.size()]
+		for i in nav.size():
+			nav[i].visible = pages.size() > (10 if i in [0, 4] else 1) # << >> only for long texts
+
+
+# Plain text cut into pages of `lines` lines, wrapped the way `font` at `size` fits `width`.
+static func text_pages(text: String, font: Font, size: int, width: float, lines: int) -> Array:
+	var out := PackedStringArray()
+	var para := TextParagraph.new()
+	para.width = width
+	for src in text.split("\n"):
+		para.clear()
+		para.add_string(src, font, size)
+		if para.get_line_count() == 0:
+			out.append("")
+		for i in para.get_line_count():
+			var r := para.get_line_range(i)
+			out.append(src.substr(r.x, r.y - r.x))
+	var pages := []
+	for i in range(0, out.size(), lines):
+		pages.append("\n".join(out.slice(i, i + lines)))
+	return pages
+
+
 static func _slider(box: VBoxContainer, label: String, lo: float, hi: float, value: float, cb: Callable) -> void:
 	var row := HBoxContainer.new()
 	var l := Label.new()
@@ -461,9 +543,12 @@ static func _slider(box: VBoxContainer, label: String, lo: float, hi: float, val
 	box.add_child(row)
 
 
-static func _check(box: VBoxContainer, label: String, on: bool, cb: Callable) -> void:
+static func _check(box: Container, label: String, on: bool, cb: Callable) -> void:
 	var c := CheckButton.new()
 	c.text = label
+	if box is GridContainer:
+		c.custom_minimum_size = Vector2(420, 68)
+		c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	c.button_pressed = on
 	c.toggled.connect(cb)
 	box.add_child(c)

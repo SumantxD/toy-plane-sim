@@ -22,13 +22,23 @@ func _init(m: Node, s: Shop) -> void:
 	shop = s
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var phone := TouchControls.phone()
 	var box := VBoxContainer.new()
-	Menus.big_title(box, "HANGAR SHOP", 36)
+	var head := box
+	if phone: # nothing scrolls: BACK beside the title, notes in small print under it, the buttons two by two
+		var top := HBoxContainer.new()
+		box.add_child(top)
+		Menus.tile(top, "<  BACK", close, main, 18, Vector2(120, 68))
+		head = VBoxContainer.new()
+		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_theme_constant_override("separation", 0)
+		top.add_child(head)
+	Menus.big_title(head, "HANGAR SHOP", 26 if phone else 36)
 	var note := Label.new()
 	note.text = "Looks only: nothing here changes speed, damage or armour." if shop.sells() else "Desktop build: every look is unlocked. Equip what you like."
 	note.modulate = Color(1, 1, 1, 0.7)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD
-	box.add_child(note)
+	head.add_child(note)
 	cat_sel = Menus.Selector.new("SHOP", Shop.CATEGORIES.map(func(c): return {title = c}))
 	cat_sel.changed.connect(func(_i): _fill(); _pick())
 	box.add_child(cat_sel)
@@ -39,15 +49,24 @@ func _init(m: Node, s: Shop) -> void:
 	detail.fit_content = true
 	detail.custom_minimum_size = Vector2(440, 64)
 	box.add_child(detail)
-	buy_btn = Menus.menu_item(box, "BUY", _buy, main, 26)
-	equip_btn = Menus.menu_item(box, "EQUIP", _equip, main, 22)
-	try_btn = Menus.menu_item(box, "TRY IT FREE IN FREE FLIGHT", _try, main, 18)
+	var acts := Menus.columns(box)
+	buy_btn = Menus.menu_item(acts, "BUY", _buy, main, 22 if phone else 26)
+	equip_btn = Menus.menu_item(acts, "EQUIP", _equip, main, 22)
+	try_btn = Menus.menu_item(acts, "TRY IT FREE" if phone else "TRY IT FREE IN FREE FLIGHT", _try, main, 18)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
 	status.modulate = Menus.AMBER
-	box.add_child(status)
-	restore_btn = Menus.menu_item(box, "RESTORE PURCHASES", shop.restore, main, 16)
+	head.add_child(status)
+	restore_btn = Menus.menu_item(acts, "RESTORE PURCHASES", shop.restore, main, 16)
 	restore_btn.visible = shop.sells()
-	Menus.menu_item(box, "BACK", close, main, 22)
+	if phone:
+		for c: Control in [note, status]:
+			c.add_theme_font_size_override("font_size", 13)
+		for b: Control in acts.get_children():
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for f in ["normal_font_size", "bold_font_size"]:
+			detail.add_theme_font_size_override(f, 15)
+	else:
+		Menus.menu_item(box, "BACK", close, main, 22)
 	Menus.side_panel(self, box, 560).get_theme_stylebox("panel").content_margin_top = 24
 	box.add_theme_constant_override("separation", 6)
 	shop.changed.connect(_refresh)
@@ -67,7 +86,8 @@ func open(product := "", note := "") -> void:
 	main._refresh_ui()
 	_pick()
 	if TouchControls.on(): # no keyboard on a phone: start at the top, title in view
-		(cat_sel.get_parent().get_parent() as ScrollContainer).scroll_vertical = 0
+		if cat_sel.get_parent().get_parent() is ScrollContainer:
+			cat_sel.get_parent().get_parent().scroll_vertical = 0
 	else:
 		cat_sel.grab_focus()
 

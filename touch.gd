@@ -318,7 +318,7 @@ func edit(done := Callable()) -> void:
 func _tool_rect(i: int) -> Rect2:
 	var w := 130.0
 	var x0 := size.x / 2.0 - TOOLS.size() * (w + 12.0) / 2.0
-	return Rect2(Vector2(x0 + i * (w + 12.0), size.y * 0.42), Vector2(w, 44))
+	return Rect2(Vector2(x0 + i * (w + 12.0), size.y * 0.42), Vector2(w, 68)) # 44 pt: thumb-sized
 
 
 func _edit_input(event: InputEvent) -> void:
@@ -378,7 +378,7 @@ func _draw() -> void:
 		for i in TOOLS.size():
 			var r := _tool_rect(i)
 			draw_rect(r, Menus.AMBER if TOOLS[i] == "DONE" else Color(1, 1, 1, 0.25))
-			draw_string(FONT, r.position + Vector2(0, 29), TOOLS[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 16, Color.BLACK if TOOLS[i] == "DONE" else Color.WHITE)
+			draw_string(FONT, r.position + Vector2(0, 40), TOOLS[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 16, Color.BLACK if TOOLS[i] == "DONE" else Color.WHITE)
 	var pressed := held.values()
 	for e in ELEMS:
 		if not editing and not _shown(e.id):
