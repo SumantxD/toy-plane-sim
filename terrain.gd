@@ -264,11 +264,129 @@ static func build() -> Node3D:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mat := ShaderMaterial.new()
 	mat.shader = preload("res://terrain_ground.gdshader")
+	var shown := DisplayServer.get_name() != "headless" # servers and tests never draw it
+	light_map = _bake_light(hs, n) if shown else null
+	RenderingServer.global_shader_parameter_set("baked_light", light_map) # ground, props, water, Sky Kingdom's cloud sea
+	_mat = mat
 	var mi := MeshInstance3D.new()
 	mi.name = "Terrain"
 	mi.mesh = mesh
 	mi.material_override = mat
 	return mi
+
+
+# ---------- baked light ----------
+# Sun shadows + ambient occlusion baked once per world from the same heights, so phones can skip the
+# real-time shadow pass. light_map: one texel per fine-grid vertex, R = sun visibility, G = AO.
+# blob_map: soft prop shadows (trees, houses, rocks) cast away from the sun. Shaders hardcode this area
+# (+-FINE_EXTENT, 201 texels: baked_uv) and read light_map as the global uniform baked_light.
+const BLOB_PX := 2048
+static var light_map: ImageTexture
+static var _mat: ShaderMaterial
+static var _brushes := {}
+
+
+static func _bake_light(hs: PackedFloat32Array, n: int) -> ImageTexture:
+	var sun := Atmos.sun_dir()
+	var s2 := Vector2(sun.x, sun.z).normalized()
+	var drop := 2.0 * FINE * sun.y / Vector2(sun.x, sun.z).length() # shadow surface sinks this much per 2-cell step
+	# One sweep from the sun's side: S = max(own height, S two cells sunward - drop). Below S = in shadow.
+	var sh := PackedFloat32Array()
+	sh.resize(n * n)
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var i_rng := range(n - 1, -1, -1) if s2.y > 0.0 else range(n)
+	var j_rng := range(n - 1, -1, -1) if s2.x > 0.0 else range(n)
+	for i: int in i_rng:
+		for j: int in j_rng:
+			var h := maxf(hs[i * n + j], WATER_Y) # under water (and Sky Kingdom's cloud sea): shade the surface
+			var gx := j + s2.x * 2.0
+			var gz := i + s2.y * 2.0
+			var vis := 1.0
+			var top := h
+			if gx >= 0.0 and gz >= 0.0 and gx <= n - 1 and gz <= n - 1:
+				var x0 := mini(int(gx), n - 2)
+				var z0 := mini(int(gz), n - 2)
+				var fx := gx - x0
+				var fz := gz - z0
+				var k := z0 * n + x0
+				var up := lerpf(lerpf(sh[k], sh[k + 1], fx), lerpf(sh[k + n], sh[k + n + 1], fx), fz) - drop
+				vis = 1.0 - smoothstep(1.0, 10.0, up - h)
+				top = maxf(h, up)
+			sh[i * n + j] = top
+			# AO: how far the ground sits below its surroundings ~75 m out (valleys, gullies, lake bowls).
+			var a := 0.0
+			for d in [Vector2i(3, 0), Vector2i(-3, 0), Vector2i(0, 3), Vector2i(0, -3), Vector2i(2, 2), Vector2i(-2, 2), Vector2i(2, -2), Vector2i(-2, -2)]:
+				a += hs[clampi(i + d.y, 0, n - 1) * n + clampi(j + d.x, 0, n - 1)]
+			var ao := 1.0 - 0.45 * smoothstep(2.0, 40.0, a / 8.0 - h)
+			img.set_pixel(j, i, Color(vis, ao, 1.0))
+	return ImageTexture.create_from_image(img)
+
+
+# Prop shadows on the ground: every prop instance (transform + local AABB) stamps soft discs over its
+# footprint and out along the sun's shadow direction for its height. Called by Props.build.
+static func bake_blobs(casters: Array) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var sun := Atmos.sun_dir()
+	var away := -Vector2(sun.x, sun.z) / maxf(sun.y, 0.1) # ground offset per metre of height
+	var px := FINE_EXTENT * 2.0 / BLOB_PX
+	var img := Image.create(BLOB_PX, BLOB_PX, false, Image.FORMAT_RGBA8)
+	img.fill(Color.WHITE)
+	for i in range(0, casters.size(), 2):
+		var t: Transform3D = casters[i]
+		var box: AABB = t * (casters[i + 1] as AABB)
+		var c3 := box.get_center()
+		var ground := height(c3.x, c3.z)
+		var lo := maxf(box.position.y - ground, 0.0) + box.size.y * 0.15 # trunks / bases cast little
+		var hi := minf(box.end.y - ground, 300.0 * sun.y)
+		if hi - lo < 1.0 or absf(c3.x) > FINE_EXTENT or absf(c3.z) > FINE_EXTENT:
+			continue
+		# Footprint = the two most horizontal box axes; stamps run along the longer one.
+		var ax: Array[Vector3] = []
+		var loc: AABB = casters[i + 1]
+		for k in 3:
+			ax.append(t.basis[k] * loc.size[k])
+		ax.sort_custom(func(p: Vector3, q: Vector3) -> bool: return absf(p.y) / maxf(p.length(), 0.001) < absf(q.y) / maxf(q.length(), 0.001))
+		var u := Vector2(ax[0].x, ax[0].z)
+		var v := Vector2(ax[1].x, ax[1].z)
+		if u.length() < v.length():
+			var w := u
+			u = v
+			v = w
+		var r := maxf(v.length() * 0.45, px)
+		var rp := clampi(roundi(r / px), 1, 40)
+		var brush := _brush(rp)
+		var along := maxf(u.length() - 2.0 * r, 0.0)
+		var nu := clampi(ceili(along / r), 0, 64)
+		var ns := clampi(ceili(away.length() * (hi - lo) / maxf(r * 0.8, px)), 1, 64)
+		var c := Vector2(c3.x, c3.z)
+		for a in nu + 1:
+			var base := c + u.normalized() * along * (float(a) / maxi(nu, 1) - 0.5) if nu > 0 else c
+			for k in ns + 1:
+				var q := base + away * lerpf(lo, hi, float(k) / ns)
+				img.blend_rect(brush, Rect2i(0, 0, rp * 2 + 1, rp * 2 + 1), Vector2i(roundi((q.x + FINE_EXTENT) / px) - rp, roundi((q.y + FINE_EXTENT) / px) - rp))
+	img.convert(Image.FORMAT_L8)
+	img.generate_mipmaps()
+	if _mat:
+		_mat.set_shader_parameter("blob_map", ImageTexture.create_from_image(img))
+
+
+# Soft black disc, alpha strongest in the middle. Stamps along one caster overlap, so keep it light.
+static func _brush(rp: int) -> Image:
+	if not _brushes.has(rp):
+		var w := rp * 2 + 1
+		var b := Image.create(w, w, false, Image.FORMAT_RGBA8)
+		for y in w:
+			for x in w:
+				var d := Vector2(x - rp, y - rp).length() / (rp + 0.5)
+				b.set_pixel(x, y, Color(0, 0, 0, 0.5 * (1.0 - smoothstep(0.55, 1.0, d))))
+		_brushes[rp] = b
+	return _brushes[rp]
+
+
+# Phones (or shadows off): the baked sun shadow stands in for the real-time one.
+static func use_baked_sun(on: bool) -> void:
+	RenderingServer.global_shader_parameter_set("baked_sun", 1.0 if on else 0.0)
 
 
 static func _under(pos: PackedVector3Array, col: PackedColorArray, a: Vector3, b: Vector3, c: Vector3) -> void:

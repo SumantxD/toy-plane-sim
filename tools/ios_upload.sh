@@ -18,7 +18,10 @@ grep -q "app_store_team_id=\"$TEAM\"" export_presets.cfg || { echo "STOP: export
 [ "$1" = "--check" ] && exit 0
 OUT=/tmp/out/ios_release
 rm -rf $OUT && mkdir -p $OUT
-godot --headless --export-release "iOS" $OUT/ToyPlaneArcade.ipa > $OUT/export.log 2>&1 || true
+# Windowed (parked off-screen), not --headless: the shader baker needs a GPU, and headless exports
+# silently skip it (no baked shaders = compile hitches on the phone).
+godot --position 6000,6000 --export-release "iOS" $OUT/ToyPlaneArcade.ipa > $OUT/export.log 2>&1 || true
+grep -q "Started Baking shaders" $OUT/export.log || echo "WARNING: shaders were not baked (see $OUT/export.log)"
 ARCHIVE=$(ls -d $OUT/*.xcarchive 2>/dev/null | head -1)
 if [ -z "$ARCHIVE" ]; then
 	grep -E " error:" $OUT/export.log | head -5

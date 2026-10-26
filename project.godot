@@ -28,6 +28,17 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=4
 
+[shader_globals]
+
+baked_light={
+"type": "sampler2D",
+"value": ""
+}
+baked_sun={
+"type": "float",
+"value": 0.0
+}
+
 [rendering]
 
 renderer/rendering_method.mobile="forward_plus"

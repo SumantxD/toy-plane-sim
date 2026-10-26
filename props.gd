@@ -65,6 +65,12 @@ static func build() -> Node3D:
 			var mmi := MultiMeshInstance3D.new()
 			mmi.multimesh = mm
 			root.add_child(mmi)
+	var casters := []
+	for mesh: Mesh in _batches:
+		var list: Array = _batches[mesh]
+		for i in range(0, list.size(), 2):
+			casters.append_array([list[i], mesh.get_aabb()])
+	Terrain.bake_blobs(casters)
 	if "windmill" in Worlds.cur.features:
 		root.add_child(_windmill_sails())
 	if Worlds.has("nodes"):
@@ -685,9 +691,10 @@ static func model(path: String, palette := "", swap := {}) -> ArrayMesh:
 	arrays[Mesh.ARRAY_NORMAL] = nrm
 	arrays[Mesh.ARRAY_COLOR] = col
 	arrays[Mesh.ARRAY_INDEX] = idx
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh.surface_set_material(0, toon())
+	var im := ImporterMesh.new() # auto LODs: far scatter chunks draw simplified trees/rocks
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, toon())
+	im.generate_lods(25.0, 60.0, [])
+	var mesh := im.get_mesh()
 	_cache[key] = mesh
 	return mesh
 
@@ -697,4 +704,5 @@ static func toon() -> ShaderMaterial:
 		_toon = ShaderMaterial.new()
 		_toon.shader = preload("res://toon.gdshader")
 		_toon.set_shader_parameter("specular_strength", 0.12) # big flat faces otherwise flash white
+		_toon.set_shader_parameter("baked", true)
 	return _toon

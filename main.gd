@@ -256,12 +256,8 @@ func _ready() -> void:
 	var si := args.find("--speed")
 	if si >= 0 and si + 1 < args.size():
 		Engine.time_scale = float(args[si + 1]) # test only: fast-forward matches
-	var shot := args.find("--shot")
-	if shot >= 0:
-		get_tree().create_timer(float(args[shot + 1])).timeout.connect(func():
-			print("FPS ", Engine.get_frames_per_second(), "  draw calls ", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
-			get_viewport().get_texture().get_image().save_png(args[shot + 2])
-			get_tree().quit())
+	if "--shot" in args: # test hook: render stats + screenshot, then quit (tools/perf_shot.gd)
+		add_child(load("res://tools/perf_shot.gd").new())
 	var qa := args.find("--quit-after-secs")
 	if qa >= 0:
 		get_tree().create_timer(float(args[qa + 1])).timeout.connect(func():
@@ -1408,6 +1404,13 @@ func _process(dt: float) -> void:
 	if Sfx.enabled:
 		_keep_menu_focus()
 		_orbit_menu(dt)
+		if TouchControls.phone():
+			Settings.adapt_res(get_viewport(), dt)
+	fps_label.visible = Settings.values.show_fps
+	if fps_label.visible:
+		fps_ms = lerpf(fps_ms, dt * 1000.0, 0.1)
+		if Engine.get_process_frames() % 15 == 0:
+			fps_label.text = "%d FPS  %.1f ms" % [Engine.get_frames_per_second(), fps_ms]
 	for p in pings:
 		p[2] -= dt
 	pings = pings.filter(func(p): return p[2] > 0.0)
@@ -2165,6 +2168,9 @@ func hits_obstacle(p: Vector3) -> bool:
 	return false
 
 
+var boom_mesh: SphereMesh
+
+
 func boom(pos: Vector3, size := 1.0) -> void:
 	if size < 0.6:
 		Sfx.at(self, pos, Sfx.FLAK, 0.0, 2500.0) # flak bursts, sparks: a dull whump
@@ -2172,8 +2178,12 @@ func boom(pos: Vector3, size := 1.0) -> void:
 		Sfx.at(self, pos, Sfx.BOOMS[0], 9.0, 4000.0, 0.7) # bombs: deeper and louder
 	else:
 		Sfx.at(self, pos, Sfx.BOOMS.pick_random(), 4.0, 3000.0)
+	if not boom_mesh: # one shared, lighter ball: the default sphere is 4k triangles and was rebuilt per bang
+		boom_mesh = SphereMesh.new()
+		boom_mesh.radial_segments = 24
+		boom_mesh.rings = 12
 	var m := MeshInstance3D.new()
-	m.mesh = SphereMesh.new()
+	m.mesh = boom_mesh
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -2757,6 +2767,19 @@ func _build_ui() -> void:
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.theme = ui_theme
 	layer.add_child(ui)
+	var fps_layer := CanvasLayer.new() # Settings "Show FPS": bottom centre, over menus and touch buttons
+	fps_layer.layer = 10
+	add_child(fps_layer)
+	fps_label.theme = ui_theme
+	fps_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	fps_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	fps_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	fps_label.offset_bottom = -4.0 - Menus.insets(ui).w
+	fps_label.add_theme_font_size_override("font_size", 14)
+	fps_label.add_theme_constant_override("outline_size", 4)
+	fps_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fps_layer.add_child(fps_label)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.draw.connect(_draw_overlay)
@@ -3619,6 +3642,8 @@ var last_sync_ms := 0
 var ping_t := 0.0
 var lag_warned := {}
 var stall_label := Label.new()
+var fps_label := Label.new()
+var fps_ms := 16.7
 var stall_from := 0
 var frame_ms := 0
 var hitch_quiet_ms := 0

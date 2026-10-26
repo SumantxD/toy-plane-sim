@@ -11,7 +11,20 @@ uniform float foam_width = 2.2;
 uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);
 uniform vec3 glow : source_color = vec3(0.0); // emissive tint (lava worlds)
 
+// Baked by terrain.gd (Terrain.light_map): R = sun visibility, G = AO, one texel per 25 m fine-grid vertex over
+// +-2500 m. baked_sun = 1 when there is no real-time shadow pass (phones), so the bake shades the sun instead.
+global uniform sampler2D baked_light : filter_linear, repeat_disable;
+global uniform float baked_sun;
+
 varying vec3 wpos;
+varying float sun_vis;
+
+vec2 baked_uv(vec3 w) { // world xz -> light map texel centres
+	return ((w.xz + 2500.0) / 5000.0) * (200.0 / 201.0) + 0.5 / 201.0;
+}
+float baked_inside(vec3 w) {
+	return step(max(abs(w.x), abs(w.z)), 2500.0);
+}
 
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 
@@ -39,8 +52,9 @@ void fragment() {
 	ALPHA = mix(0.9, 1.0, max(shore,smoothstep(2.0, deep_at, depth)));
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
+	sun_vis = mix(1.0, texture(baked_light, baked_uv(wpos)).r, baked_inside(wpos) * baked_sun);
 }
 
 void light() {
-	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * mix(0.75, 1.0, ATTENUATION);
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * mix(0.75, 1.0, ATTENUATION * (LIGHT_IS_DIRECTIONAL ? sun_vis : 1.0));
 }

@@ -5,7 +5,7 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const DEFAULTS := {volume = 0.8, sensitivity = 1.0, invert_y = false, fullscreen = false, quality = 1, name = "", cam = 1, matches = 0, player_id = "", turn_urls = "", turn_username = "", turn_credential = "", sticker = 0, banner = 0, taunts = true, trails = true, last_world = 0, last_mode = 3, last_size = 1, last_skill = 0, last_plane = "cub",
 	touch_layout = {}, touch_opacity = 0.8, touch_lefty = false, touch_fixed = false, tilt = false, autofire = false, vibrate = true,
-	livery = 0, killfx = 0, offer_dismiss = {}, review_at = 0}
+	livery = 0, killfx = 0, offer_dismiss = {}, review_at = 0, show_fps = false}
 
 static var values := DEFAULTS.duplicate()
 
@@ -36,7 +36,7 @@ static func save() -> void:
 	cfg.save(PATH)
 
 
-# quality 1 = shadows + MSAA, 0 = off (for older laptops).
+# quality 1 = shadows (desktop) + anti-aliasing, 0 = off (older laptops / phones).
 static func apply(tree: SceneTree) -> void:
 	AudioServer.set_bus_volume_linear(0, values.volume)
 	if DisplayServer.get_name() == "headless":
@@ -44,12 +44,39 @@ static func apply(tree: SceneTree) -> void:
 	var win := tree.root
 	win.mode = Window.MODE_FULLSCREEN if values.fullscreen else Window.MODE_WINDOWED
 	win.msaa_3d = Viewport.MSAA_2X if values.quality == 1 and not TouchControls.phone() else Viewport.MSAA_DISABLED # phones: FXAA only
+	win.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if values.quality == 1 else Viewport.SCREEN_SPACE_AA_DISABLED
+	if TouchControls.phone(): # 3D at 80% (UI stays sharp): fill rate is what phones run out of
+		win.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+		win.scaling_3d_scale = res_scale
 	for light in tree.get_nodes_in_group("sun"):
-		light.shadow_enabled = values.quality == 1
-		if TouchControls.phone():
-			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-			light.shadow_blur = 2.5 # soft edges: hard ones shimmer on bright snow
-			light.shadow_normal_bias = 2.5 # coarse phone cascades: less offset streaks sloped roofs and snow (shadow acne)
-			light.shadow_bias = 0.08
-			light.directional_shadow_blend_splits = true # no seam where the two cascades meet
-			light.directional_shadow_max_distance = 600.0 # 2 splits over less ground: sharper detail, fewer jaggies
+		light.shadow_enabled = values.quality == 1 and not TouchControls.phone() # phones: no shadow pass, the baked ground shadows (Terrain) stand in
+		Terrain.use_baked_sun(not light.shadow_enabled)
+
+
+# Phones: never lag. A second's worth of late frames drops the 3D resolution a notch (to 0.6 at worst);
+# a smooth stretch lets it creep back to 0.8. ponytail: frame time can't tell GPU- from CPU-bound
+# (Metal has no GPU timer here), so a CPU hitch storm also costs resolution for a while.
+const RES_MAX := 0.8
+const RES_MIN := 0.6
+static var res_scale := RES_MAX
+static var _late := 0.0
+static var _smooth := 0.0
+
+
+static func adapt_res(win: Viewport, dt: float) -> void:
+	if dt > 1.0 / 50.0:
+		_late += minf(dt, 0.05) # one long hitch (a world load) is not a trend
+		_smooth = 0.0
+	else:
+		_late = maxf(_late - dt * 0.25, 0.0)
+		_smooth += dt
+	var want := res_scale
+	if _late > 1.0:
+		want = maxf(res_scale - 0.05, RES_MIN)
+	elif _smooth > 12.0:
+		want = minf(res_scale + 0.05, RES_MAX)
+	if want != res_scale:
+		res_scale = want
+		win.scaling_3d_scale = want
+		_late = 0.0
+		_smooth = 0.0

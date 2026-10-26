@@ -321,9 +321,10 @@ static func settings_panel(tree: SceneTree, on_close: Callable, on_touch := Call
 	_check(grid, "Invert steering up/down" if touch else "Invert mouse Y", v.invert_y, func(on): v.invert_y = on)
 	if not TouchControls.phone():
 		_check(grid, "Fullscreen", v.fullscreen, func(on): v.fullscreen = on; Settings.apply(tree))
-	_check(grid, "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
+	_check(grid, "High graphics (anti-aliasing)" if TouchControls.phone() else "High graphics (shadows, anti-aliasing)", v.quality == 1, func(on): v.quality = int(on); Settings.apply(tree))
 	_check(grid, "Show other players' taunt bubbles", v.get("taunts", true), func(on): v.taunts = on)
 	_check(grid, "Show smoke trails", v.get("trails", true), func(on): v.trails = on)
+	_check(grid, "Show FPS", v.show_fps, func(on): v.show_fps = on)
 	if on_touch.is_valid():
 		var tb := Button.new()
 		tb.text = "Touch controls..."

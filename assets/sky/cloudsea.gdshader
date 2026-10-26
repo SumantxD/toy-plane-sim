@@ -6,7 +6,20 @@ uniform vec3 lo : source_color = vec3(0.86, 0.84, 1.0);
 uniform float amp = 7.0;
 uniform float scale = 0.0035;
 
+// Baked by terrain.gd (Terrain.light_map): R = sun visibility, G = AO, one texel per 25 m fine-grid vertex over
+// +-2500 m. baked_sun = 1 when there is no real-time shadow pass (phones), so the bake shades the sun instead.
+global uniform sampler2D baked_light : filter_linear, repeat_disable;
+global uniform float baked_sun;
+
 varying vec3 wp;
+varying float sun_vis;
+
+vec2 baked_uv(vec3 w) { // world xz -> light map texel centres
+	return ((w.xz + 2500.0) / 5000.0) * (200.0 / 201.0) + 0.5 / 201.0;
+}
+float baked_inside(vec3 w) {
+	return step(max(abs(w.x), abs(w.z)), 2500.0);
+}
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -49,10 +62,12 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ALBEDO = mix(lo, hi, smoothstep(0.45, 0.85, h));
 	ROUGHNESS = 1.0;
+	sun_vis = mix(1.0, texture(baked_light, baked_uv(wp)).r, baked_inside(wp) * baked_sun);
 }
 
 void light() {
-	float d = (dot(NORMAL, LIGHT) + (ATTENUATION - 1.0) + 0.5) * 1.6;
+	float att = ATTENUATION * (LIGHT_IS_DIRECTIONAL ? sun_vis : 1.0);
+	float d = (dot(NORMAL, LIGHT) + (att - 1.0) + 0.5) * 1.6;
 	float stepped = clamp(d + mod(1.0 - d, 0.34), 0.35, 1.0);
 	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * stepped;
 }
