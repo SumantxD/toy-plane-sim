@@ -53,9 +53,9 @@ static func apply(tree: SceneTree) -> void:
 		Terrain.use_baked_sun(not light.shadow_enabled)
 
 
-# Phones: never lag. A second's worth of late frames drops the 3D resolution a notch (to 0.6 at worst);
-# a smooth stretch lets it creep back to 0.8. ponytail: frame time can't tell GPU- from CPU-bound
-# (Metal has no GPU timer here), so a CPU hitch storm also costs resolution for a while.
+# Phones: 3D at 0.8, stepped down (to 0.6 at worst) only under sustained slowness, see adapt_res.
+# ponytail: frame time can't tell GPU- from CPU-bound (Metal has no GPU timer here), so a CPU hitch
+# storm can also cost a step; a per-device starting scale would be the upgrade.
 const RES_MAX := 0.8
 const RES_MIN := 0.6
 static var res_scale := RES_MAX
@@ -63,20 +63,17 @@ static var _late := 0.0
 static var _smooth := 0.0
 
 
+# Only ever steps DOWN, and rarely: each change rebuilds the 3D buffers (a hitch of its own), so a
+# boost or a big fight must not set off a chain of them. Sustained slowness (3 s of late frames) ->
+# -0.1, then at least 30 s before another step; it never climbs back mid-session.
 static func adapt_res(win: Viewport, dt: float) -> void:
+	_smooth += dt # time since the last change
 	if dt > 1.0 / 50.0:
-		_late += minf(dt, 0.05) # one long hitch (a world load) is not a trend
-		_smooth = 0.0
+		_late = minf(_late + minf(dt, 0.05), 4.0) # one long hitch (a world load) is not a trend; capped so smooth play clears it
 	else:
 		_late = maxf(_late - dt * 0.25, 0.0)
-		_smooth += dt
-	var want := res_scale
-	if _late > 1.0:
-		want = maxf(res_scale - 0.05, RES_MIN)
-	elif _smooth > 12.0:
-		want = minf(res_scale + 0.05, RES_MAX)
-	if want != res_scale:
-		res_scale = want
-		win.scaling_3d_scale = want
+	if _late > 3.0 and _smooth > 30.0 and res_scale > RES_MIN:
+		res_scale = maxf(res_scale - 0.1, RES_MIN)
+		win.scaling_3d_scale = res_scale
 		_late = 0.0
 		_smooth = 0.0
