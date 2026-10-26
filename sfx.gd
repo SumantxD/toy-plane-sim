@@ -106,7 +106,7 @@ static func ambience(root: Node3D) -> void:
 		p.play(randf() * 3.0)
 	var bed := AudioStreamPlayer.new()
 	bed.stream = BEDS[Worlds.index]
-	bed.volume_db = BED_DB
+	bed.volume_db = BED_DB + (8.0 if TouchControls.phone() else 0.0) # phone speakers bury quiet music under the effects
 	bed.autoplay = true
 	root.add_child(bed)
 	var water: Dictionary = Worlds.cur.water

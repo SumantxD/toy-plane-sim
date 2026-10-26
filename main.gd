@@ -2235,7 +2235,7 @@ func show_taunt(plane_name: String, i: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func say_bubble(plane_name: String, text: String) -> void:
 	var p := players.get_node_or_null(plane_name)
-	if p and p.alive and Settings.values.get("taunts", true):
+	if p and p.alive and Settings.values.get("taunts", true) and not TouchControls.phone(): # phones: the kill feed carries AI chatter (skywriting costs a frame)
 		taunts.say(p, text.left(28))
 
 

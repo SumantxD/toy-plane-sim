@@ -49,4 +49,7 @@ static func apply(tree: SceneTree) -> void:
 		if TouchControls.phone():
 			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 			light.shadow_blur = 2.5 # soft edges: hard ones shimmer on bright snow
+			light.shadow_normal_bias = 2.5 # coarse phone cascades: less offset streaks sloped roofs and snow (shadow acne)
+			light.shadow_bias = 0.08
+			light.directional_shadow_blend_splits = true # no seam where the two cascades meet
 			light.directional_shadow_max_distance = 600.0 # 2 splits over less ground: sharper detail, fewer jaggies

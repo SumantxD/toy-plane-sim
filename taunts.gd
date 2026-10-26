@@ -133,8 +133,10 @@ class SkyText extends MultiMeshInstance3D:
 	const WRITE := 1.3 # seconds to write the whole line
 	const HOLD := 3.2
 	const FADE := 1.6
-	var puffs: Array = [] # [base position, appear time, size, wobble phase]
+	var puffs: Array = [] # [base position, appear time, size, wobble phase], sorted by appear time
 	var t := 0.0
+	var lo := 0 # puffs before this have finished popping in
+	var wob_t := 0.0
 
 	# The game's own cloud shader (white tops, blue-grey undersides, no ink outline), held still: no
 	# drift, no flat cut base, and only fading right at the camera. Tinted a little toward the team.
@@ -173,6 +175,7 @@ class SkyText extends MultiMeshInstance3D:
 						if randf() < 0.45: # a smaller puff beside it: fluffy, not dotted
 							puffs.append([p + Vector3(randf_range(-1.2, 1.2), randf_range(-1.2, 1.2), randf_range(-0.8, 0.8)), when + 0.05, randf_range(0.9, 1.3), randf() * TAU])
 			x += 6
+		puffs.sort_custom(func(a, b): return a[1] < b[1])
 		var ball := SphereMesh.new()
 		ball.radius = 1.0
 		ball.height = 2.0
@@ -189,15 +192,27 @@ class SkyText extends MultiMeshInstance3D:
 		cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_place()
 
+	# Phones can't move ~500 puffs every frame: while writing only the ones popping in move each frame;
+	# the gentle wobble runs at 10 Hz; only the fade at the end moves everything every frame.
 	func _process(dt: float) -> void:
 		t += dt
-		_place()
+		wob_t -= dt
+		if t > WRITE + HOLD or wob_t <= 0.0:
+			wob_t = 0.1
+			_place(0, puffs.size())
+		else:
+			while lo < puffs.size() and t - puffs[lo][1] > 0.35:
+				lo += 1
+			var hi := lo
+			while hi < puffs.size() and puffs[hi][1] <= t:
+				hi += 1
+			_place(lo, hi)
 		if t > WRITE + HOLD + FADE:
 			queue_free()
 
-	func _place() -> void:
+	func _place(from := 0, to := -1) -> void:
 		var gone := clampf((t - WRITE - HOLD) / FADE, 0.0, 1.0) # 0 while readable, 1 when blown away
-		for i in puffs.size():
+		for i in range(from, puffs.size() if to < 0 else to):
 			var p: Array = puffs[i]
 			var age: float = t - p[1]
 			var s := 0.0
