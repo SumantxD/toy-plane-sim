@@ -57,7 +57,7 @@ func _until(ok: Callable, secs := 60.0) -> void:
 
 func _btn(text: String) -> Button:
 	for b: Button in main.find_children("*", "Button", true, false):
-		if b.text == text and b.is_visible_in_tree():
+		if b.text.strip_edges() == text and b.is_visible_in_tree():
 			return b
 	push_error("no button " + text)
 	return null
@@ -149,6 +149,8 @@ func _fly(secs: float, hunt := true, after := -1.0) -> void:
 		if not is_instance_valid(main) or not main.is_inside_tree():
 			_mark("lost") # dropped back to the menu (the other copy closed first)
 			return
+		if main.pause_root.visible: # the offscreen window losing focus pauses a phone build
+			main.pause_root.hide()
 		var p: Node = main._plane(_me())
 		if not p or not p.alive or not tc.visible:
 			for f in [1, 2, 3, 6]:
@@ -235,7 +237,8 @@ func _battle(world: int, mode: int, size: int, skill: int, plane := "") -> void:
 
 func _settings(name: String, livery: int, banner: int, killfx: int) -> void:
 	Settings.values = Settings.DEFAULTS.duplicate(true)
-	Settings.values.matches = 20 # past the first-match tutorial cards
+	Settings.values.matches = 20 # a returning pilot: past the first-match cards and the training
+	Settings.values.onboarded = true
 	Settings.values.name = name
 	Settings.values.livery = livery
 	Settings.values.banner = banner
@@ -269,91 +272,88 @@ func _initialize() -> void:
 
 func review() -> void:
 	_settings("Ace", 0, 0, 0)
+	Settings.values.merge({last_world = 0, last_mode = 3, last_size = 0, last_skill = 0}, true) # PLAY: Very Easy Team Battle, 2 v 2
+	Settings.save()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://fake_store.cfg")) # nothing bought yet
 	await _fresh()
-	_cap("1. Launch: the main menu")
-	await _wait(3.0)
-	_cap("2. BATTLE VS AI: an offline match against computer pilots")
-	await _tap(_btn("BATTLE VS AI"))
-	await _wait(1.5)
-	_cap("Mission setup: pick the world, mode, squadron size, enemy skill and plane")
-	await _tap(main.world_sel.next)
+	_cap("1. Launch: the home screen (a returning pilot)")
+	await _wait(3.5)
+	_cap("The mission card opens Mission Select: world, mode, squadron size, enemy skill")
+	await _tap(main.find_child("MissionCard", true, false))
+	await _wait(3.5)
+	await _tap(_btn("BACK"))
 	await _wait(1.0)
-	await _tap(main.size_sel.next)
-	await _wait(0.6)
-	while main.skill_sel.index > 0:
-		await _tap(main.skill_sel.prev)
-	await _wait(1.2)
-	_cap("Tap LAUNCH")
-	await _tap(main.start_btn)
-	_cap("Each match opens with a mission card, then the touch controls card")
-	await _wait(6.0)
-	_cap("Left thumb: drag anywhere on the left half to steer")
-	await _fly(6.0, false)
-	_cap("Hold FIRE for the guns, hold ROCKET until LOCK and let go to fire")
-	await _fly(30.0, true, 2.5)
+	_cap("2. PLAY: one tap into a Very Easy Team Battle vs computer pilots")
+	await _tap(main.find_child("Play", true, false))
+	while main._plane(1) == null:
+		await process_frame
+	_cap("Each match opens with a mission card: where, what, who")
+	await _wait(5.0)
+	_cap("Touch controls: drag anywhere off the buttons to steer")
+	await _fly(5.0, false)
+	_cap("Hold FIRE for the guns. Hold ROCKET: it follows the target, LOCK, let go to fire")
+	await _fly(24.0, true, 3.0)
 	if kills > 0:
-		_cap("Enemy plane shot down")
-		await _fly(3.0)
-	_cap("3. Pause: the II button, top left")
+		_cap("Hit markers and a banner for every plane you shoot down")
+		await _fly(2.0)
+	_cap("3. Pause: the II button, top left. END MATCH stops it early")
 	await _press("pause")
 	await _wait(2.0)
-	_cap("LEAVE GAME goes back to the main menu")
-	await _tap(_btn("LEAVE GAME"))
-	await _reloaded()
-	await _wait(1.0)
-	_cap("4. SHOP: cosmetic looks only, each a one-time purchase")
+	await _tap(_btn("END MATCH"))
+	await _until(func(): return main.results_root.visible)
+	_cap("Results: the outcome (VICTORY / DEFEAT when a team wins), your stats and XP")
+	await _wait(4.5)
+	_cap("PLAY AGAIN, HANGAR or HOME")
+	await _wait(1.5)
+	await _tap(main.results_ui.home_btn)
+	await _wait(1.5)
+	_cap("4. SHOP: looks only, each a one-time purchase")
 	await _tap(_btn("SHOP"))
 	await _wait(2.0)
 	var sh: Control = main.shop_ui
-	_cap("SETS, with the price on each (a test store here; on iPhone, Apple's local prices)")
-	for i in [1, 2, 3]:
-		await _tap(sh.cards[i])
-		await _wait(1.1)
-	_cap("PAINT JOBS")
+	_cap("PAINT tab: tap a card to see it on your plane")
 	await _tap(sh.tabs[1])
-	await _wait(1.3)
-	await _tap(sh.cards[1])
-	await _wait(1.3)
-	_cap("SMOKE TRAILS")
-	await _tap(sh.tabs[2])
-	await _wait(1.3)
-	await _tap(sh.cards[1])
-	await _wait(1.3)
-	_cap("KILL EFFECTS: they play beside the plane")
-	await _tap(sh.tabs[3])
-	await _wait(3.0)
-	_cap("Back to SETS: the Neon Night Set")
-	await _tap(sh.tabs[0])
-	await _tap(sh.cards[2])
-	await _wait(1.5)
-	_cap("TRY IT FREE IN FREE FLIGHT: fly the look before buying")
-	await _tap(sh.try_btn)
+	await _wait(1.2)
+	await _tap(sh.cards[sh._products().find("livery.neon")])
+	await _wait(2.0)
+	_cap("BUY: on iPhone Apple's purchase sheet appears (a test store in this recording)")
+	await _tap(sh.buy_btn)
+	await _until(func(): return sh.fly_btn.is_visible_in_tree())
+	_cap("Unlocked and equipped at once. FLY WITH IT starts a match wearing it")
+	await _wait(3.5)
+	await _tap(sh.fly_btn)
 	while main._plane(1) == null:
 		await process_frame
-	await _wait(1.0)
-	_cap("Free Flight wearing the Neon Night paint and trail, for free")
-	await _fly(9.0, false)
-	_cap("Pause > LEAVE GAME: the shop reopens on the item you tried")
+	await _wait(2.0)
+	_cap("Flying with the new Neon Night paint")
+	await _fly(5.0, false)
 	await _press("pause")
-	await _wait(1.2)
+	await _wait(0.8)
 	await _tap(_btn("LEAVE GAME"))
 	await _reloaded()
-	sh = main.shop_ui
-	await _wait(2.0)
-	_cap("BUY: on iPhone Apple's purchase sheet confirms it (test store in this recording)")
-	await _tap(sh.buy_btn)
-	await _wait(2.5)
-	_cap("Bought: the set shows OWNED and can be equipped")
-	await _wait(1.0)
-	await _tap(sh.equip_btn)
-	await _wait(2.0)
-	_cap("RESTORE PURCHASES brings back everything bought with your Apple ID")
-	await _tap(sh.restore_btn)
-	await _wait(3.0)
-	_cap("5. Multiplayer: two devices")
-	await _tap(_btn("BACK"))
+	_cap("5. HANGAR: plane, paint, trail, sticker, effect, pilot level")
+	await _tap(_btn("HANGAR"))
 	await _wait(1.5)
+	await _tap(main.hangar_ui.tabs.PAINT)
+	_cap("The paint just bought shows EQUIPPED")
+	await _wait(3.5)
+	_cap("RESTORE PURCHASES (in the shop) brings back what you bought with your Apple ID")
+	await _tap(_btn("SHOP"))
+	await _wait(1.2)
+	await _tap(main.shop_ui.restore_btn)
+	await _wait(3.5)
+	await _tap(_btn("BACK"))
+	await _wait(0.5)
+	if main.hangar_ui.visible:
+		await _tap(_btn("BACK"))
+	await _wait(0.8)
+	_cap("6. HOW TO PLAY > TRAINING: a short guided flight (new pilots get it on first PLAY)")
+	await _tap(_btn("HOW TO PLAY"))
+	await _wait(1.5)
+	await _tap(main.howto_root.find_child("Training", true, false))
+	await _fly(6.0, false)
+	_cap("7. Multiplayer: two devices")
+	await _wait(1.0)
 
 
 func host() -> void:

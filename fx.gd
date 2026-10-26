@@ -283,10 +283,11 @@ static func flak(main: Node, at: Vector3) -> void:
 	Sfx.at(main, at, Sfx.BOOMS[0], -2.0, 1500.0)
 	if far(main, at):
 		return
-	var puff: MeshInstance3D = null
-	while _puffs and not is_instance_valid(puff):
-		puff = _puffs.pop_back()
-	if not is_instance_valid(puff):
+	var pick = null # untyped: the static pool can hold puffs freed by a scene reload, and a typed var rejects those
+	while _puffs and not is_instance_valid(pick):
+		pick = _puffs.pop_back()
+	var puff: MeshInstance3D = pick if is_instance_valid(pick) else null
+	if not puff:
 		puff = MeshInstance3D.new()
 		puff.mesh = SphereMesh.new()
 		puff.mesh.radial_segments = 8
