@@ -117,7 +117,54 @@ var preview := Node3D.new()
 var preview_key := ""
 
 
+# Launch: a loading screen draws at once, then the heavy steps run one per frame so its bar moves.
+var boot: CanvasLayer
+
+
+func _boot(frac: float, text: String) -> void:
+	if not boot:
+		boot = CanvasLayer.new()
+		boot.layer = 100
+		var bg := ColorRect.new()
+		bg.color = Color(0.07, 0.11, 0.2)
+		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		boot.add_child(bg)
+		var col := VBoxContainer.new()
+		col.set_anchors_preset(Control.PRESET_CENTER)
+		col.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		col.grow_vertical = Control.GROW_DIRECTION_BOTH
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		col.add_theme_constant_override("separation", 14)
+		bg.add_child(col)
+		Menus.big_title(col, "TOY PLANE ARCADE", 40).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var bar := ProgressBar.new()
+		bar.name = "Bar"
+		bar.custom_minimum_size = Vector2(420, 18)
+		bar.show_percentage = false
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Menus.AMBER
+		fill.set_corner_radius_all(9)
+		var back := StyleBoxFlat.new()
+		back.bg_color = Color(1, 1, 1, 0.15)
+		back.set_corner_radius_all(9)
+		bar.add_theme_stylebox_override("fill", fill)
+		bar.add_theme_stylebox_override("background", back)
+		col.add_child(bar)
+		var l := Label.new()
+		l.name = "Step"
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.modulate = Color(1, 1, 1, 0.7)
+		col.add_child(l)
+		add_child(boot)
+	boot.find_child("Bar", true, false).value = frac * 100.0
+	boot.find_child("Step", true, false).text = text
+	await get_tree().process_frame # let it draw before the next blocking step
+
+
 func _ready() -> void:
+	for f in [set_process, set_physics_process, set_process_input, set_process_unhandled_input]:
+		f.call(false) # nothing ticks until the world and UI exist
+	await _boot(0.05, "Starting...")
 	Settings.load_saved()
 	plane_choice = Settings.values.last_plane if Settings.values.last_plane in Planes.ORDER else "cub"
 	shop.name = "Shop"
@@ -126,7 +173,9 @@ func _ready() -> void:
 		get_tree().root.content_scale_size = Vector2i(1100, 620) # phone: everything bigger, readable at arm's length
 		if not OS.has_feature("mobile"):
 			Input.emulate_touch_from_mouse = true # --touch on a desktop: the mouse is a finger
+	await _boot(0.2, "Building the world...")
 	_build_world()
+	await _boot(0.8, "Getting the hangar ready...")
 	_build_ui()
 	Settings.apply(get_tree())
 	if Engine.has_meta("leave_msg"):
@@ -234,6 +283,10 @@ func _ready() -> void:
 		join()
 	elif "--join" in args:
 		join()
+	boot.queue_free()
+	boot = null
+	for f in [set_process, set_physics_process, set_process_input, set_process_unhandled_input]:
+		f.call(true)
 
 
 # ---------- connection ----------
